@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Person {
+  id             Int       @id @default(autoincrement())
+  registerId     Int?      @map("register_id")
+  username       String    @unique @db.VarChar(100)
+  password       String    @db.VarChar(255)
+  firstName      String    @map("first_name") @db.VarChar(100)
+  middleName     String    @map("middle_name") @db.VarChar(100)
+  lastName       String    @map("last_name") @db.VarChar(100)
+  email          String?   @db.VarChar(255)
+  phoneNumber    String?   @map("phone_number") @db.VarChar(50)
+  landline       String?   @db.VarChar(50)
+  urgentNumber   String?   @map("urgent_number") @db.VarChar(50)
+  address        String?   @db.Text
+  birthday       DateTime? @db.Date
+  gender         Int?      @db.SmallInt
+  picture        String?   @db.VarChar(255)
+  status         Boolean   @default(true)
+  identityNumber String?   @map("identity_number") @db.VarChar(50)
+  nationalityId  Int?      @map("nationality_id")
+  governorateId  Int?      @map("governorate_id")
+  regionId       Int?      @map("region_id")
+  villageId      Int?      @map("village_id")
+  bloodTypeId    Int?      @map("blood_type_id")
+  identityTypeId Int?      @map("identity_type_id")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  teacher Teacher?
+  parent  Parent?
+  student Student?
+
+  @@map("persons")
+}
+
+model Teacher {
+  id        Int      @id @default(autoincrement())
+  personId  Int      @unique @map("person_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@map("teachers")
+}
+
+model Parent {
+  id           Int      @id @default(autoincrement())
+  personId     Int      @unique @map("person_id")
+  currentJobId Int?     @map("current_job_id")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  person   Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+  students Student[]
+
+  @@map("parents")
+}
+
+model Student {
+  id           Int      @id @default(autoincrement())
+  personId     Int      @unique @map("person_id")
+  parentId     Int?     @map("parent_id")
+  motherName   String?  @map("mother_name") @db.VarChar(255)
+  motherFamily String?  @map("mother_family") @db.VarChar(255)
+  motherPhone  String?  @map("mother_phone") @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  person Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  parent Parent? @relation(fields: [parentId], references: [id], onDelete: SetNull)
+
+  @@map("students")
+}
