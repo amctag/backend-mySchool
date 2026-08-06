@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { createValidationPipe } from './config/validation';
@@ -9,10 +10,14 @@ async function bootstrap() {
 
   app.useGlobalPipes(createValidationPipe());
   app.setGlobalPrefix('api');
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+  });
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('My School API')
-    .setDescription('School management system API')
+    .setDescription('School management system API v1')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

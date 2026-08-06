@@ -354,5 +354,6 @@ model ParentSession {
 
   person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
 
+  @@unique([personId])
   @@map("parent_sessions")
 }

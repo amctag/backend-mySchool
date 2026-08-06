@@ -202,14 +202,7 @@ export class AuthService {
       throw new ForbiddenException('Only parents can use this endpoint');
     }
 
-    await this.prisma.parentSession.deleteMany({
-      where: {
-        id: user.sessionId,
-        personId: user.id,
-      },
-    });
-
-    await this.cleanupExpiredSessions();
+    await this.revokeParentSessions(user.id);
 
     return { message: 'Logged out successfully' };
   }
@@ -269,12 +262,18 @@ export class AuthService {
     const refreshToken = this.generateRefreshToken();
     const refreshExpiresAt = this.getRefreshExpiryDate();
 
-    const session = await this.prisma.parentSession.create({
-      data: {
-        personId: person.id,
-        refreshTokenHash: this.hashToken(refreshToken),
-        refreshExpiresAt,
-      },
+    const session = await this.prisma.$transaction(async (tx) => {
+      await tx.parentSession.deleteMany({
+        where: { personId: person.id },
+      });
+
+      return tx.parentSession.create({
+        data: {
+          personId: person.id,
+          refreshTokenHash: this.hashToken(refreshToken),
+          refreshExpiresAt,
+        },
+      });
     });
 
     await this.cleanupExpiredSessions();
@@ -377,6 +376,14 @@ export class AuthService {
     }
 
     return new Date(Date.now() + ttl);
+  }
+
+  private async revokeParentSessions(personId: number): Promise<void> {
+    await this.prisma.parentSession.deleteMany({
+      where: { personId },
+    });
+
+    await this.cleanupExpiredSessions();
   }
 
   private async cleanupExpiredSessions(): Promise<void> {

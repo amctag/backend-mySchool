@@ -19,8 +19,8 @@ import { ParentRefreshResponseDto } from './dto/parent-refresh-response.dto';
 import { ParentRefreshDto } from './dto/parent-refresh.dto';
 import { AuthenticatedParent } from './interfaces/jwt-payload.interface';
 
-@ApiTags('Auth')
-@Controller('auth')
+@ApiTags('Auth v1')
+@Controller({ path: 'auth', version: '1' })
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
