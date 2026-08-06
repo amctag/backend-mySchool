@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -13,33 +14,20 @@ import { PrismaService } from '../database/prisma/prisma.service';
 import { ParentLoginResponseDto } from './dto/parent-login-response.dto';
 import { ParentLoginDto } from './dto/parent-login.dto';
 import { ParentLogoutResponseDto } from './dto/parent-logout-response.dto';
+import { ParentMeResponseDto } from './dto/parent-me-response.dto';
 import { ParentRefreshResponseDto } from './dto/parent-refresh-response.dto';
 import {
   AuthenticatedParent,
   JwtPayload,
 } from './interfaces/jwt-payload.interface';
 
-type ParentPerson = {
+type LoginParentPerson = {
   id: number;
   username: string;
   firstName: string;
   middleName: string;
   lastName: string;
-  email: string | null;
-  schoolId: number | null;
-  parent: {
-    id: number;
-    students: Array<{
-      id: number;
-      person: {
-        id: number;
-        firstName: string;
-        lastName: string;
-        username: string;
-        schoolId: number | null;
-      };
-    }>;
-  };
+  parent: { id: number };
 };
 
 @Injectable()
@@ -56,8 +44,48 @@ export class AuthService {
 
     return {
       ...tokens,
-      parent: this.mapParentProfile(person),
-      children: this.mapChildren(person),
+      name: this.formatFullName(person),
+    };
+  }
+
+  async parentMe(user: AuthenticatedParent): Promise<ParentMeResponseDto> {
+    if (user.role !== 'parent') {
+      throw new ForbiddenException('Only parents can use this endpoint');
+    }
+
+    const person = await this.prisma.person.findFirst({
+      where: {
+        id: user.id,
+        status: true,
+        parent: { id: user.parentId },
+      },
+      include: {
+        parent: {
+          include: {
+            _count: {
+              select: { students: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!person?.parent) {
+      throw new NotFoundException('Parent not found');
+    }
+
+    return {
+      personId: person.id,
+      parentId: person.parent.id,
+      username: person.username,
+      firstName: person.firstName,
+      middleName: person.middleName,
+      lastName: person.lastName,
+      name: this.formatFullName(person),
+      email: person.email,
+      phoneNumber: person.phoneNumber,
+      schoolId: person.schoolId,
+      childrenCount: person.parent._count.students,
     };
   }
 
@@ -71,7 +99,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    const person = await this.findParentPerson(session.personId);
+    const person = await this.findLoginParentPerson(session.personId);
 
     if (!person?.parent) {
       await this.prisma.parentSession.delete({ where: { id: session.id } });
@@ -128,7 +156,7 @@ export class AuthService {
 
   private async validateParentCredentials(
     loginDto: ParentLoginDto,
-  ): Promise<ParentPerson> {
+  ): Promise<LoginParentPerson> {
     const candidates = await this.prisma.person.findMany({
       where: {
         username: loginDto.username,
@@ -137,21 +165,7 @@ export class AuthService {
       },
       include: {
         parent: {
-          include: {
-            students: {
-              include: {
-                person: {
-                  select: {
-                    id: true,
-                    firstName: true,
-                    lastName: true,
-                    username: true,
-                    schoolId: true,
-                  },
-                },
-              },
-            },
-          },
+          select: { id: true },
         },
       },
     });
@@ -167,14 +181,14 @@ export class AuthService {
       );
 
       if (passwordMatches && candidate.parent) {
-        return candidate as ParentPerson;
+        return candidate as LoginParentPerson;
       }
     }
 
     throw new UnauthorizedException('Invalid username or password');
   }
 
-  private async createSession(person: ParentPerson) {
+  private async createSession(person: LoginParentPerson) {
     const refreshToken = this.generateRefreshToken();
     const refreshExpiresAt = this.getRefreshExpiryDate();
 
@@ -192,7 +206,7 @@ export class AuthService {
   }
 
   private buildTokenResponse(
-    person: ParentPerson,
+    person: LoginParentPerson,
     sessionId: string,
     refreshToken: string,
   ) {
@@ -233,7 +247,9 @@ export class AuthService {
     });
   }
 
-  private async findParentPerson(personId: number): Promise<ParentPerson | null> {
+  private async findLoginParentPerson(
+    personId: number,
+  ): Promise<LoginParentPerson | null> {
     const person = await this.prisma.person.findFirst({
       where: {
         id: personId,
@@ -242,50 +258,22 @@ export class AuthService {
       },
       include: {
         parent: {
-          include: {
-            students: {
-              include: {
-                person: {
-                  select: {
-                    id: true,
-                    firstName: true,
-                    lastName: true,
-                    username: true,
-                    schoolId: true,
-                  },
-                },
-              },
-            },
-          },
+          select: { id: true },
         },
       },
     });
 
-    return person as ParentPerson | null;
+    return person as LoginParentPerson | null;
   }
 
-  private mapParentProfile(person: ParentPerson) {
-    return {
-      personId: person.id,
-      parentId: person.parent.id,
-      username: person.username,
-      firstName: person.firstName,
-      middleName: person.middleName,
-      lastName: person.lastName,
-      email: person.email,
-      schoolId: person.schoolId,
-    };
-  }
-
-  private mapChildren(person: ParentPerson) {
-    return person.parent.students.map((student) => ({
-      studentId: student.id,
-      personId: student.person.id,
-      firstName: student.person.firstName,
-      lastName: student.person.lastName,
-      username: student.person.username,
-      schoolId: student.person.schoolId,
-    }));
+  private formatFullName(person: {
+    firstName: string;
+    middleName: string;
+    lastName: string;
+  }): string {
+    return [person.firstName, person.middleName, person.lastName]
+      .filter(Boolean)
+      .join(' ');
   }
 
   private generateRefreshToken(): string {

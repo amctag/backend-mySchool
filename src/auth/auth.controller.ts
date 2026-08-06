@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -13,6 +13,7 @@ import { AuthService } from './auth.service';
 import { ParentLoginResponseDto } from './dto/parent-login-response.dto';
 import { ParentLoginDto } from './dto/parent-login.dto';
 import { ParentLogoutResponseDto } from './dto/parent-logout-response.dto';
+import { ParentMeResponseDto } from './dto/parent-me-response.dto';
 import { ParentRefreshResponseDto } from './dto/parent-refresh-response.dto';
 import { ParentRefreshDto } from './dto/parent-refresh.dto';
 import { AuthenticatedParent } from './interfaces/jwt-payload.interface';
@@ -42,6 +43,17 @@ export class AuthController {
     @Body() refreshDto: ParentRefreshDto,
   ): Promise<ParentRefreshResponseDto> {
     return this.authService.parentRefresh(refreshDto.refreshToken);
+  }
+
+  @Get('parent/me')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get logged-in parent profile' })
+  @ApiOkResponse({ type: ParentMeResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  parentMe(
+    @Req() request: Request & { user: AuthenticatedParent },
+  ): Promise<ParentMeResponseDto> {
+    return this.authService.parentMe(request.user);
   }
 
   @Post('parent/logout')
