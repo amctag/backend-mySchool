@@ -1,0 +1,718 @@
+# All Tables
+
+## `database-phase1.md`
+
+### `persons`
+
+Stores the core person profile, login, contact, and identity data used across the school system.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique person identifier |
+| `register_id` | INT NULLABLE | Student registration number |
+| `username` | VARCHAR(100) UNIQUE NOT NULL | Login name for authentication |
+| `password` | VARCHAR(255) NOT NULL | bcrypt hash - never plaintext |
+| `first_name` | VARCHAR(100) NOT NULL | First/given name |
+| `middle_name` | VARCHAR(100) NOT NULL | Middle/father name |
+| `last_name` | VARCHAR(100) NOT NULL | Family/last name |
+| `email` | VARCHAR(255) NULLABLE | Contact email |
+| `phone_number` | VARCHAR(50) NULLABLE | Primary phone number |
+| `landline` | VARCHAR(50) NULLABLE | Landline phone number |
+| `urgent_number` | VARCHAR(50) NULLABLE | Emergency contact number |
+| `address` | TEXT NULLABLE | Home address |
+| `birthday` | DATE NULLABLE | Date of birth |
+| `gender` | TINYINT UNSIGNED NULLABLE | 0=male, 1=female |
+| `picture` | VARCHAR(255) NULLABLE | Profile photo path |
+| `status` | BOOLEAN DEFAULT TRUE | Active/inactive account |
+| `identity_number` | VARCHAR(50) NULLABLE | National ID / passport |
+| `nationality_id` | BIGINT UNSIGNED FK→nationalities NULLABLE | Person's nationality |
+| `governorate_id` | BIGINT UNSIGNED FK→governorates NULLABLE | Home governorate |
+| `region_id` | BIGINT UNSIGNED FK→regions NULLABLE | Home region |
+| `village_id` | BIGINT UNSIGNED FK→villages NULLABLE | Home village/town |
+| `blood_type_id` | BIGINT UNSIGNED FK→blood_types NULLABLE | Blood type (medical) |
+| `identity_type_id` | BIGINT UNSIGNED FK→identity_types NULLABLE | ID document type |
+| `created_at` | TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | Last update |
+
+### `teachers`
+
+Links a person record to the teacher role.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `person_id` | BIGINT UNSIGNED FK→persons UNIQUE NOT NULL | Links to base person record |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `parents`
+
+Links a person record to the parent role and current job.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `person_id` | BIGINT UNSIGNED FK→persons UNIQUE NOT NULL | Related person |
+| `current_job_id` | BIGINT UNSIGNED FK→parent_jobs NOT NULL | Parent's occupation |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `students`
+
+Links a person record to the student role and stores parent and mother contact details.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `person_id` | BIGINT UNSIGNED FK→persons UNIQUE NOT NULL | Related person |
+| `parent_id` | BIGINT UNSIGNED FK→parents(id) NULLABLE | Primary parent/guardian |
+| `mother_name` | VARCHAR(255) NULLABLE | Mother's first name |
+| `mother_family` | VARCHAR(255) NULLABLE | Mother's family name |
+| `mother_phone` | VARCHAR(255) NULLABLE | Mother's phone |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `directors`
+
+Links a person record to the director role.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `person_id` | BIGINT UNSIGNED FK→persons UNIQUE NOT NULL | Related person |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `supervisors`
+
+Links a person record to the supervisor role.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `person_id` | BIGINT UNSIGNED FK→persons UNIQUE NOT NULL | Related person |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `users`
+
+Links a person record to an internal user account type such as admin or staff.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `person_id` | BIGINT UNSIGNED FK→persons UNIQUE NOT NULL | Related person |
+| `user_type_id` | BIGINT UNSIGNED FK→user_types NOT NULL | User account type |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `user_types`
+
+Stores reusable internal user role labels.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `title` | VARCHAR(255) NOT NULL | "Admin", "Staff", "Accountant" |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `years`
+
+Stores academic years and marks which one is currently active.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `title` | VARCHAR(20) UNIQUE NOT NULL | e.g. "2025-2026" |
+| `is_current` | BOOLEAN DEFAULT FALSE | Currently active year |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `stages`
+
+Stores academic stages such as Primary, Middle, and Secondary.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `title` | VARCHAR(100) NOT NULL | "Primary", "Middle", "Secondary" |
+| `position` | TINYINT UNSIGNED DEFAULT 0 | Display order |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `classes`
+
+Defines classes within a stage, including level and display order.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `class_name` | VARCHAR(100) NOT NULL | e.g. "4A", "5B" |
+| `stage_id` | BIGINT UNSIGNED FK→stages NOT NULL | Primary/Middle/Secondary |
+| `class_level` | TINYINT UNSIGNED NOT NULL | Numeric level (4, 5, 6) |
+| `position` | TINYINT UNSIGNED DEFAULT 0 | Sort order in listings |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `section_titles`
+
+Stores reusable section labels used when building yearly sections.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `title` | VARCHAR(100) UNIQUE NOT NULL | Title or label |
+| `status` | INT DEFAULT 1 | Active/inactive status |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `sections`
+
+Stores class sections for a specific academic year.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `class_id` | BIGINT UNSIGNED FK→classes NOT NULL | Related class |
+| `section_title_id` | BIGINT UNSIGNED FK→section_titles NOT NULL | Section title |
+| `year_id` | BIGINT UNSIGNED FK→years NOT NULL | Academic year |
+| `status` | INT DEFAULT 1 | Active/inactive |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `courses`
+
+Stores the course catalog, including optional parent-child course relationships.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `title` | VARCHAR(255) NOT NULL | Title or label |
+| `description` | TEXT NULLABLE | Course description |
+| `parent_id` | BIGINT UNSIGNED FK→courses NULLABLE | Parent course (e.g. English is parent of Grammar) |
+| `status` | BOOLEAN DEFAULT TRUE | Active/inactive |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `class_courses`
+
+Assigns courses to classes by academic year with grading and display settings.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `class_id` | BIGINT UNSIGNED FK→classes NOT NULL | Related class |
+| `course_id` | BIGINT UNSIGNED FK→courses NOT NULL | Related course |
+| `year_id` | BIGINT UNSIGNED FK→years NOT NULL | Academic year |
+| `coefficient` | DECIMAL(4,2) DEFAULT 1.00 | Weight for grade calculations |
+| `number_of_hours` | TINYINT UNSIGNED NULLABLE | Hours per week |
+| `calculation` | BOOLEAN DEFAULT TRUE | Grades count in total average |
+| `position` | TINYINT UNSIGNED DEFAULT 0 | Display order in grade report |
+| `abstract` | BOOLEAN DEFAULT FALSE | Secondary/non-core subject, not calculated |
+| `percentage` | DECIMAL(5,2) NULLABLE | Weight percentage |
+| `status` | BOOLEAN DEFAULT TRUE | Visible to students |
+| `visible` | BOOLEAN DEFAULT TRUE | Visible to grading |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `teach`
+
+Stores which teacher teaches which course to which section in a given year.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `teacher_id` | BIGINT UNSIGNED FK→teachers NOT NULL | Related teacher |
+| `section_id` | BIGINT UNSIGNED FK→sections NOT NULL | Related section |
+| `course_id` | BIGINT UNSIGNED FK→courses NOT NULL | Related course |
+| `year_id` | BIGINT UNSIGNED FK→years NOT NULL | Academic year |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `days`
+
+Stores the weekday lookup used by weekly schedules.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `day_name` | VARCHAR(50) NOT NULL | "Monday", "Tuesday" |
+| `position` | TINYINT UNSIGNED NOT NULL | 1=Monday, 2=Tuesday... |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `sessions`
+
+Stores timetable periods or sessions and their order in the day.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `session_name` | VARCHAR(50) NOT NULL | "1st Period", "2nd Period" |
+| `position` | TINYINT UNSIGNED DEFAULT 0 | Order within day |
+| `status` | BOOLEAN DEFAULT TRUE | Active/inactive status |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `weekly_schedules`
+
+Stores the weekly schedule header for a section.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `section_id` | BIGINT UNSIGNED FK→sections NOT NULL | Related section |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### `weekly_schedule_details`
+
+Stores individual weekly schedule entries by day, session, and course.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique record identifier |
+| `schedule_id` | BIGINT UNSIGNED FK→weekly_schedules NOT NULL | Related weekly schedule |
+| `day_id` | BIGINT UNSIGNED FK→days NOT NULL | Related day |
+| `session_id` | BIGINT UNSIGNED FK→sessions NOT NULL | Related session |
+| `course_id` | BIGINT UNSIGNED FK→courses NOT NULL | Related course |
+| `person_id` | BIGINT UNSIGNED FK→persons NULLABLE | Who added this entry |
+| `note` | TEXT NULLABLE | Additional notes |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+## `database-phase2.md`
+
+### `agendas`
+
+Stores shared agenda content for a course and date; recipient sections are linked separately.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique agenda identifier |
+| `description` | TEXT NOT NULL | Shared agenda content |
+| `date` | DATE NOT NULL | Agenda date |
+| `time` | VARCHAR(10) NOT NULL | Existing agenda time |
+| `person_id` | BIGINT UNSIGNED FK→persons NOT NULL | Creator person |
+| `course_id` | BIGINT UNSIGNED FK→courses NOT NULL | Course for the agenda |
+| `image_link` | TEXT NOT NULL | Image attachment link |
+| `file_link` | TEXT NOT NULL | File attachment link |
+| `published_date` | DATE NOT NULL | Publication date |
+| `created_at` | DATE NOT NULL | Original creation date |
+| `status` | INT NOT NULL | Agenda status |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `agenda_sections`
+
+Stores the snapshot list of recipient sections for each agenda.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique recipient identifier |
+| `agenda_id` | BIGINT UNSIGNED FK→agendas NOT NULL | Shared agenda |
+| `section_id` | BIGINT UNSIGNED FK→sections NOT NULL | Recipient section |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `activities`
+
+Stores school activities and events, optionally scoped to an academic year.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique activity identifier |
+| `title` | VARCHAR(255) NOT NULL | Activity title |
+| `content` | MEDIUMTEXT NOT NULL | Activity details |
+| `date` | DATE NOT NULL | Activity date |
+| `hits` | INT UNSIGNED DEFAULT 0 | View count |
+| `image` | MEDIUMTEXT NOT NULL | Activity image link or stored image value |
+| `person_id` | BIGINT UNSIGNED FK→persons NOT NULL | Creator person |
+| `year_id` | BIGINT UNSIGNED FK→years NULLABLE | Optional academic year |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `albums`
+
+Stores photo album metadata for one academic year.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique album identifier |
+| `title` | TEXT NOT NULL | Album title |
+| `description` | TEXT NOT NULL | Album description |
+| `date` | DATE NOT NULL | Album date |
+| `status` | INT NOT NULL | Active or archived status |
+| `year_id` | BIGINT UNSIGNED FK→years NOT NULL | Academic year |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `announcements`
+
+Stores shared announcement content that can be targeted to roles and sections separately.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique announcement identifier |
+| `title` | VARCHAR(255) NULLABLE | Optional announcement title |
+| `content` | MEDIUMTEXT NOT NULL | Announcement content |
+| `hits` | INT UNSIGNED DEFAULT 0 | View count |
+| `person_id` | BIGINT UNSIGNED FK→persons NOT NULL | Creator person |
+| `publish_date` | DATE NOT NULL | Publication date |
+| `publish_time` | TIME NOT NULL | Publication time |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `announcement_targets`
+
+Stores the audience roles selected for an announcement.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique role-target identifier |
+| `announcement_id` | BIGINT UNSIGNED FK→announcements ON DELETE CASCADE NOT NULL | Announcement |
+| `audience_target` | ENUM('parent','student','teacher','director','supervisor','coordinator') NOT NULL | Recipient role |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `announcement_sections`
+
+Stores the optional section and class scope for an announcement.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique section-target identifier |
+| `announcement_id` | BIGINT UNSIGNED FK→announcements ON DELETE CASCADE NOT NULL | Announcement |
+| `section_id` | BIGINT UNSIGNED FK→sections ON DELETE RESTRICT NOT NULL | Recipient section |
+| `class_id` | BIGINT UNSIGNED FK→classes ON DELETE RESTRICT NOT NULL | Recipient class |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `attendance_reasons`
+
+Stores reusable reasons for absence, lateness, or excused attendance.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique reason identifier |
+| `title` | VARCHAR(255) NOT NULL | Reason label |
+| `person_id` | BIGINT UNSIGNED FK→persons NOT NULL | Person who added the reason |
+| `status` | BOOLEAN DEFAULT TRUE | Active or inactive |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `attendance`
+
+Stores one attendance-taking session for a section on a specific date.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique session identifier |
+| `date` | DATE NOT NULL | Attendance date |
+| `section_id` | BIGINT UNSIGNED FK→sections NOT NULL | Target section |
+| `status` | BOOLEAN DEFAULT TRUE | Open or active status |
+| `person_id` | BIGINT UNSIGNED FK→persons NOT NULL | Person who recorded attendance |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `attendance_details`
+
+Stores one student attendance result inside an attendance session.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique attendance record |
+| `attendance_id` | BIGINT UNSIGNED FK→attendance NOT NULL | Attendance session |
+| `student_id` | BIGINT UNSIGNED FK→students NOT NULL | Student |
+| `status` | ENUM('present','absent','late','excused') NOT NULL | Attendance result |
+| `description` | TEXT NULLABLE | Optional note |
+| `attendance_reason_id` | BIGINT UNSIGNED FK→attendance_reasons NULLABLE | Optional reason |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `exam_schedules`
+
+Stores the main exam schedule header for a class in a specific academic year.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique exam schedule identifier |
+| `title` | VARCHAR(255) NOT NULL | Exam schedule title |
+| `class_id` | BIGINT UNSIGNED FK→classes NOT NULL | Target class |
+| `year_id` | BIGINT UNSIGNED FK→years NOT NULL | Academic year |
+| `grade_type_id` | BIGINT UNSIGNED FK→grade_types NOT NULL | Related grade or exam type |
+| `person_id` | BIGINT UNSIGNED FK→persons NOT NULL | Person who created the schedule |
+| `note` | TEXT NULLABLE | Optional schedule note |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `status` | BOOLEAN DEFAULT TRUE | Active or inactive schedule |
+
+### `exam_dates`
+
+Stores the exam dates that belong to an exam schedule.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique exam date identifier |
+| `date` | DATE NOT NULL | Exam date |
+| `exam_schedule_id` | BIGINT UNSIGNED FK→exam_schedules NOT NULL | Parent exam schedule |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `status` | BOOLEAN DEFAULT TRUE | Active or inactive exam date |
+
+### `exam_schedule_details`
+
+Stores the course-level entries inside one exam date.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique exam detail identifier |
+| `exam_date_id` | BIGINT UNSIGNED FK→exam_dates NOT NULL | Parent exam date |
+| `course_id` | BIGINT UNSIGNED FK→courses NOT NULL | Exam course |
+| `position` | TINYINT UNSIGNED DEFAULT 0 | Display or sequence order |
+| `duration` | INT UNSIGNED NOT NULL | Exam duration |
+| `note` | TEXT NULLABLE | Optional exam note |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `status` | BOOLEAN DEFAULT TRUE | Active or inactive exam detail |
+
+### `blood_types`
+
+Stores the blood-type lookup referenced by person records.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique blood-type identifier |
+| `title` | VARCHAR(255) NOT NULL | Blood-type label |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `countries`
+
+Stores the country lookup plus default and display-order settings.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique country identifier |
+| `title` | VARCHAR(255) NOT NULL | Country name |
+| `default_row` | BOOLEAN DEFAULT FALSE | Default selection |
+| `order_field` | INT UNSIGNED DEFAULT 0 | Display order |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `school_details`
+
+Stores the school contact, address, website, and about information.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique details identifier |
+| `telephone` | VARCHAR(255) NOT NULL | Landline number |
+| `phone` | VARCHAR(255) NOT NULL | Mobile number |
+| `fax` | VARCHAR(255) NOT NULL | Fax number |
+| `address` | VARCHAR(255) NOT NULL | School address |
+| `email` | VARCHAR(255) NOT NULL | Contact email |
+| `website` | VARCHAR(255) NOT NULL | School website |
+| `about` | text NOT NULL | About text for the school |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `notices`
+
+Stores shared notice content sent to selected students and/or sections.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique notice identifier |
+| `notice_description_template_id` | BIGINT UNSIGNED FK→notice_description_templates NULLABLE | Optional template used to create the notice |
+| `description` | TEXT NOT NULL | Notice content; may be edited after creation |
+| `person_id` | BIGINT UNSIGNED FK→persons NOT NULL | Person who created the notice |
+| `date` | DATE NOT NULL | Notice date |
+| `status` | BOOLEAN DEFAULT TRUE | Active or inactive notice |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `notice_students`
+
+Stores explicit student recipients for a notice.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique student-target identifier |
+| `notice_id` | BIGINT UNSIGNED FK→notices ON DELETE CASCADE NOT NULL | Shared notice |
+| `student_id` | BIGINT UNSIGNED FK→students ON DELETE RESTRICT NOT NULL | Recipient student |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `notice_sections`
+
+Stores section recipients for a notice.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique section-target identifier |
+| `notice_id` | BIGINT UNSIGNED FK→notices ON DELETE CASCADE NOT NULL | Shared notice |
+| `section_id` | BIGINT UNSIGNED FK→sections ON DELETE RESTRICT NOT NULL | Recipient section |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `notice_types`
+
+Stores notice categories used by reusable templates.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique notice-type identifier |
+| `title` | VARCHAR(255) NOT NULL | Notice type |
+| `person_id` | BIGINT UNSIGNED FK→persons NOT NULL | Person who recorded notice |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `notice_description_templates`
+
+Stores reusable notice descriptions grouped by notice type.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique template identifier |
+| `description` | TEXT NOT NULL | Template content |
+| `notice_type_id` | BIGINT UNSIGNED FK→notice_types NOT NULL | Notice type |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+## `databse-phase3.md`
+
+### `registrations`
+
+Stores a student's enrollment in a specific section and preserves registration history.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | INTEGER PK IDENTITY | Unique registration identifier |
+| `section_id` | INTEGER NOT NULL FK→`sections.id` | Section in which the student is registered |
+| `student_id` | INTEGER NOT NULL FK→`students.id` | Registered student |
+| `person_id` | INTEGER NOT NULL FK→`persons.id` | Person who created the registration |
+| `status` | BOOLEAN NOT NULL DEFAULT TRUE | Active/inactive registration |
+| `created_at` | TIMESTAMPTZ NOT NULL | Creation time |
+| `updated_at` | TIMESTAMPTZ NOT NULL | Last update time |
+
+### `grade_types`
+
+Stores reusable grade categories and flags that control grading behavior and display.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | INTEGER PK IDENTITY | Unique grade-type identifier |
+| `title` | VARCHAR(255) NOT NULL | Grade-type title |
+| `is_abstract` | BOOLEAN NOT NULL DEFAULT FALSE | Indicates a calculated/non-entered grade |
+| `position` | SMALLINT NOT NULL DEFAULT 0 | Display order |
+| `is_main` | BOOLEAN NOT NULL DEFAULT FALSE | Marks a major assessment |
+| `type` | VARCHAR(30) NOT NULL | Functional grade category |
+| `status` | BOOLEAN NOT NULL DEFAULT TRUE | Active/inactive |
+| `created_at` | TIMESTAMPTZ NOT NULL | Creation time |
+| `updated_at` | TIMESTAMPTZ NOT NULL | Last update time |
+
+### `grades`
+
+Stores one grade sheet for a section, course, and grade type; publication is driven by `publish_date`.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | INTEGER PK IDENTITY | Unique grade-sheet identifier |
+| `section_id` | INTEGER NOT NULL FK→`sections.id` | Target section |
+| `course_id` | INTEGER NOT NULL FK→`courses.id` | Related course |
+| `grade_type_id` | INTEGER NOT NULL FK→`grade_types.id` | Grade category |
+| `max_grade` | NUMERIC(7,2) NOT NULL | Maximum possible score |
+| `publish_date` | TIMESTAMPTZ NULL | Publication date and time |
+| `person_id` | INTEGER NOT NULL FK→`persons.id` | Creator |
+| `created_at` | TIMESTAMPTZ NOT NULL | Creation time |
+| `updated_at` | TIMESTAMPTZ NOT NULL | Last update time |
+
+### `grade_details`
+
+Stores each registered student's score and comment within a grade sheet.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | INTEGER PK IDENTITY | Unique grade-detail identifier |
+| `grade_id` | INTEGER NOT NULL FK→`grades.id` | Parent grade sheet |
+| `registration_id` | INTEGER NOT NULL FK→`registrations.id` | Student's section registration |
+| `grade` | NUMERIC(7,2) NULL | Student score |
+| `comment` | TEXT NULL | Optional teacher comment |
+| `created_at` | TIMESTAMPTZ NOT NULL | Creation time |
+| `updated_at` | TIMESTAMPTZ NOT NULL | Last update time |
+
+### `grade_form`
+
+Stores a reusable report-card or grade-report layout for an academic year.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | INTEGER PK IDENTITY | Unique form identifier |
+| `title` | VARCHAR(255) NOT NULL | Form title |
+| `year_id` | INTEGER NOT NULL FK→`years.id` | Academic year |
+| `grade_background` | VARCHAR(255) NULL | Background image, path, or style value |
+| `average` | BOOLEAN NOT NULL DEFAULT TRUE | Whether averages are displayed |
+| `direction` | VARCHAR(10) NOT NULL DEFAULT `'ltr'` | Text direction |
+| `table_format` | VARCHAR(30) NOT NULL DEFAULT `'standard'` | Table layout type |
+| `grade_format_id` | INTEGER NOT NULL | Display format: numeric or letter grades |
+| `status` | BOOLEAN NOT NULL DEFAULT TRUE | Active/inactive |
+| `created_at` | TIMESTAMPTZ NOT NULL | Creation time |
+| `updated_at` | TIMESTAMPTZ NOT NULL | Last update time |
+
+### `grade_form_class`
+
+Stores assignments of grade forms to classes.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | INTEGER PK IDENTITY | Unique assignment identifier |
+| `class_id` | INTEGER NOT NULL FK→`classes.id` | Target class |
+| `grade_form_id` | INTEGER NOT NULL FK→`grade_form.id` | Assigned format |
+| `created_at` | TIMESTAMPTZ NOT NULL | Creation time |
+| `updated_at` | TIMESTAMPTZ NOT NULL | Last update time |
+
+### `grade_form_detail`
+
+Stores which grade types appear in a grade form and in what order.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | INTEGER PK IDENTITY | Unique format-detail identifier |
+| `grade_type_id` | INTEGER NOT NULL FK→`grade_types.id` | Grade type displayed |
+| `grade_form_id` | INTEGER NOT NULL FK→`grade_form.id` | Parent format |
+| `position` | SMALLINT NOT NULL DEFAULT 0 | Display order |
+| `status` | BOOLEAN NOT NULL DEFAULT TRUE | Active/inactive |
+| `is_visible` | BOOLEAN NOT NULL DEFAULT TRUE | Whether the item is displayed |
+| `created_at` | TIMESTAMPTZ NOT NULL | Creation time |
+| `updated_at` | TIMESTAMPTZ NOT NULL | Last update time |
+
+### `grade_form_percentage`
+
+Stores the percentage weight assigned to a grade-form detail; active totals are usually expected to add to 100.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | INTEGER PK IDENTITY | Unique percentage identifier |
+| `grade_format_detail_id` | INTEGER NOT NULL FK→`grade_form_detail.id` | Weighted format detail |
+| `percentage` | NUMERIC(5,2) NOT NULL | Weight from 0 to 100 |
+| `status` | BOOLEAN NOT NULL DEFAULT TRUE | Active/inactive |
+| `created_at` | TIMESTAMPTZ NOT NULL | Creation time |
+| `updated_at` | TIMESTAMPTZ NOT NULL | Last update time |

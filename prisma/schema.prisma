@@ -33,9 +33,10 @@ model Person {
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  teacher Teacher?
-  parent  Parent?
-  student Student?
+  teacher                Teacher?
+  parent                 Parent?
+  student                Student?
+  weeklyScheduleDetails  WeeklyScheduleDetail[]
 
   @@map("persons")
 }
@@ -46,7 +47,8 @@ model Teacher {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  person Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  teaches  Teach[]
 
   @@map("teachers")
 }
@@ -78,4 +80,191 @@ model Student {
   parent Parent? @relation(fields: [parentId], references: [id], onDelete: SetNull)
 
   @@map("students")
+}
+
+model Year {
+  id        Int      @id @default(autoincrement())
+  title     String   @unique @db.VarChar(20)
+  isCurrent Boolean  @default(false) @map("is_current")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  sections     Section[]
+  classCourses ClassCourse[]
+  teaches      Teach[]
+
+  @@map("years")
+}
+
+model Stage {
+  id        Int      @id @default(autoincrement())
+  title     String   @db.VarChar(100)
+  position  Int      @default(0) @db.SmallInt
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  classes Class[]
+
+  @@map("stages")
+}
+
+model Class {
+  id         Int      @id @default(autoincrement())
+  className  String   @map("class_name") @db.VarChar(100)
+  stageId    Int      @map("stage_id")
+  classLevel Int      @map("class_level") @db.SmallInt
+  position   Int      @default(0) @db.SmallInt
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  stage        Stage         @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  sections     Section[]
+  classCourses ClassCourse[]
+
+  @@map("classes")
+}
+
+model SectionTitle {
+  id        Int      @id @default(autoincrement())
+  title     String   @unique @db.VarChar(100)
+  status    Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  sections Section[]
+
+  @@map("section_titles")
+}
+
+model Section {
+  id             Int      @id @default(autoincrement())
+  classId        Int      @map("class_id")
+  sectionTitleId Int      @map("section_title_id")
+  yearId         Int      @map("year_id")
+  status         Int      @default(1)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  class            Class             @relation(fields: [classId], references: [id], onDelete: Restrict)
+  sectionTitle     SectionTitle      @relation(fields: [sectionTitleId], references: [id], onDelete: Restrict)
+  year             Year              @relation(fields: [yearId], references: [id], onDelete: Restrict)
+  teaches          Teach[]
+  weeklySchedules  WeeklySchedule[]
+
+  @@map("sections")
+}
+
+model Course {
+  id          Int      @id @default(autoincrement())
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  parentId    Int?     @map("parent_id")
+  status      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  parent                 Course?                 @relation("CourseHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children               Course[]                @relation("CourseHierarchy")
+  classCourses           ClassCourse[]
+  teaches                Teach[]
+  weeklyScheduleDetails  WeeklyScheduleDetail[]
+
+  @@map("courses")
+}
+
+model ClassCourse {
+  id            Int      @id @default(autoincrement())
+  classId       Int      @map("class_id")
+  courseId      Int      @map("course_id")
+  yearId        Int      @map("year_id")
+  coefficient   Decimal  @default(1.0) @db.Decimal(4, 2)
+  numberOfHours Int?     @map("number_of_hours") @db.SmallInt
+  calculation   Boolean  @default(true)
+  position      Int      @default(0) @db.SmallInt
+  abstract      Boolean  @default(false)
+  percentage    Decimal? @db.Decimal(5, 2)
+  status        Boolean  @default(true)
+  visible       Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  class  Class  @relation(fields: [classId], references: [id], onDelete: Restrict)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  year   Year   @relation(fields: [yearId], references: [id], onDelete: Restrict)
+
+  @@map("class_courses")
+}
+
+model Teach {
+  id        Int      @id @default(autoincrement())
+  teacherId Int      @map("teacher_id")
+  sectionId Int      @map("section_id")
+  courseId  Int      @map("course_id")
+  yearId    Int      @map("year_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  year    Year    @relation(fields: [yearId], references: [id], onDelete: Restrict)
+
+  @@map("teach")
+}
+
+model Day {
+  id        Int      @id @default(autoincrement())
+  dayName   String   @map("day_name") @db.VarChar(50)
+  position  Int      @db.SmallInt
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  weeklyScheduleDetails WeeklyScheduleDetail[]
+
+  @@map("days")
+}
+
+model Session {
+  id          Int      @id @default(autoincrement())
+  sessionName String   @map("session_name") @db.VarChar(50)
+  position    Int      @default(0) @db.SmallInt
+  status      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  weeklyScheduleDetails WeeklyScheduleDetail[]
+
+  @@map("sessions")
+}
+
+model WeeklySchedule {
+  id        Int      @id @default(autoincrement())
+  sectionId Int      @map("section_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  section Section                @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  details WeeklyScheduleDetail[]
+
+  @@map("weekly_schedules")
+}
+
+model WeeklyScheduleDetail {
+  id         Int      @id @default(autoincrement())
+  scheduleId Int      @map("schedule_id")
+  dayId      Int      @map("day_id")
+  sessionId  Int      @map("session_id")
+  courseId   Int      @map("course_id")
+  personId   Int?     @map("person_id")
+  note       String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  schedule WeeklySchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  day      Day              @relation(fields: [dayId], references: [id], onDelete: Restrict)
+  session  Session          @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  course   Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  person   Person?          @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  @@map("weekly_schedule_details")
 }
