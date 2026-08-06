@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 import { Pool } from 'pg';
 
 const connectionString = process.env.DATABASE_URL;
@@ -13,9 +14,8 @@ const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-/** bcrypt hash for: password123 */
-const DEFAULT_PASSWORD =
-  '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
+/** All seeded accounts use this password */
+const DEFAULT_PASSWORD = bcrypt.hashSync('password123', 10);
 
 const baseProfile = {
   password: DEFAULT_PASSWORD,
