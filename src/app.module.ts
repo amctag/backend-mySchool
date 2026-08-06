@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import appConfig from './config/app.config';
+import corsConfig from './config/cors.config';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
 import throttleConfig from './config/throttle.config';
@@ -19,7 +20,7 @@ import { SchoolModule } from './modules/school/school.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, jwtConfig, throttleConfig],
+      load: [appConfig, databaseConfig, jwtConfig, throttleConfig, corsConfig],
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
