@@ -2,8 +2,9 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import cors from 'cors';
 import { AppModule } from './app.module';
-import { createCorsOriginChecker } from './config/cors';
+import { createCorsDelegate } from './config/cors';
 import { createValidationPipe } from './config/validation';
 
 async function bootstrap() {
@@ -11,15 +12,15 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
-  app.enableCors({
-    origin: createCorsOriginChecker(
-      configService.get<string[]>('cors.origins') ?? [],
-      configService.get<boolean>('cors.allowLocalhost') ?? true,
+  app.getHttpAdapter().getInstance().use(
+    cors(
+      createCorsDelegate({
+        allowedOrigins: configService.get<string[]>('cors.origins') ?? [],
+        allowLocalhost: configService.get<boolean>('cors.allowLocalhost') ?? true,
+        allowSameHost: configService.get<boolean>('cors.allowSameHost') ?? true,
+      }),
     ),
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  });
+  );
 
   app.useGlobalPipes(createValidationPipe());
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
