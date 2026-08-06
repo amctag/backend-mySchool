@@ -9,6 +9,10 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  override get parentSession(): PrismaClient['parentSession'] {
+    return super.parentSession;
+  }
+
   private readonly pool: Pool;
 
   constructor(configService: ConfigService) {

@@ -30,7 +30,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:seed": "node dist/database/seed/seed.js",
-    "prisma:seed:dev": "ts-node src/database/seed/seed.ts"
+    "prisma:seed:dev": "ts-node src/database/seed/seed.ts",
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "node dist/database/seed/seed.js"
