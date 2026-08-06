@@ -6,10 +6,31 @@ datasource db {
   provider = "postgresql"
 }
 
+model School {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(255)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  persons       Person[]
+  years         Year[]
+  stages        Stage[]
+  sectionTitles SectionTitle[]
+  sections      Section[]
+  courses       Course[]
+  days          Day[]
+  sessions      Session[]
+  teacherSchools TeacherSchool[]
+
+  @@map("school")
+}
+
 model Person {
   id             Int       @id @default(autoincrement())
+  schoolId       Int?      @map("school_id")
   registerId     Int?      @map("register_id")
-  username       String    @unique @db.VarChar(100)
+  username       String    @db.VarChar(100)
   password       String    @db.VarChar(255)
   firstName      String    @map("first_name") @db.VarChar(100)
   middleName     String    @map("middle_name") @db.VarChar(100)
@@ -33,12 +54,14 @@ model Person {
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  teacher                Teacher?
-  parent                 Parent?
-  student                Student?
-  weeklyScheduleDetails  WeeklyScheduleDetail[]
-  registrations          Registration[]
+  school                School?                @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  teacher               Teacher?
+  parent                Parent?
+  student               Student?
+  weeklyScheduleDetails WeeklyScheduleDetail[]
+  registrations         Registration[]
 
+  @@unique([schoolId, username])
   @@map("persons")
 }
 
@@ -48,10 +71,26 @@ model Teacher {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  person Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
-  teaches  Teach[]
+  person  Person          @relation(fields: [personId], references: [id], onDelete: Cascade)
+  schools TeacherSchool[]
+  teaches Teach[]
 
   @@map("teachers")
+}
+
+model TeacherSchool {
+  id        Int      @id @default(autoincrement())
+  teacherId Int      @map("teacher_id")
+  schoolId  Int      @map("school_id")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, schoolId])
+  @@map("teacher_schools")
 }
 
 model Parent {
@@ -86,25 +125,30 @@ model Student {
 
 model Year {
   id        Int      @id @default(autoincrement())
-  title     String   @unique @db.VarChar(20)
+  schoolId  Int      @map("school_id")
+  title     String   @db.VarChar(20)
   isCurrent Boolean  @default(false) @map("is_current")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  school       School        @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   sections     Section[]
   classCourses ClassCourse[]
   teaches      Teach[]
 
+  @@unique([schoolId, title])
   @@map("years")
 }
 
 model Stage {
   id        Int      @id @default(autoincrement())
+  schoolId  Int      @map("school_id")
   title     String   @db.VarChar(100)
   position  Int      @default(0) @db.SmallInt
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   classes Class[]
 
   @@map("stages")
@@ -128,18 +172,22 @@ model Class {
 
 model SectionTitle {
   id        Int      @id @default(autoincrement())
-  title     String   @unique @db.VarChar(100)
+  schoolId  Int      @map("school_id")
+  title     String   @db.VarChar(100)
   status    Int      @default(1)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  school   School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   sections Section[]
 
+  @@unique([schoolId, title])
   @@map("section_titles")
 }
 
 model Section {
   id             Int      @id @default(autoincrement())
+  schoolId       Int      @map("school_id")
   classId        Int      @map("class_id")
   sectionTitleId Int      @map("section_title_id")
   yearId         Int      @map("year_id")
@@ -147,9 +195,10 @@ model Section {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  class            Class             @relation(fields: [classId], references: [id], onDelete: Restrict)
-  sectionTitle     SectionTitle      @relation(fields: [sectionTitleId], references: [id], onDelete: Restrict)
-  year             Year              @relation(fields: [yearId], references: [id], onDelete: Restrict)
+  school           School           @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  class            Class            @relation(fields: [classId], references: [id], onDelete: Restrict)
+  sectionTitle     SectionTitle     @relation(fields: [sectionTitleId], references: [id], onDelete: Restrict)
+  year             Year             @relation(fields: [yearId], references: [id], onDelete: Restrict)
   teaches          Teach[]
   weeklySchedules  WeeklySchedule[]
   registrations    Registration[]
@@ -159,6 +208,7 @@ model Section {
 
 model Course {
   id          Int      @id @default(autoincrement())
+  schoolId    Int      @map("school_id")
   title       String   @db.VarChar(255)
   description String?  @db.Text
   parentId    Int?     @map("parent_id")
@@ -166,11 +216,12 @@ model Course {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  parent                 Course?                 @relation("CourseHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children               Course[]                @relation("CourseHierarchy")
-  classCourses           ClassCourse[]
-  teaches                Teach[]
-  weeklyScheduleDetails  WeeklyScheduleDetail[]
+  school                School                 @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  parent                Course?                @relation("CourseHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children              Course[]               @relation("CourseHierarchy")
+  classCourses          ClassCourse[]
+  teaches               Teach[]
+  weeklyScheduleDetails WeeklyScheduleDetail[]
 
   @@map("courses")
 }
@@ -217,11 +268,13 @@ model Teach {
 
 model Day {
   id        Int      @id @default(autoincrement())
+  schoolId  Int      @map("school_id")
   dayName   String   @map("day_name") @db.VarChar(50)
   position  Int      @db.SmallInt
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  school                School                 @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   weeklyScheduleDetails WeeklyScheduleDetail[]
 
   @@map("days")
@@ -229,12 +282,14 @@ model Day {
 
 model Session {
   id          Int      @id @default(autoincrement())
+  schoolId    Int      @map("school_id")
   sessionName String   @map("session_name") @db.VarChar(50)
   position    Int      @default(0) @db.SmallInt
   status      Boolean  @default(true)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  school                School                 @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   weeklyScheduleDetails WeeklyScheduleDetail[]
 
   @@map("sessions")
