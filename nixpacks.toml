@@ -1,9 +1,12 @@
 [variables]
 NODE_VERSION = "22.12.0"
 NIXPACKS_NODE_VERSION = "22.12.0"
+NIXPACKS_BUILD_CMD = "npm run build"
+NIXPACKS_START_CMD = "npm run start:prod"
+NIXPACKS_INSTALL_CMD = "npm ci --include=dev"
 
 [phases.install]
-cmds = ["npm ci"]
+cmds = ["npm ci --include=dev"]
 
 [phases.build]
 cmds = ["npm run build"]
