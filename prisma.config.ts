@@ -5,7 +5,7 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
-    seed: 'ts-node src/database/seed/seed.ts',
+    seed: 'node dist/database/seed/seed.js',
   },
   datasource: {
     url:

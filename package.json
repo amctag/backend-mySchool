@@ -29,10 +29,11 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:seed": "ts-node src/database/seed/seed.ts"
+    "prisma:seed": "node dist/database/seed/seed.js",
+    "prisma:seed:dev": "ts-node src/database/seed/seed.ts"
   },
   "prisma": {
-    "seed": "ts-node src/database/seed/seed.ts"
+    "seed": "node dist/database/seed/seed.js"
   },
   "dependencies": {
     "@nestjs/cli": "^11.0.0",
