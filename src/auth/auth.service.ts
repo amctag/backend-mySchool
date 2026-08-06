@@ -14,6 +14,7 @@ import { PrismaService } from '../database/prisma/prisma.service';
 import { ParentLoginResponseDto } from './dto/parent-login-response.dto';
 import { ParentLoginDto } from './dto/parent-login.dto';
 import { ParentLogoutResponseDto } from './dto/parent-logout-response.dto';
+import { ParentMeChildrenResponseDto } from './dto/parent-me-children-response.dto';
 import { ParentMeResponseDto } from './dto/parent-me-response.dto';
 import { ParentRefreshResponseDto } from './dto/parent-refresh-response.dto';
 import {
@@ -84,8 +85,84 @@ export class AuthService {
       name: this.formatFullName(person),
       email: person.email,
       phoneNumber: person.phoneNumber,
-      schoolId: person.schoolId,
       childrenCount: person.parent._count.students,
+    };
+  }
+
+  async parentMeChildren(
+    user: AuthenticatedParent,
+  ): Promise<ParentMeChildrenResponseDto> {
+    if (user.role !== 'parent') {
+      throw new ForbiddenException('Only parents can use this endpoint');
+    }
+
+    const students = await this.prisma.student.findMany({
+      where: { parentId: user.parentId },
+      include: {
+        person: {
+          include: {
+            school: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+        registrations: {
+          where: { status: true },
+          include: {
+            section: {
+              include: {
+                class: true,
+                sectionTitle: true,
+                year: true,
+                school: {
+                  select: { id: true, name: true },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: {
+        person: { firstName: 'asc' },
+      },
+    });
+
+    return {
+      children: students.map((student) => {
+        const registration = student.registrations[0];
+        const school = student.person.school;
+
+        return {
+          studentId: student.id,
+          personId: student.person.id,
+          registerId: student.person.registerId,
+          username: student.person.username,
+          firstName: student.person.firstName,
+          middleName: student.person.middleName,
+          lastName: student.person.lastName,
+          name: this.formatFullName(student.person),
+          email: student.person.email,
+          gender: student.person.gender,
+          birthday: student.person.birthday?.toISOString() ?? null,
+          schoolId: school?.id ?? student.person.schoolId!,
+          schoolName: school?.name ?? '',
+          motherName: student.motherName,
+          motherFamily: student.motherFamily,
+          motherPhone: student.motherPhone,
+          registration: registration
+            ? {
+                sectionId: registration.section.id,
+                className: registration.section.class.className,
+                sectionTitle: registration.section.sectionTitle.title,
+                yearTitle: registration.section.year.title,
+                schoolId: registration.section.school.id,
+                schoolName: registration.section.school.name,
+              }
+            : null,
+        };
+      }),
     };
   }
 

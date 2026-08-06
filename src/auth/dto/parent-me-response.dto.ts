@@ -28,9 +28,6 @@ export class ParentMeResponseDto {
   @ApiProperty({ example: '+96170000001', nullable: true })
   phoneNumber: string | null;
 
-  @ApiProperty({ example: null, nullable: true })
-  schoolId: number | null;
-
   @ApiProperty({ example: 2 })
   childrenCount: number;
 }

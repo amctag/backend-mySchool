@@ -13,6 +13,7 @@ import { AuthService } from './auth.service';
 import { ParentLoginResponseDto } from './dto/parent-login-response.dto';
 import { ParentLoginDto } from './dto/parent-login.dto';
 import { ParentLogoutResponseDto } from './dto/parent-logout-response.dto';
+import { ParentMeChildrenResponseDto } from './dto/parent-me-children-response.dto';
 import { ParentMeResponseDto } from './dto/parent-me-response.dto';
 import { ParentRefreshResponseDto } from './dto/parent-refresh-response.dto';
 import { ParentRefreshDto } from './dto/parent-refresh.dto';
@@ -54,6 +55,17 @@ export class AuthController {
     @Req() request: Request & { user: AuthenticatedParent },
   ): Promise<ParentMeResponseDto> {
     return this.authService.parentMe(request.user);
+  }
+
+  @Get('parent/me/children')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get logged-in parent children' })
+  @ApiOkResponse({ type: ParentMeChildrenResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  parentMeChildren(
+    @Req() request: Request & { user: AuthenticatedParent },
+  ): Promise<ParentMeChildrenResponseDto> {
+    return this.authService.parentMeChildren(request.user);
   }
 
   @Post('parent/logout')
