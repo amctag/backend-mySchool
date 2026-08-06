@@ -341,18 +341,16 @@ export class AuthService {
     const refreshToken = this.generateRefreshToken();
     const refreshExpiresAt = this.getRefreshExpiryDate();
 
-    const session = await this.prisma.$transaction(async (tx) => {
-      await tx.parentSession.deleteMany({
-        where: { personId: person.id },
-      });
+    await this.prisma.parentSession.deleteMany({
+      where: { personId: person.id },
+    });
 
-      return tx.parentSession.create({
-        data: {
-          personId: person.id,
-          refreshTokenHash: this.hashToken(refreshToken),
-          refreshExpiresAt,
-        },
-      });
+    const session = await this.prisma.parentSession.create({
+      data: {
+        personId: person.id,
+        refreshTokenHash: this.hashToken(refreshToken),
+        refreshExpiresAt,
+      },
     });
 
     await this.cleanupExpiredSessions();
