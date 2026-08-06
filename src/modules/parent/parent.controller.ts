@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Req } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -6,11 +7,12 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Request } from 'express';
-import { Public } from '../common/decorators/public.decorator';
-import { AuthService } from './auth.service';
+import { AuthenticatedParent } from '../../auth/interfaces/jwt-payload.interface';
+import { Public } from '../../common/decorators/public.decorator';
 import { ParentLoginResponseDto } from './dto/parent-login-response.dto';
 import { ParentLoginDto } from './dto/parent-login.dto';
 import { ParentLogoutResponseDto } from './dto/parent-logout-response.dto';
@@ -19,77 +21,80 @@ import { ParentMeChildrenSummaryResponseDto } from './dto/parent-me-children-sum
 import { ParentMeResponseDto } from './dto/parent-me-response.dto';
 import { ParentRefreshResponseDto } from './dto/parent-refresh-response.dto';
 import { ParentRefreshDto } from './dto/parent-refresh.dto';
-import { AuthenticatedParent } from './interfaces/jwt-payload.interface';
-@ApiTags('Auth v1')
-@Controller({ path: 'auth', version: '1' })
-export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+import { ParentService } from './parent.service';
+
+@ApiTags('Parent v1')
+@Controller({ path: 'parent', version: '1' })
+export class ParentController {
+  constructor(private readonly parentService: ParentService) {}
 
   @Public()
-  @Post('parent/login')
+  @Throttle({ auth: {} })
+  @Post('login')
   @ApiOperation({ summary: 'Parent login' })
   @ApiOkResponse({ type: ParentLoginResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   @ApiUnauthorizedResponse({ description: 'Invalid username or password' })
-  parentLogin(@Body() loginDto: ParentLoginDto): Promise<ParentLoginResponseDto> {
-    return this.authService.parentLogin(loginDto);
+  @ApiTooManyRequestsResponse({ description: 'Too many login attempts' })
+  login(@Body() loginDto: ParentLoginDto): Promise<ParentLoginResponseDto> {
+    return this.parentService.login(loginDto);
   }
 
   @Public()
-  @Post('parent/refresh')
+  @Throttle({ auth: {} })
+  @Post('refresh')
   @ApiOperation({ summary: 'Refresh parent access token' })
   @ApiOkResponse({ type: ParentRefreshResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   @ApiUnauthorizedResponse({ description: 'Invalid or expired refresh token' })
-  parentRefresh(
-    @Body() refreshDto: ParentRefreshDto,
-  ): Promise<ParentRefreshResponseDto> {
-    return this.authService.parentRefresh(refreshDto.refreshToken);
+  @ApiTooManyRequestsResponse({ description: 'Too many refresh attempts' })
+  refresh(@Body() refreshDto: ParentRefreshDto): Promise<ParentRefreshResponseDto> {
+    return this.parentService.refresh(refreshDto.refreshToken);
   }
 
-  @Get('parent/me')
+  @Get('me')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get logged-in parent profile' })
   @ApiOkResponse({ type: ParentMeResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
-  parentMe(
+  getProfile(
     @Req() request: Request & { user: AuthenticatedParent },
   ): Promise<ParentMeResponseDto> {
-    return this.authService.parentMe(request.user);
+    return this.parentService.getProfile(request.user);
   }
 
-  @Get('parent/me/children')
+  @Get('me/children')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get parent children names and years' })
   @ApiOkResponse({ type: ParentMeChildrenSummaryResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
-  parentMeChildren(
+  getChildrenSummary(
     @Req() request: Request & { user: AuthenticatedParent },
   ): Promise<ParentMeChildrenSummaryResponseDto> {
-    return this.authService.parentMeChildrenSummary(request.user);
+    return this.parentService.getChildrenSummary(request.user);
   }
 
-  @Get('parent/me/children/:studentId')
+  @Get('me/children/:studentId')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get full child information' })
   @ApiOkResponse({ type: ParentMeChildDetailResponseDto })
   @ApiNotFoundResponse({ description: 'Child not found' })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
-  parentMeChildDetail(
+  getChildDetail(
     @Req() request: Request & { user: AuthenticatedParent },
     @Param('studentId', ParseIntPipe) studentId: number,
   ): Promise<ParentMeChildDetailResponseDto> {
-    return this.authService.parentMeChildDetail(request.user, studentId);
+    return this.parentService.getChildDetail(request.user, studentId);
   }
 
-  @Post('parent/logout')
+  @Post('logout')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Parent logout' })
   @ApiOkResponse({ type: ParentLogoutResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
-  parentLogout(
+  logout(
     @Req() request: Request & { user: AuthenticatedParent },
   ): Promise<ParentLogoutResponseDto> {
-    return this.authService.parentLogout(request.user);
+    return this.parentService.logout(request.user);
   }
 }

@@ -6,15 +6,15 @@ import {
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
-import { AuthService } from '../../auth/auth.service';
 import { AuthenticatedParent } from '../../auth/interfaces/jwt-payload.interface';
+import { SessionService } from '../../auth/services/session.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
   constructor(
     private reflector: Reflector,
-    private authService: AuthService,
+    private sessionService: SessionService,
   ) {
     super();
   }
@@ -39,7 +39,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       .switchToHttp()
       .getRequest<Request & { user: AuthenticatedParent }>();
 
-    if (!(await this.authService.isSessionActive(request.user.sessionId))) {
+    if (!(await this.sessionService.isSessionActive(request.user.sessionId))) {
       throw new UnauthorizedException('Session is invalid or expired');
     }
 

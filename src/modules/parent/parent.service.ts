@@ -10,7 +10,12 @@ import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import ms from 'ms';
 import type { StringValue } from 'ms';
-import { PrismaService } from '../database/prisma/prisma.service';
+import {
+  AuthenticatedParent,
+  JwtPayload,
+} from '../../auth/interfaces/jwt-payload.interface';
+import { SessionService } from '../../auth/services/session.service';
+import { PrismaService } from '../../database/prisma/prisma.service';
 import { ParentLoginResponseDto } from './dto/parent-login-response.dto';
 import { ParentLoginDto } from './dto/parent-login.dto';
 import { ParentLogoutResponseDto } from './dto/parent-logout-response.dto';
@@ -18,10 +23,6 @@ import { ParentMeChildDetailResponseDto } from './dto/parent-me-children-respons
 import { ParentMeChildrenSummaryResponseDto } from './dto/parent-me-children-summary-response.dto';
 import { ParentMeResponseDto } from './dto/parent-me-response.dto';
 import { ParentRefreshResponseDto } from './dto/parent-refresh-response.dto';
-import {
-  AuthenticatedParent,
-  JwtPayload,
-} from './interfaces/jwt-payload.interface';
 
 type LoginParentPerson = {
   id: number;
@@ -33,15 +34,16 @@ type LoginParentPerson = {
 };
 
 @Injectable()
-export class AuthService {
+export class ParentService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly sessionService: SessionService,
   ) {}
 
-  async parentLogin(loginDto: ParentLoginDto): Promise<ParentLoginResponseDto> {
-    const person = await this.validateParentCredentials(loginDto);
+  async login(loginDto: ParentLoginDto): Promise<ParentLoginResponseDto> {
+    const person = await this.validateCredentials(loginDto);
     const tokens = await this.createSession(person);
 
     return {
@@ -50,10 +52,8 @@ export class AuthService {
     };
   }
 
-  async parentMe(user: AuthenticatedParent): Promise<ParentMeResponseDto> {
-    if (user.role !== 'parent') {
-      throw new ForbiddenException('Only parents can use this endpoint');
-    }
+  async getProfile(user: AuthenticatedParent): Promise<ParentMeResponseDto> {
+    this.ensureParentRole(user);
 
     const person = await this.prisma.person.findFirst({
       where: {
@@ -90,12 +90,10 @@ export class AuthService {
     };
   }
 
-  async parentMeChildrenSummary(
+  async getChildrenSummary(
     user: AuthenticatedParent,
   ): Promise<ParentMeChildrenSummaryResponseDto> {
-    if (user.role !== 'parent') {
-      throw new ForbiddenException('Only parents can use this endpoint');
-    }
+    this.ensureParentRole(user);
 
     const students = await this.prisma.student.findMany({
       where: { parentId: user.parentId },
@@ -136,13 +134,11 @@ export class AuthService {
     };
   }
 
-  async parentMeChildDetail(
+  async getChildDetail(
     user: AuthenticatedParent,
     studentId: number,
   ): Promise<ParentMeChildDetailResponseDto> {
-    if (user.role !== 'parent') {
-      throw new ForbiddenException('Only parents can use this endpoint');
-    }
+    this.ensureParentRole(user);
 
     const student = await this.prisma.student.findFirst({
       where: {
@@ -182,6 +178,142 @@ export class AuthService {
     }
 
     return this.mapChildDetail(student);
+  }
+
+  async refresh(refreshToken: string): Promise<ParentRefreshResponseDto> {
+    const session = await this.findSessionByRefreshToken(refreshToken);
+
+    if (!session || session.refreshExpiresAt <= new Date()) {
+      if (session) {
+        await this.prisma.parentSession.delete({ where: { id: session.id } });
+      }
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    const person = await this.findLoginParentPerson(session.personId);
+
+    if (!person?.parent) {
+      await this.prisma.parentSession.delete({ where: { id: session.id } });
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    const newRefreshToken = this.generateRefreshToken();
+    const refreshExpiresAt = this.getRefreshExpiryDate();
+
+    await this.prisma.parentSession.update({
+      where: { id: session.id },
+      data: {
+        refreshTokenHash: this.hashToken(newRefreshToken),
+        refreshExpiresAt,
+      },
+    });
+
+    return this.buildTokenResponse(person, session.id, newRefreshToken);
+  }
+
+  async logout(user: AuthenticatedParent): Promise<ParentLogoutResponseDto> {
+    this.ensureParentRole(user);
+
+    await this.revokeParentSessions(user.id);
+
+    return { message: 'Logged out successfully' };
+  }
+
+  private ensureParentRole(user: AuthenticatedParent): void {
+    if (user.role !== 'parent') {
+      throw new ForbiddenException('Only parents can use this endpoint');
+    }
+  }
+
+  private async validateCredentials(
+    loginDto: ParentLoginDto,
+  ): Promise<LoginParentPerson> {
+    const candidates = await this.prisma.person.findMany({
+      where: {
+        username: loginDto.username,
+        status: true,
+        parent: { isNot: null },
+      },
+      include: {
+        parent: {
+          select: { id: true },
+        },
+      },
+    });
+
+    if (candidates.length === 0) {
+      throw new UnauthorizedException('Invalid username or password');
+    }
+
+    for (const candidate of candidates) {
+      const passwordMatches = await bcrypt.compare(
+        loginDto.password,
+        candidate.password,
+      );
+
+      if (passwordMatches && candidate.parent) {
+        return candidate as LoginParentPerson;
+      }
+    }
+
+    throw new UnauthorizedException('Invalid username or password');
+  }
+
+  private async createSession(person: LoginParentPerson) {
+    const refreshToken = this.generateRefreshToken();
+    const refreshExpiresAt = this.getRefreshExpiryDate();
+
+    await this.prisma.parentSession.deleteMany({
+      where: { personId: person.id },
+    });
+
+    const session = await this.prisma.parentSession.create({
+      data: {
+        personId: person.id,
+        refreshTokenHash: this.hashToken(refreshToken),
+        refreshExpiresAt,
+      },
+    });
+
+    await this.sessionService.cleanupExpiredSessions();
+
+    return this.buildTokenResponse(person, session.id, refreshToken);
+  }
+
+  private buildTokenResponse(
+    person: LoginParentPerson,
+    sessionId: string,
+    refreshToken: string,
+  ) {
+    const payload: JwtPayload = {
+      sub: person.id.toString(),
+      username: person.username,
+      role: 'parent',
+      parentId: person.parent.id,
+      sid: sessionId,
+    };
+
+    const accessToken = this.jwtService.sign(payload, {
+      expiresIn: this.getAccessExpiresIn(),
+    });
+
+    const decoded = this.jwtService.decode(accessToken);
+
+    if (
+      !decoded ||
+      typeof decoded !== 'object' ||
+      !('exp' in decoded) ||
+      typeof decoded.exp !== 'number'
+    ) {
+      throw new UnauthorizedException('Failed to create access token');
+    }
+
+    return {
+      accessToken,
+      refreshToken,
+      accessTokenExpiresAt: new Date(decoded.exp * 1000).toISOString(),
+      refreshTokenExpiresAt: this.getRefreshExpiryDate().toISOString(),
+    };
   }
 
   private mapChildDetail(student: {
@@ -245,155 +377,6 @@ export class AuthService {
     };
   }
 
-  async parentRefresh(refreshToken: string): Promise<ParentRefreshResponseDto> {
-    const session = await this.findSessionByRefreshToken(refreshToken);
-
-    if (!session || session.refreshExpiresAt <= new Date()) {
-      if (session) {
-        await this.prisma.parentSession.delete({ where: { id: session.id } });
-      }
-      throw new UnauthorizedException('Invalid or expired refresh token');
-    }
-
-    const person = await this.findLoginParentPerson(session.personId);
-
-    if (!person?.parent) {
-      await this.prisma.parentSession.delete({ where: { id: session.id } });
-      throw new UnauthorizedException('Invalid or expired refresh token');
-    }
-
-    const newRefreshToken = this.generateRefreshToken();
-    const refreshExpiresAt = this.getRefreshExpiryDate();
-
-    await this.prisma.parentSession.update({
-      where: { id: session.id },
-      data: {
-        refreshTokenHash: this.hashToken(newRefreshToken),
-        refreshExpiresAt,
-      },
-    });
-
-    return this.buildTokenResponse(person, session.id, newRefreshToken);
-  }
-
-  async parentLogout(user: AuthenticatedParent): Promise<ParentLogoutResponseDto> {
-    if (user.role !== 'parent') {
-      throw new ForbiddenException('Only parents can use this endpoint');
-    }
-
-    await this.revokeParentSessions(user.id);
-
-    return { message: 'Logged out successfully' };
-  }
-
-  async isSessionActive(sessionId: string): Promise<boolean> {
-    const session = await this.prisma.parentSession.findUnique({
-      where: { id: sessionId },
-    });
-
-    if (!session) {
-      return false;
-    }
-
-    if (session.refreshExpiresAt <= new Date()) {
-      await this.prisma.parentSession.delete({ where: { id: sessionId } });
-      return false;
-    }
-
-    return true;
-  }
-
-  private async validateParentCredentials(
-    loginDto: ParentLoginDto,
-  ): Promise<LoginParentPerson> {
-    const candidates = await this.prisma.person.findMany({
-      where: {
-        username: loginDto.username,
-        status: true,
-        parent: { isNot: null },
-      },
-      include: {
-        parent: {
-          select: { id: true },
-        },
-      },
-    });
-
-    if (candidates.length === 0) {
-      throw new UnauthorizedException('Invalid username or password');
-    }
-
-    for (const candidate of candidates) {
-      const passwordMatches = await bcrypt.compare(
-        loginDto.password,
-        candidate.password,
-      );
-
-      if (passwordMatches && candidate.parent) {
-        return candidate as LoginParentPerson;
-      }
-    }
-
-    throw new UnauthorizedException('Invalid username or password');
-  }
-
-  private async createSession(person: LoginParentPerson) {
-    const refreshToken = this.generateRefreshToken();
-    const refreshExpiresAt = this.getRefreshExpiryDate();
-
-    await this.prisma.parentSession.deleteMany({
-      where: { personId: person.id },
-    });
-
-    const session = await this.prisma.parentSession.create({
-      data: {
-        personId: person.id,
-        refreshTokenHash: this.hashToken(refreshToken),
-        refreshExpiresAt,
-      },
-    });
-
-    await this.cleanupExpiredSessions();
-
-    return this.buildTokenResponse(person, session.id, refreshToken);
-  }
-
-  private buildTokenResponse(
-    person: LoginParentPerson,
-    sessionId: string,
-    refreshToken: string,
-  ) {
-    const payload: JwtPayload = {
-      sub: person.id.toString(),
-      username: person.username,
-      role: 'parent',
-      parentId: person.parent.id,
-      sid: sessionId,
-    };
-
-    const accessToken = this.jwtService.sign(payload, {
-      expiresIn: this.getAccessExpiresIn(),
-    });
-
-    const decoded = this.jwtService.decode(accessToken);
-
-    if (
-      !decoded ||
-      typeof decoded !== 'object' ||
-      !('exp' in decoded) ||
-      typeof decoded.exp !== 'number'
-    ) {
-      throw new UnauthorizedException('Failed to create access token');
-    }
-
-    return {
-      accessToken,
-      refreshToken,
-      accessTokenExpiresAt: new Date(decoded.exp * 1000).toISOString(),
-      refreshTokenExpiresAt: this.getRefreshExpiryDate().toISOString(),
-    };
-  }
-
   private async findSessionByRefreshToken(refreshToken: string) {
     return this.prisma.parentSession.findUnique({
       where: { refreshTokenHash: this.hashToken(refreshToken) },
@@ -417,6 +400,14 @@ export class AuthService {
     });
 
     return person as LoginParentPerson | null;
+  }
+
+  private async revokeParentSessions(personId: number): Promise<void> {
+    await this.prisma.parentSession.deleteMany({
+      where: { personId },
+    });
+
+    await this.sessionService.cleanupExpiredSessions();
   }
 
   private formatFullName(person: {
@@ -453,19 +444,5 @@ export class AuthService {
     }
 
     return new Date(Date.now() + ttl);
-  }
-
-  private async revokeParentSessions(personId: number): Promise<void> {
-    await this.prisma.parentSession.deleteMany({
-      where: { personId },
-    });
-
-    await this.cleanupExpiredSessions();
-  }
-
-  private async cleanupExpiredSessions(): Promise<void> {
-    await this.prisma.parentSession.deleteMany({
-      where: { refreshExpiresAt: { lt: new Date() } },
-    });
   }
 }
