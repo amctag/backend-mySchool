@@ -246,10 +246,16 @@ export class ParentService {
     }
 
     for (const candidate of candidates) {
-      const passwordMatches = await bcrypt.compare(
-        loginDto.password,
-        candidate.password,
-      );
+      let passwordMatches = false;
+
+      try {
+        passwordMatches = await bcrypt.compare(
+          loginDto.password,
+          candidate.password,
+        );
+      } catch {
+        continue;
+      }
 
       if (passwordMatches && candidate.parent) {
         return candidate as LoginParentPerson;

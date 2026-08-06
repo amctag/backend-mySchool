@@ -1,8 +1,14 @@
 import { registerAs } from '@nestjs/config';
 
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  const parsed = parseInt(value ?? '', 10);
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 export default registerAs('throttle', () => ({
-  ttl: parseInt(process.env.THROTTLE_TTL ?? '60000', 10),
-  limit: parseInt(process.env.THROTTLE_LIMIT ?? '100', 10),
-  authTtl: parseInt(process.env.THROTTLE_AUTH_TTL ?? '60000', 10),
-  authLimit: parseInt(process.env.THROTTLE_AUTH_LIMIT ?? '5', 10),
+  ttl: parsePositiveInt(process.env.THROTTLE_TTL, 60000),
+  limit: parsePositiveInt(process.env.THROTTLE_LIMIT, 100),
+  authTtl: parsePositiveInt(process.env.THROTTLE_AUTH_TTL, 60000),
+  authLimit: parsePositiveInt(process.env.THROTTLE_AUTH_LIMIT, 5),
 }));

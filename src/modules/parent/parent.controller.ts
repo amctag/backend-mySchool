@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Req } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -29,6 +29,7 @@ export class ParentController {
   constructor(private readonly parentService: ParentService) {}
 
   @Public()
+  @SkipThrottle({ default: true })
   @Throttle({ auth: {} })
   @Post('login')
   @ApiOperation({ summary: 'Parent login' })
@@ -41,6 +42,7 @@ export class ParentController {
   }
 
   @Public()
+  @SkipThrottle({ default: true })
   @Throttle({ auth: {} })
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh parent access token' })
