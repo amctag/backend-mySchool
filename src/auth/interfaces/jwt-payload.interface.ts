@@ -1,9 +1,13 @@
 export interface JwtPayload {
   sub: string;
-  email: string;
+  username: string;
+  role: 'parent';
+  parentId: number;
 }
 
-export interface AuthenticatedUser {
-  id: string;
-  email: string;
+export interface AuthenticatedParent {
+  id: number;
+  username: string;
+  role: 'parent';
+  parentId: number;
 }
