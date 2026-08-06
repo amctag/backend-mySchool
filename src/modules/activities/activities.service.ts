@@ -1,8 +1,0 @@
-﻿import { Injectable } from '@nestjs/common';
-
-@Injectable()
-export class ActivitiesService {
-  findAll() {
-    return [];
-  }
-}
