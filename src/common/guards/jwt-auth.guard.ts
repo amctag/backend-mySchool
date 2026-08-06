@@ -5,15 +5,21 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
+import { Request } from 'express';
+import { AuthService } from '../../auth/auth.service';
+import { AuthenticatedParent } from '../../auth/interfaces/jwt-payload.interface';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
-  constructor(private reflector: Reflector) {
+  constructor(
+    private reflector: Reflector,
+    private authService: AuthService,
+  ) {
     super();
   }
 
-  canActivate(context: ExecutionContext) {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -23,7 +29,21 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       return true;
     }
 
-    return super.canActivate(context);
+    const canActivate = await super.canActivate(context);
+
+    if (!canActivate) {
+      return false;
+    }
+
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { user: AuthenticatedParent }>();
+
+    if (!(await this.authService.isSessionActive(request.user.sessionId))) {
+      throw new UnauthorizedException('Session is invalid or expired');
+    }
+
+    return true;
   }
 
   handleRequest<T>(err: Error | null, user: T): T {

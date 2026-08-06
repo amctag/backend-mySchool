@@ -21,6 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (
       !payload.sub ||
       !payload.username ||
+      !payload.sid ||
       payload.role !== 'parent' ||
       !payload.parentId
     ) {
@@ -32,6 +33,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       username: payload.username,
       role: 'parent',
       parentId: payload.parentId,
+      sessionId: payload.sid,
     };
   }
 }

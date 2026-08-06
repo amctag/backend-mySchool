@@ -3,6 +3,7 @@ export interface JwtPayload {
   username: string;
   role: 'parent';
   parentId: number;
+  sid: string;
 }
 
 export interface AuthenticatedParent {
@@ -10,4 +11,5 @@ export interface AuthenticatedParent {
   username: string;
   role: 'parent';
   parentId: number;
+  sessionId: string;
 }

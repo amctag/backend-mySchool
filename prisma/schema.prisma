@@ -60,6 +60,7 @@ model Person {
   student               Student?
   weeklyScheduleDetails WeeklyScheduleDetail[]
   registrations         Registration[]
+  parentSessions        ParentSession[]
 
   @@unique([schoolId, username])
   @@map("persons")
@@ -341,4 +342,17 @@ model Registration {
   person  Person  @relation(fields: [personId], references: [id], onDelete: Restrict)
 
   @@map("registrations")
+}
+
+model ParentSession {
+  id               String   @id @default(uuid()) @db.Uuid
+  personId         Int      @map("person_id")
+  refreshTokenHash String   @unique @map("refresh_token_hash") @db.VarChar(64)
+  refreshExpiresAt DateTime @map("refresh_expires_at") @db.Timestamptz(6)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@map("parent_sessions")
 }

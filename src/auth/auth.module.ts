@@ -18,8 +18,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       useFactory: (configService: ConfigService): JwtModuleOptions => ({
         secret: configService.get<string>('jwt.secret') ?? 'change-me',
         signOptions: {
-          expiresIn: (configService.get<string>('jwt.expiresIn') ??
-            '1d') as StringValue,
+          expiresIn: (configService.get<string>('jwt.accessExpiresIn') ??
+            '15m') as StringValue,
         },
       }),
     }),

@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ParentTokenResponseDto } from './parent-token-response.dto';
 
 export class ParentStudentDto {
   @ApiProperty({ example: 3 })
@@ -46,10 +47,7 @@ export class ParentProfileDto {
   schoolId: number | null;
 }
 
-export class ParentLoginResponseDto {
-  @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
-  accessToken: string;
-
+export class ParentLoginResponseDto extends ParentTokenResponseDto {
   @ApiProperty({ type: ParentProfileDto })
   parent: ParentProfileDto;
 
