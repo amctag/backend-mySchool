@@ -37,6 +37,7 @@ model Person {
   parent                 Parent?
   student                Student?
   weeklyScheduleDetails  WeeklyScheduleDetail[]
+  registrations          Registration[]
 
   @@map("persons")
 }
@@ -76,8 +77,9 @@ model Student {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  person Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
-  parent Parent? @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  person        Person         @relation(fields: [personId], references: [id], onDelete: Cascade)
+  parent        Parent?        @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  registrations Registration[]
 
   @@map("students")
 }
@@ -150,6 +152,7 @@ model Section {
   year             Year              @relation(fields: [yearId], references: [id], onDelete: Restrict)
   teaches          Teach[]
   weeklySchedules  WeeklySchedule[]
+  registrations    Registration[]
 
   @@map("sections")
 }
@@ -267,4 +270,20 @@ model WeeklyScheduleDetail {
   person   Person?          @relation(fields: [personId], references: [id], onDelete: SetNull)
 
   @@map("weekly_schedule_details")
+}
+
+model Registration {
+  id        Int      @id @default(autoincrement())
+  sectionId Int      @map("section_id")
+  studentId Int      @map("student_id")
+  personId  Int      @map("person_id")
+  status    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  @@map("registrations")
 }
