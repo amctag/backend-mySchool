@@ -17,6 +17,14 @@ const prisma = new PrismaClient({ adapter });
 const DEFAULT_PASSWORD =
   '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
 
+const baseProfile = {
+  password: DEFAULT_PASSWORD,
+  status: true,
+  address: 'Beirut, Lebanon',
+  birthday: new Date('1985-03-15'),
+  identityNumber: 'LB-12345678',
+};
+
 async function resetDatabase(): Promise<void> {
   await prisma.$executeRawUnsafe(`
     TRUNCATE TABLE
@@ -227,19 +235,35 @@ async function main(): Promise<void> {
   const academicA = await seedSchoolAcademic(schoolA.id, 'a');
   const academicB = await seedSchoolAcademic(schoolB.id, 'b');
 
-  console.log('Creating global parent (children in both schools)...');
+  console.log('Creating global parent (school_id = NULL, children in both schools)...');
   const parentPerson = await prisma.person.create({
     data: {
-      schoolId: null,
+      ...baseProfile,
+      schoolId: null, // global: not tied to one school — can have kids in school A and B
       username: 'ahmad.khalil',
-      password: DEFAULT_PASSWORD,
       firstName: 'Ahmad',
       middleName: 'Hassan',
       lastName: 'Khalil',
       email: 'ahmad.khalil@example.com',
       phoneNumber: '+96170000001',
       gender: 0,
-      status: true,
+      parent: { create: {} },
+    },
+    include: { parent: true },
+  });
+
+  console.log('Creating school-only parent (school_id = school A, one child in same school)...');
+  const schoolParentPerson = await prisma.person.create({
+    data: {
+      ...baseProfile,
+      schoolId: schoolA.id, // tied to one school — username unique within that school
+      username: 'maya.hassan',
+      firstName: 'Maya',
+      middleName: 'Joseph',
+      lastName: 'Hassan',
+      email: 'maya.hassan@example.com',
+      phoneNumber: '+96170000004',
+      gender: 1,
       parent: { create: {} },
     },
     include: { parent: true },
@@ -247,43 +271,41 @@ async function main(): Promise<void> {
 
   const adminA = await prisma.person.create({
     data: {
+      ...baseProfile,
       schoolId: schoolA.id,
       username: 'admin.green',
-      password: DEFAULT_PASSWORD,
       firstName: 'Rania',
       middleName: 'Fadi',
       lastName: 'Admin',
       email: 'admin@greenvalley.edu',
-      status: true,
     },
   });
 
   const adminB = await prisma.person.create({
     data: {
+      ...baseProfile,
       schoolId: schoolB.id,
       username: 'admin.blue',
-      password: DEFAULT_PASSWORD,
       firstName: 'Karim',
       middleName: 'Nabil',
       lastName: 'Admin',
       email: 'admin@bluehorizon.edu',
-      status: true,
     },
   });
 
-  console.log('Creating students in different schools for same parent...');
+  console.log('Creating students (each student person HAS school_id)...');
   const studentLaylaPerson = await prisma.person.create({
     data: {
-      schoolId: schoolA.id,
+      ...baseProfile,
+      schoolId: schoolA.id, // student always belongs to one school
       registerId: 1001,
       username: 'layla.khalil',
-      password: DEFAULT_PASSWORD,
       firstName: 'Layla',
       middleName: 'Ahmad',
       lastName: 'Khalil',
       email: 'layla.khalil@example.com',
       gender: 1,
-      status: true,
+      birthday: new Date('2015-09-01'),
       student: {
         create: {
           parentId: parentPerson.parent!.id,
@@ -298,22 +320,46 @@ async function main(): Promise<void> {
 
   const studentOmarPerson = await prisma.person.create({
     data: {
+      ...baseProfile,
       schoolId: schoolB.id,
       registerId: 2001,
       username: 'omar.khalil',
-      password: DEFAULT_PASSWORD,
       firstName: 'Omar',
       middleName: 'Ahmad',
       lastName: 'Khalil',
       email: 'omar.khalil@example.com',
       gender: 0,
-      status: true,
+      birthday: new Date('2014-06-20'),
       student: {
         create: {
           parentId: parentPerson.parent!.id,
           motherName: 'Maya',
           motherFamily: 'Hassan',
           motherPhone: '+96170000002',
+        },
+      },
+    },
+    include: { student: true },
+  });
+
+  const studentRanaPerson = await prisma.person.create({
+    data: {
+      ...baseProfile,
+      schoolId: schoolA.id,
+      registerId: 1002,
+      username: 'rana.hassan',
+      firstName: 'Rana',
+      middleName: 'Maya',
+      lastName: 'Hassan',
+      email: 'rana.hassan@example.com',
+      gender: 1,
+      birthday: new Date('2016-01-10'),
+      student: {
+        create: {
+          parentId: schoolParentPerson.parent!.id,
+          motherName: 'Maya',
+          motherFamily: 'Joseph',
+          motherPhone: '+96170000004',
         },
       },
     },
@@ -334,22 +380,27 @@ async function main(): Promise<void> {
         personId: adminB.id,
         status: true,
       },
+      {
+        sectionId: academicA.section5B.id,
+        studentId: studentRanaPerson.student!.id,
+        personId: adminA.id,
+        status: true,
+      },
     ],
   });
 
-  console.log('Creating global teacher (teaches in both schools)...');
+  console.log('Creating global teacher (school_id = NULL, works in both schools)...');
   const teacherPerson = await prisma.person.create({
     data: {
+      ...baseProfile,
       schoolId: null,
       username: 'sara.nasser',
-      password: DEFAULT_PASSWORD,
       firstName: 'Sara',
       middleName: 'Ali',
       lastName: 'Nasser',
       email: 'sara.nasser@example.com',
       phoneNumber: '+96170000003',
       gender: 1,
-      status: true,
       teacher: { create: {} },
     },
     include: { teacher: true },
@@ -411,8 +462,17 @@ async function main(): Promise<void> {
   console.log(`  - ${schoolB.name} (id: ${schoolB.id})`);
   console.log('');
   console.log('Test accounts (password: password123):');
-  console.log('  Parent (global):  ahmad.khalil');
-  console.log('  Student school A: layla.khalil');
+  console.log('');
+  console.log('Person logic:');
+  console.log('  persons     = login + profile (name, email, password)');
+  console.log('  parents     = role row linked to persons.id');
+  console.log('  students    = role row linked to persons.id + parent_id');
+  console.log('  school_id   = NULL for global parent/teacher (multi-school)');
+  console.log('              = SET for student/admin (belongs to one school)');
+  console.log('');
+  console.log('  Global parent (school_id NULL):  ahmad.khalil → layla + omar');
+  console.log('  School parent (school_id = A):   maya.hassan  → rana');
+  console.log('  Student school A: layla.khalil, rana.hassan');
   console.log('  Student school B: omar.khalil');
   console.log('  Teacher (global): sara.nasser');
   console.log('  Admin school A:   admin.green');
