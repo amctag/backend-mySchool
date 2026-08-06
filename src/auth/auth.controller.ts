@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Req } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -13,12 +14,12 @@ import { AuthService } from './auth.service';
 import { ParentLoginResponseDto } from './dto/parent-login-response.dto';
 import { ParentLoginDto } from './dto/parent-login.dto';
 import { ParentLogoutResponseDto } from './dto/parent-logout-response.dto';
-import { ParentMeChildrenResponseDto } from './dto/parent-me-children-response.dto';
+import { ParentMeChildDetailResponseDto } from './dto/parent-me-children-response.dto';
+import { ParentMeChildrenSummaryResponseDto } from './dto/parent-me-children-summary-response.dto';
 import { ParentMeResponseDto } from './dto/parent-me-response.dto';
 import { ParentRefreshResponseDto } from './dto/parent-refresh-response.dto';
 import { ParentRefreshDto } from './dto/parent-refresh.dto';
 import { AuthenticatedParent } from './interfaces/jwt-payload.interface';
-
 @ApiTags('Auth v1')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
@@ -59,13 +60,26 @@ export class AuthController {
 
   @Get('parent/me/children')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get logged-in parent children' })
-  @ApiOkResponse({ type: ParentMeChildrenResponseDto })
+  @ApiOperation({ summary: 'Get parent children names and years' })
+  @ApiOkResponse({ type: ParentMeChildrenSummaryResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
   parentMeChildren(
     @Req() request: Request & { user: AuthenticatedParent },
-  ): Promise<ParentMeChildrenResponseDto> {
-    return this.authService.parentMeChildren(request.user);
+  ): Promise<ParentMeChildrenSummaryResponseDto> {
+    return this.authService.parentMeChildrenSummary(request.user);
+  }
+
+  @Get('parent/me/children/:studentId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get full child information' })
+  @ApiOkResponse({ type: ParentMeChildDetailResponseDto })
+  @ApiNotFoundResponse({ description: 'Child not found' })
+  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  parentMeChildDetail(
+    @Req() request: Request & { user: AuthenticatedParent },
+    @Param('studentId', ParseIntPipe) studentId: number,
+  ): Promise<ParentMeChildDetailResponseDto> {
+    return this.authService.parentMeChildDetail(request.user, studentId);
   }
 
   @Post('parent/logout')

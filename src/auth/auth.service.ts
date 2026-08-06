@@ -14,7 +14,8 @@ import { PrismaService } from '../database/prisma/prisma.service';
 import { ParentLoginResponseDto } from './dto/parent-login-response.dto';
 import { ParentLoginDto } from './dto/parent-login.dto';
 import { ParentLogoutResponseDto } from './dto/parent-logout-response.dto';
-import { ParentMeChildrenResponseDto } from './dto/parent-me-children-response.dto';
+import { ParentMeChildDetailResponseDto } from './dto/parent-me-children-response.dto';
+import { ParentMeChildrenSummaryResponseDto } from './dto/parent-me-children-summary-response.dto';
 import { ParentMeResponseDto } from './dto/parent-me-response.dto';
 import { ParentRefreshResponseDto } from './dto/parent-refresh-response.dto';
 import {
@@ -89,15 +90,65 @@ export class AuthService {
     };
   }
 
-  async parentMeChildren(
+  async parentMeChildrenSummary(
     user: AuthenticatedParent,
-  ): Promise<ParentMeChildrenResponseDto> {
+  ): Promise<ParentMeChildrenSummaryResponseDto> {
     if (user.role !== 'parent') {
       throw new ForbiddenException('Only parents can use this endpoint');
     }
 
     const students = await this.prisma.student.findMany({
       where: { parentId: user.parentId },
+      include: {
+        person: {
+          select: {
+            firstName: true,
+            middleName: true,
+            lastName: true,
+          },
+        },
+        registrations: {
+          where: { status: true },
+          include: {
+            section: {
+              include: {
+                year: {
+                  select: { title: true },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: {
+        person: { firstName: 'asc' },
+      },
+    });
+
+    return {
+      children: students.map((student) => ({
+        studentId: student.id,
+        name: this.formatFullName(student.person),
+        yearTitle: student.registrations[0]?.section.year.title ?? null,
+      })),
+    };
+  }
+
+  async parentMeChildDetail(
+    user: AuthenticatedParent,
+    studentId: number,
+  ): Promise<ParentMeChildDetailResponseDto> {
+    if (user.role !== 'parent') {
+      throw new ForbiddenException('Only parents can use this endpoint');
+    }
+
+    const student = await this.prisma.student.findFirst({
+      where: {
+        id: studentId,
+        parentId: user.parentId,
+      },
       include: {
         person: {
           include: {
@@ -124,45 +175,73 @@ export class AuthService {
           take: 1,
         },
       },
-      orderBy: {
-        person: { firstName: 'asc' },
-      },
     });
 
-    return {
-      children: students.map((student) => {
-        const registration = student.registrations[0];
-        const school = student.person.school;
+    if (!student) {
+      throw new NotFoundException('Child not found');
+    }
 
-        return {
-          studentId: student.id,
-          personId: student.person.id,
-          registerId: student.person.registerId,
-          username: student.person.username,
-          firstName: student.person.firstName,
-          middleName: student.person.middleName,
-          lastName: student.person.lastName,
-          name: this.formatFullName(student.person),
-          email: student.person.email,
-          gender: student.person.gender,
-          birthday: student.person.birthday?.toISOString() ?? null,
-          schoolId: school?.id ?? student.person.schoolId!,
-          schoolName: school?.name ?? '',
-          motherName: student.motherName,
-          motherFamily: student.motherFamily,
-          motherPhone: student.motherPhone,
-          registration: registration
-            ? {
-                sectionId: registration.section.id,
-                className: registration.section.class.className,
-                sectionTitle: registration.section.sectionTitle.title,
-                yearTitle: registration.section.year.title,
-                schoolId: registration.section.school.id,
-                schoolName: registration.section.school.name,
-              }
-            : null,
-        };
-      }),
+    return this.mapChildDetail(student);
+  }
+
+  private mapChildDetail(student: {
+    id: number;
+    motherName: string | null;
+    motherFamily: string | null;
+    motherPhone: string | null;
+    person: {
+      id: number;
+      registerId: number | null;
+      username: string;
+      firstName: string;
+      middleName: string;
+      lastName: string;
+      email: string | null;
+      gender: number | null;
+      birthday: Date | null;
+      schoolId: number | null;
+      school: { id: number; name: string } | null;
+    };
+    registrations: Array<{
+      section: {
+        id: number;
+        class: { className: string };
+        sectionTitle: { title: string };
+        year: { title: string };
+        school: { id: number; name: string };
+      };
+    }>;
+  }): ParentMeChildDetailResponseDto {
+    const registration = student.registrations[0];
+    const school = student.person.school;
+
+    return {
+      studentId: student.id,
+      personId: student.person.id,
+      registerId: student.person.registerId,
+      username: student.person.username,
+      firstName: student.person.firstName,
+      middleName: student.person.middleName,
+      lastName: student.person.lastName,
+      name: this.formatFullName(student.person),
+      email: student.person.email,
+      gender: student.person.gender,
+      birthday: student.person.birthday?.toISOString() ?? null,
+      schoolId: school?.id ?? student.person.schoolId!,
+      schoolName: school?.name ?? '',
+      motherName: student.motherName,
+      motherFamily: student.motherFamily,
+      motherPhone: student.motherPhone,
+      registration: registration
+        ? {
+            sectionId: registration.section.id,
+            className: registration.section.class.className,
+            sectionTitle: registration.section.sectionTitle.title,
+            yearTitle: registration.section.year.title,
+            schoolId: registration.section.school.id,
+            schoolName: registration.section.school.name,
+          }
+        : null,
     };
   }
 

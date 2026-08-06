@@ -20,7 +20,7 @@ export class ParentChildRegistrationDto {
   schoolName: string;
 }
 
-export class ParentChildDto {
+export class ParentChildDetailDto {
   @ApiProperty({ example: 1 })
   studentId: number;
 
@@ -73,7 +73,4 @@ export class ParentChildDto {
   registration: ParentChildRegistrationDto | null;
 }
 
-export class ParentMeChildrenResponseDto {
-  @ApiProperty({ type: [ParentChildDto] })
-  children: ParentChildDto[];
-}
+export class ParentMeChildDetailResponseDto extends ParentChildDetailDto {}
