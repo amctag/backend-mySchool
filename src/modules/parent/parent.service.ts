@@ -26,6 +26,7 @@ import { ParentRefreshResponseDto } from './dto/parent-refresh-response.dto';
 import {
   ParentChildWeeklyScheduleDto,
   ParentWeeklyScheduleResponseDto,
+  WeeklyScheduleCourseDto,
   WeeklyScheduleDayDto,
 } from './dto/parent-weekly-schedule-response.dto';
 
@@ -209,11 +210,19 @@ export class ParentService {
           include: {
             section: {
               include: {
-                class: true,
+                class: {
+                  select: { className: true, classLevel: true },
+                },
                 sectionTitle: true,
                 year: true,
                 school: {
-                  select: { id: true, name: true },
+                  select: {
+                    id: true,
+                    name: true,
+                    days: {
+                      orderBy: { position: 'asc' },
+                    },
+                  },
                 },
                 weeklySchedules: {
                   orderBy: { createdAt: 'desc' },
@@ -312,17 +321,19 @@ export class ParentService {
     };
     registrations: Array<{
       section: {
-        id: number;
-        class: { className: string };
+        class: { classLevel: number };
         sectionTitle: { title: string };
         year: { title: string };
-        school: { id: number; name: string };
+        school: {
+          name: string;
+          days: Array<{ id: number; dayName: string; position: number }>;
+        };
         weeklySchedules: Array<{
-          id: number;
           details: Array<{
+            dayId: number;
             note: string | null;
             day: { id: number; dayName: string; position: number };
-            session: { id: number; sessionName: string; position: number };
+            session: { sessionName: string; position: number };
             course: { id: number; title: string };
             person: {
               firstName: string;
@@ -341,28 +352,26 @@ export class ParentService {
     return {
       studentId: student.id,
       studentName: this.formatFullName(student.person),
-      scheduleId: weeklySchedule?.id ?? null,
-      section: section
-        ? {
-            sectionId: section.id,
-            className: section.class.className,
-            sectionTitle: section.sectionTitle.title,
-            yearTitle: section.year.title,
-            schoolId: section.school.id,
-            schoolName: section.school.name,
-          }
-        : null,
-      days: weeklySchedule
-        ? this.groupScheduleDetailsByDay(weeklySchedule.details)
-        : [],
+      sectionName: section
+        ? this.formatSectionName(section.sectionTitle.title)
+        : '',
+      class: section ? String(section.class.classLevel) : '',
+      schoolName: section?.school.name ?? '',
+      yearTitle: section?.year.title ?? '',
+      days: this.buildSevenDaySchedule(
+        section?.school.days ?? [],
+        weeklySchedule?.details ?? [],
+      ),
     };
   }
 
-  private groupScheduleDetailsByDay(
+  private buildSevenDaySchedule(
+    schoolDays: Array<{ id: number; dayName: string; position: number }>,
     details: Array<{
+      dayId: number;
       note: string | null;
       day: { id: number; dayName: string; position: number };
-      session: { id: number; sessionName: string; position: number };
+      session: { sessionName: string; position: number };
       course: { id: number; title: string };
       person: {
         firstName: string;
@@ -371,37 +380,65 @@ export class ParentService {
       } | null;
     }>,
   ): WeeklyScheduleDayDto[] {
-    const dayMap = new Map<number, WeeklyScheduleDayDto>();
+    const weekTemplate = this.getWeekTemplate(schoolDays);
+    const coursesByDayId = new Map<number, WeeklyScheduleCourseDto[]>();
 
     for (const detail of details) {
-      if (!dayMap.has(detail.day.id)) {
-        dayMap.set(detail.day.id, {
-          dayId: detail.day.id,
-          dayName: detail.day.dayName,
-          position: detail.day.position,
-          sessions: [],
-        });
-      }
-
-      dayMap.get(detail.day.id)!.sessions.push({
-        sessionId: detail.session.id,
-        sessionName: detail.session.sessionName,
-        position: detail.session.position,
+      const courses = coursesByDayId.get(detail.dayId) ?? [];
+      courses.push({
         courseId: detail.course.id,
         courseTitle: detail.course.title,
+        sessionName: detail.session.sessionName,
+        sessionPosition: detail.session.position,
         teacherName: detail.person ? this.formatFullName(detail.person) : null,
         note: detail.note,
       });
+      coursesByDayId.set(detail.dayId, courses);
     }
 
-    return Array.from(dayMap.values())
-      .sort((first, second) => first.position - second.position)
-      .map((day) => ({
-        ...day,
-        sessions: day.sessions.sort(
-          (first, second) => first.position - second.position,
+    return weekTemplate.map((day) => {
+      const courses = day.dayId ? (coursesByDayId.get(day.dayId) ?? []) : [];
+
+      return {
+        dayName: day.dayName,
+        position: day.position,
+        courses: courses.sort(
+          (first, second) => first.sessionPosition - second.sessionPosition,
         ),
-      }));
+      };
+    });
+  }
+
+  private getWeekTemplate(
+    schoolDays: Array<{ id: number; dayName: string; position: number }>,
+  ): Array<{ dayId: number | null; dayName: string; position: number }> {
+    const standardWeek = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+
+    const schoolDaysByName = new Map(
+      schoolDays.map((day) => [day.dayName.toLowerCase(), day]),
+    );
+
+    return standardWeek.map((dayName, index) => {
+      const schoolDay = schoolDaysByName.get(dayName.toLowerCase());
+
+      return {
+        dayId: schoolDay?.id ?? null,
+        dayName,
+        position: schoolDay?.position ?? index + 1,
+      };
+    });
+  }
+
+  private formatSectionName(title: string): string {
+    return title.replace(/^Section\s+/i, '').trim() || title;
   }
 
   private ensureParentRole(user: AuthenticatedParent): void {
