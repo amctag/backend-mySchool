@@ -35,6 +35,11 @@ async function bootstrap() {
     .setDescription('School management system API v1')
     .setVersion('1.0')
     .addBearerAuth()
+    .addTag('Parent Auth v1', 'Login, refresh, and logout')
+    .addTag('Parent Profile v1', 'Parent profile and children')
+    .addTag('Parent Schedule v1', 'Weekly schedule')
+    .addTag('Teacher v1', 'Teacher endpoints')
+    .addTag('School v1', 'School endpoints')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);

@@ -25,7 +25,6 @@ import { ParentWeeklyScheduleQueryDto } from './dto/parent-weekly-schedule-query
 import { ParentWeeklyScheduleResponseDto } from './dto/parent-weekly-schedule-response.dto';
 import { ParentService } from './parent.service';
 
-@ApiTags('Parent v1')
 @Controller({ path: 'parent', version: '1' })
 export class ParentController {
   constructor(private readonly parentService: ParentService) {}
@@ -33,6 +32,7 @@ export class ParentController {
   @Public()
   @SkipThrottle({ default: true })
   @Throttle({ auth: {} })
+  @ApiTags('Parent Auth v1')
   @Post('login')
   @ApiOperation({ summary: 'Parent login' })
   @ApiOkResponse({ type: ParentLoginResponseDto })
@@ -46,6 +46,7 @@ export class ParentController {
   @Public()
   @SkipThrottle({ default: true })
   @Throttle({ auth: {} })
+  @ApiTags('Parent Auth v1')
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh parent access token' })
   @ApiOkResponse({ type: ParentRefreshResponseDto })
@@ -56,6 +57,7 @@ export class ParentController {
     return this.parentService.refresh(refreshDto.refreshToken);
   }
 
+  @ApiTags('Parent Profile v1')
   @Get('me')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get logged-in parent profile' })
@@ -67,6 +69,7 @@ export class ParentController {
     return this.parentService.getProfile(request.user);
   }
 
+  @ApiTags('Parent Profile v1')
   @Get('me/children')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get parent children names and years' })
@@ -78,6 +81,7 @@ export class ParentController {
     return this.parentService.getChildrenSummary(request.user);
   }
 
+  @ApiTags('Parent Profile v1')
   @Get('me/children/:studentId')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get full child information' })
@@ -91,6 +95,7 @@ export class ParentController {
     return this.parentService.getChildDetail(request.user, studentId);
   }
 
+  @ApiTags('Parent Schedule v1')
   @Get('me/weekly-schedule')
   @ApiBearerAuth()
   @ApiOperation({
@@ -109,6 +114,7 @@ export class ParentController {
     return this.parentService.getWeeklySchedule(request.user, query.studentId);
   }
 
+  @ApiTags('Parent Auth v1')
   @Post('logout')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Parent logout' })
