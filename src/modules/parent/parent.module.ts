@@ -1,12 +1,18 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../../auth/auth.module';
 import { PrismaModule } from '../../database/prisma/prisma.module';
-import { ParentController } from './parent.controller';
+import { ParentAuthController } from './parent-auth.controller';
+import { ParentProfileController } from './parent-profile.controller';
+import { ParentScheduleController } from './parent-schedule.controller';
 import { ParentService } from './parent.service';
 
 @Module({
   imports: [AuthModule, PrismaModule],
-  controllers: [ParentController],
+  controllers: [
+    ParentAuthController,
+    ParentProfileController,
+    ParentScheduleController,
+  ],
   providers: [ParentService],
 })
 export class ParentModule {}
