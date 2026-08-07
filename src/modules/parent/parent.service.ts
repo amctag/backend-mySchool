@@ -23,6 +23,11 @@ import { ParentMeChildDetailResponseDto } from './dto/parent-me-children-respons
 import { ParentMeChildrenSummaryResponseDto } from './dto/parent-me-children-summary-response.dto';
 import { ParentMeResponseDto } from './dto/parent-me-response.dto';
 import { ParentRefreshResponseDto } from './dto/parent-refresh-response.dto';
+import {
+  ParentChildWeeklyScheduleDto,
+  ParentWeeklyScheduleResponseDto,
+  WeeklyScheduleDayDto,
+} from './dto/parent-weekly-schedule-response.dto';
 
 type LoginParentPerson = {
   id: number;
@@ -180,6 +185,85 @@ export class ParentService {
     return this.mapChildDetail(student);
   }
 
+  async getWeeklySchedule(
+    user: AuthenticatedParent,
+    studentId?: number,
+  ): Promise<ParentWeeklyScheduleResponseDto> {
+    this.ensureParentRole(user);
+
+    const students = await this.prisma.student.findMany({
+      where: {
+        parentId: user.parentId,
+        ...(studentId !== undefined ? { id: studentId } : {}),
+      },
+      include: {
+        person: {
+          select: {
+            firstName: true,
+            middleName: true,
+            lastName: true,
+          },
+        },
+        registrations: {
+          where: { status: true },
+          include: {
+            section: {
+              include: {
+                class: true,
+                sectionTitle: true,
+                year: true,
+                school: {
+                  select: { id: true, name: true },
+                },
+                weeklySchedules: {
+                  orderBy: { createdAt: 'desc' },
+                  take: 1,
+                  include: {
+                    details: {
+                      include: {
+                        day: true,
+                        session: true,
+                        course: {
+                          select: { id: true, title: true },
+                        },
+                        person: {
+                          select: {
+                            firstName: true,
+                            middleName: true,
+                            lastName: true,
+                          },
+                        },
+                      },
+                      orderBy: [
+                        { day: { position: 'asc' } },
+                        { session: { position: 'asc' } },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: {
+        person: { firstName: 'asc' },
+      },
+    });
+
+    if (studentId !== undefined && students.length === 0) {
+      throw new NotFoundException('Child not found');
+    }
+
+    return {
+      schedules: students.map((student) =>
+        this.mapStudentWeeklySchedule(student),
+      ),
+    };
+  }
+
   async refresh(refreshToken: string): Promise<ParentRefreshResponseDto> {
     const session = await this.findSessionByRefreshToken(refreshToken);
 
@@ -217,6 +301,107 @@ export class ParentService {
     await this.revokeParentSessions(user.id);
 
     return { message: 'Logged out successfully' };
+  }
+
+  private mapStudentWeeklySchedule(student: {
+    id: number;
+    person: {
+      firstName: string;
+      middleName: string;
+      lastName: string;
+    };
+    registrations: Array<{
+      section: {
+        id: number;
+        class: { className: string };
+        sectionTitle: { title: string };
+        year: { title: string };
+        school: { id: number; name: string };
+        weeklySchedules: Array<{
+          id: number;
+          details: Array<{
+            note: string | null;
+            day: { id: number; dayName: string; position: number };
+            session: { id: number; sessionName: string; position: number };
+            course: { id: number; title: string };
+            person: {
+              firstName: string;
+              middleName: string;
+              lastName: string;
+            } | null;
+          }>;
+        }>;
+      };
+    }>;
+  }): ParentChildWeeklyScheduleDto {
+    const registration = student.registrations[0];
+    const section = registration?.section;
+    const weeklySchedule = section?.weeklySchedules[0];
+
+    return {
+      studentId: student.id,
+      studentName: this.formatFullName(student.person),
+      scheduleId: weeklySchedule?.id ?? null,
+      section: section
+        ? {
+            sectionId: section.id,
+            className: section.class.className,
+            sectionTitle: section.sectionTitle.title,
+            yearTitle: section.year.title,
+            schoolId: section.school.id,
+            schoolName: section.school.name,
+          }
+        : null,
+      days: weeklySchedule
+        ? this.groupScheduleDetailsByDay(weeklySchedule.details)
+        : [],
+    };
+  }
+
+  private groupScheduleDetailsByDay(
+    details: Array<{
+      note: string | null;
+      day: { id: number; dayName: string; position: number };
+      session: { id: number; sessionName: string; position: number };
+      course: { id: number; title: string };
+      person: {
+        firstName: string;
+        middleName: string;
+        lastName: string;
+      } | null;
+    }>,
+  ): WeeklyScheduleDayDto[] {
+    const dayMap = new Map<number, WeeklyScheduleDayDto>();
+
+    for (const detail of details) {
+      if (!dayMap.has(detail.day.id)) {
+        dayMap.set(detail.day.id, {
+          dayId: detail.day.id,
+          dayName: detail.day.dayName,
+          position: detail.day.position,
+          sessions: [],
+        });
+      }
+
+      dayMap.get(detail.day.id)!.sessions.push({
+        sessionId: detail.session.id,
+        sessionName: detail.session.sessionName,
+        position: detail.session.position,
+        courseId: detail.course.id,
+        courseTitle: detail.course.title,
+        teacherName: detail.person ? this.formatFullName(detail.person) : null,
+        note: detail.note,
+      });
+    }
+
+    return Array.from(dayMap.values())
+      .sort((first, second) => first.position - second.position)
+      .map((day) => ({
+        ...day,
+        sessions: day.sessions.sort(
+          (first, second) => first.position - second.position,
+        ),
+      }));
   }
 
   private ensureParentRole(user: AuthenticatedParent): void {

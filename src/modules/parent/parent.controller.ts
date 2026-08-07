@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, Req } from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import {
   ApiBadRequestResponse,
@@ -21,6 +21,8 @@ import { ParentMeChildrenSummaryResponseDto } from './dto/parent-me-children-sum
 import { ParentMeResponseDto } from './dto/parent-me-response.dto';
 import { ParentRefreshResponseDto } from './dto/parent-refresh-response.dto';
 import { ParentRefreshDto } from './dto/parent-refresh.dto';
+import { ParentWeeklyScheduleQueryDto } from './dto/parent-weekly-schedule-query.dto';
+import { ParentWeeklyScheduleResponseDto } from './dto/parent-weekly-schedule-response.dto';
 import { ParentService } from './parent.service';
 
 @ApiTags('Parent v1')
@@ -87,6 +89,24 @@ export class ParentController {
     @Param('studentId', ParseIntPipe) studentId: number,
   ): Promise<ParentMeChildDetailResponseDto> {
     return this.parentService.getChildDetail(request.user, studentId);
+  }
+
+  @Get('me/weekly-schedule')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get weekly schedule for parent children',
+    description:
+      'Returns weekly schedule with days, sessions, courses, and section info. ' +
+      'Pass studentId to filter by one child, or omit to return schedules for all children.',
+  })
+  @ApiOkResponse({ type: ParentWeeklyScheduleResponseDto })
+  @ApiNotFoundResponse({ description: 'Child not found' })
+  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  getWeeklySchedule(
+    @Req() request: Request & { user: AuthenticatedParent },
+    @Query() query: ParentWeeklyScheduleQueryDto,
+  ): Promise<ParentWeeklyScheduleResponseDto> {
+    return this.parentService.getWeeklySchedule(request.user, query.studentId);
   }
 
   @Post('logout')
