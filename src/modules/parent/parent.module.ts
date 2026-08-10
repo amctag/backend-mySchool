@@ -4,6 +4,7 @@ import { PrismaModule } from '../../database/prisma/prisma.module';
 import { ParentAuthController } from './parent-auth.controller';
 import { ParentProfileController } from './parent-profile.controller';
 import { ParentAnnouncementController } from './parent-announcement.controller';
+import { ParentActivityController } from './parent-activity.controller';
 import { ParentPasswordController } from './parent-password.controller';
 import { ParentScheduleController } from './parent-schedule.controller';
 import { ParentService } from './parent.service';
@@ -15,6 +16,7 @@ import { ParentService } from './parent.service';
     ParentProfileController,
     ParentPasswordController,
     ParentAnnouncementController,
+    ParentActivityController,
     ParentScheduleController,
   ],
   providers: [ParentService],

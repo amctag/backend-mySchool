@@ -35,6 +35,7 @@ import {
   WeeklyScheduleDayDto,
 } from './dto/parent-weekly-schedule-response.dto';
 import { ParentAnnouncementsResponseDto } from './dto/parent-announcements-response.dto';
+import { ParentActivitiesResponseDto } from './dto/parent-activities-response.dto';
 
 type LoginParentPerson = {
   id: number;
@@ -397,6 +398,95 @@ export class ParentService {
     };
   }
 
+  async getActivities(
+    user: AuthenticatedParent,
+    studentId?: number,
+  ): Promise<ParentActivitiesResponseDto> {
+    this.ensureParentRole(user);
+
+    const students = await this.prisma.student.findMany({
+      where: {
+        parentId: user.parentId,
+        ...(studentId !== undefined ? { id: studentId } : {}),
+      },
+      include: {
+        registrations: {
+          where: { status: true },
+          include: {
+            section: {
+              select: {
+                schoolId: true,
+                yearId: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    if (studentId !== undefined && students.length === 0) {
+      throw new NotFoundException('Child not found');
+    }
+
+    const yearIds = [
+      ...new Set(
+        students
+          .map((student) => student.registrations[0]?.section.yearId)
+          .filter((id): id is number => id !== undefined),
+      ),
+    ];
+
+    const schoolIds = [
+      ...new Set(
+        students
+          .map((student) => student.registrations[0]?.section.schoolId)
+          .filter((id): id is number => id !== undefined),
+      ),
+    ];
+
+    const yearScopedFilter =
+      yearIds.length > 0 ? [{ yearId: { in: yearIds } }] : [];
+
+    const schoolWideFilter =
+      schoolIds.length > 0
+        ? [
+            {
+              yearId: null,
+              person: { schoolId: { in: schoolIds } },
+            },
+          ]
+        : [];
+
+    const globalFilter = [{ yearId: null, person: { schoolId: null } }];
+
+    const activities = await this.prisma.activity.findMany({
+      where: {
+        deletedAt: null,
+        OR: [...yearScopedFilter, ...schoolWideFilter, ...globalFilter],
+      },
+      include: {
+        year: {
+          select: {
+            title: true,
+            school: { select: { name: true } },
+          },
+        },
+        person: {
+          select: {
+            school: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    });
+
+    return {
+      activities: activities.map((activity) => this.mapParentActivity(activity)),
+    };
+  }
+
   async requestChangePasswordOtp(
     user: AuthenticatedParent,
   ): Promise<ParentChangePasswordRequestOtpResponseDto> {
@@ -703,6 +793,40 @@ export class ParentService {
         : null,
       class: matchedSection ? String(matchedSection.class.classLevel) : null,
     };
+  }
+
+  private mapParentActivity(activity: {
+    id: number;
+    title: string;
+    content: string;
+    date: Date;
+    image: string;
+    year: {
+      title: string;
+      school: { name: string };
+    } | null;
+    person: {
+      school: { name: string } | null;
+    };
+  }) {
+    return {
+      id: activity.id,
+      title: activity.title,
+      content: activity.content,
+      date: this.formatActivityDate(activity.date),
+      image: activity.image,
+      yearTitle: activity.year?.title ?? null,
+      schoolName:
+        activity.year?.school.name ?? activity.person.school?.name ?? '',
+    };
+  }
+
+  private formatActivityDate(date: Date): string {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
   }
 
   private getTodayDate(): Date {

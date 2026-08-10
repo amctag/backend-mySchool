@@ -63,6 +63,7 @@ model Person {
   parentSessions        ParentSession[]
   passwordChangeOtp     PasswordChangeOtp?
   announcements         Announcement[]
+  activities            Activity[]
 
   @@unique([schoolId, username])
   @@map("persons")
@@ -138,6 +139,7 @@ model Year {
   sections     Section[]
   classCourses ClassCourse[]
   teaches      Teach[]
+  activities   Activity[]
 
   @@unique([schoolId, title])
   @@map("years")
@@ -428,4 +430,23 @@ model AnnouncementSection {
 
   @@unique([announcementId, sectionId])
   @@map("announcement_sections")
+}
+
+model Activity {
+  id        Int       @id @default(autoincrement())
+  title     String    @db.VarChar(255)
+  content   String    @db.Text
+  date      DateTime  @db.Date
+  hits      Int       @default(0)
+  image     String    @db.Text
+  personId  Int       @map("person_id")
+  yearId    Int?      @map("year_id")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Restrict)
+  year   Year?  @relation(fields: [yearId], references: [id], onDelete: Restrict)
+
+  @@map("activities")
 }

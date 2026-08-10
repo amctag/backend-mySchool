@@ -39,6 +39,7 @@ async function bootstrap() {
     .addTag('Parent Profile v1', 'Parent profile, children, and change password')
     .addTag('Parent Schedule v1', 'Weekly schedule')
     .addTag('Parent Announcements v1', 'Announcements for parents')
+    .addTag('Parent Activities v1', 'School activities and events for parents')
     .addTag('Teacher v1', 'Teacher endpoints')
     .addTag('School v1', 'School endpoints')
     .build();

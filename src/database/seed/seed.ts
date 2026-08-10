@@ -27,6 +27,7 @@ async function resetDatabase(): Promise<void> {
       announcement_sections,
       announcement_targets,
       announcements,
+      activities,
       weekly_schedule_details,
       weekly_schedules,
       teach,
@@ -505,6 +506,41 @@ async function main(): Promise<void> {
           classId: academicB.section4A.classId,
         },
       },
+    },
+  });
+
+  console.log('Creating activities...');
+  const activityDate = new Date('2026-03-15');
+
+  await prisma.activity.create({
+    data: {
+      title: 'National Reading Week',
+      content: 'Celebrate reading with activities across all participating schools.',
+      date: activityDate,
+      image: 'https://cdn.example.com/activities/reading-week.jpg',
+      personId: teacherPerson.id,
+    },
+  });
+
+  await prisma.activity.create({
+    data: {
+      title: 'Green Valley Sports Day',
+      content: 'Students will compete in track, football, and relay events.',
+      date: new Date('2026-04-20'),
+      image: 'https://cdn.example.com/activities/green-sports-day.jpg',
+      personId: adminA.id,
+      yearId: academicA.year.id,
+    },
+  });
+
+  await prisma.activity.create({
+    data: {
+      title: 'Blue Horizon Art Exhibition',
+      content: 'Student artwork will be displayed in the main hall.',
+      date: new Date('2026-05-10'),
+      image: 'https://cdn.example.com/activities/blue-art-exhibition.jpg',
+      personId: adminB.id,
+      yearId: academicB.year.id,
     },
   });
 
