@@ -1,14 +1,48 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer, { Transporter } from 'nodemailer';
 import { MailSendFailedException } from './mail-send-failed.exception';
 
 @Injectable()
-export class MailService {
+export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
   private transporter: Transporter | null = null;
 
   constructor(private readonly configService: ConfigService) {}
+
+  async onModuleInit(): Promise<void> {
+    if (!this.isConfigured()) {
+      this.logger.warn(
+        'Mail not configured. Set MAIL_HOST, MAIL_USERNAME, and MAIL_PASSWORD.',
+      );
+      return;
+    }
+
+    const host = this.configService.get<string>('mail.host');
+    const port = this.configService.get<number>('mail.port') ?? 465;
+    const secure = this.configService.get<boolean>('mail.secure') ?? false;
+    const user = this.configService.get<string>('mail.user');
+
+    this.logger.log(
+      `Mail configured for ${host}:${port} (secure=${secure}, user=${user})`,
+    );
+
+    try {
+      await this.getTransporter().verify();
+      this.logger.log('Mail SMTP login verified successfully');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown mail error';
+
+      this.logger.error(
+        `Mail SMTP verification failed: ${message}. Check MAIL_USERNAME and MAIL_PASSWORD in Easypanel.`,
+      );
+    }
+  }
 
   async sendOtpEmail(to: string, otp: string, name: string): Promise<void> {
     const subject = 'Your password change verification code';
@@ -42,7 +76,7 @@ export class MailService {
     }
 
     const host = this.configService.get<string>('mail.host');
-    const port = this.configService.get<number>('mail.port') ?? 587;
+    const port = this.configService.get<number>('mail.port') ?? 465;
     const user = this.configService.get<string>('mail.user');
 
     try {
@@ -83,15 +117,16 @@ export class MailService {
     if (!this.transporter) {
       this.transporter = nodemailer.createTransport({
         host: this.configService.get<string>('mail.host'),
-        port: this.configService.get<number>('mail.port') ?? 587,
+        port: this.configService.get<number>('mail.port') ?? 465,
         secure: this.configService.get<boolean>('mail.secure') ?? false,
-        requireTLS: this.configService.get<boolean>('mail.requireTls') ?? true,
+        requireTLS: this.configService.get<boolean>('mail.requireTls') ?? false,
         auth: {
           user: this.configService.get<string>('mail.user'),
           pass: this.configService.get<string>('mail.pass'),
         },
         tls: {
           minVersion: 'TLSv1.2',
+          rejectUnauthorized: false,
         },
       });
     }

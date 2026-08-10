@@ -31,6 +31,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:seed": "node dist/database/seed/seed.js",
     "prisma:seed:dev": "ts-node src/database/seed/seed.ts",
+    "mail:test": "node scripts/test-mail.mjs",
     "postinstall": "prisma generate"
   },
   "prisma": {
