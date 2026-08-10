@@ -17,6 +17,10 @@ export class PrismaService
     return super.passwordChangeOtp;
   }
 
+  override get passwordResetOtp(): PrismaClient['passwordResetOtp'] {
+    return super.passwordResetOtp;
+  }
+
   override get announcement(): PrismaClient['announcement'] {
     return super.announcement;
   }

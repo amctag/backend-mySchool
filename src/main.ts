@@ -35,7 +35,7 @@ async function bootstrap() {
     .setDescription('School management system API v1')
     .setVersion('1.0')
     .addBearerAuth()
-    .addTag('Parent Auth v1', 'Login, refresh, and logout')
+    .addTag('Parent Auth v1', 'Login, refresh, logout, and forgot password')
     .addTag('Parent Profile v1', 'Parent profile, children, and change password')
     .addTag('Parent Schedule v1', 'Weekly schedule')
     .addTag('Parent Announcements v1', 'Announcements for parents')

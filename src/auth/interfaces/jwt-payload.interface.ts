@@ -6,6 +6,11 @@ export interface JwtPayload {
   sid: string;
 }
 
+export interface PasswordResetJwtPayload {
+  sub: string;
+  purpose: 'password-reset';
+}
+
 export interface AuthenticatedParent {
   id: number;
   username: string;

@@ -44,6 +44,26 @@ export class MailService implements OnModuleInit {
     }
   }
 
+  async sendForgotPasswordOtpEmail(
+    to: string,
+    otp: string,
+    name: string,
+  ): Promise<void> {
+    const subject = 'Your password reset verification code';
+    const text =
+      `Hello ${name},\n\n` +
+      `Your password reset code is: ${otp}\n\n` +
+      `This code expires in 10 minutes. If you did not request a password reset, ignore this email.\n`;
+
+    const html =
+      `<p>Hello ${name},</p>` +
+      `<p>Your password reset code is:</p>` +
+      `<p style="font-size:24px;font-weight:bold;letter-spacing:4px">${otp}</p>` +
+      `<p>This code expires in 10 minutes. If you did not request a password reset, ignore this email.</p>`;
+
+    await this.sendMail(to, subject, text, html);
+  }
+
   async sendOtpEmail(to: string, otp: string, name: string): Promise<void> {
     const subject = 'Your password change verification code';
     const text =

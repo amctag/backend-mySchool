@@ -14,6 +14,7 @@ import type { StringValue } from 'ms';
 import {
   AuthenticatedParent,
   JwtPayload,
+  PasswordResetJwtPayload,
 } from '../../auth/interfaces/jwt-payload.interface';
 import { SessionService } from '../../auth/services/session.service';
 import { PrismaService } from '../../database/prisma/prisma.service';
@@ -21,6 +22,12 @@ import { MailService } from '../../mail/mail.service';
 import { ParentChangePasswordRequestOtpResponseDto } from './dto/parent-change-password-request-otp-response.dto';
 import { ParentChangePasswordResponseDto } from './dto/parent-change-password-response.dto';
 import { ParentChangePasswordDto } from './dto/parent-change-password.dto';
+import { ParentForgotPasswordRequestOtpDto } from './dto/parent-forgot-password-request-otp.dto';
+import { ParentForgotPasswordRequestOtpResponseDto } from './dto/parent-forgot-password-request-otp-response.dto';
+import { ParentForgotPasswordResetDto } from './dto/parent-forgot-password-reset.dto';
+import { ParentForgotPasswordResetResponseDto } from './dto/parent-forgot-password-reset-response.dto';
+import { ParentForgotPasswordVerifyOtpDto } from './dto/parent-forgot-password-verify-otp.dto';
+import { ParentForgotPasswordVerifyOtpResponseDto } from './dto/parent-forgot-password-verify-otp-response.dto';
 import { ParentLoginResponseDto } from './dto/parent-login-response.dto';
 import { ParentLoginDto } from './dto/parent-login.dto';
 import { ParentLogoutResponseDto } from './dto/parent-logout-response.dto';
@@ -586,6 +593,127 @@ export class ParentService {
     return { message: 'Password changed successfully' };
   }
 
+  async requestForgotPasswordOtp(
+    dto: ParentForgotPasswordRequestOtpDto,
+  ): Promise<ParentForgotPasswordRequestOtpResponseDto> {
+    const expiresInMinutes = this.getOtpExpiresInMinutes();
+    const genericMessage =
+      'If an account with this username exists, a verification code was sent to the registered email';
+
+    const person = await this.findParentAccountByUsername(dto.username);
+
+    if (!person?.email) {
+      return {
+        message: genericMessage,
+        email: null,
+        expiresInMinutes,
+      };
+    }
+
+    const otp = this.generateOtp();
+    const expiresAt = this.getOtpExpiryDate();
+
+    await this.mailService.sendForgotPasswordOtpEmail(
+      person.email,
+      otp,
+      this.formatFullName(person),
+    );
+
+    await this.prisma.passwordResetOtp.upsert({
+      where: { personId: person.id },
+      create: {
+        personId: person.id,
+        otpHash: this.hashOtp(otp),
+        expiresAt,
+      },
+      update: {
+        otpHash: this.hashOtp(otp),
+        expiresAt,
+      },
+    });
+
+    return {
+      message: genericMessage,
+      email: this.maskEmail(person.email),
+      expiresInMinutes,
+    };
+  }
+
+  async verifyForgotPasswordOtp(
+    dto: ParentForgotPasswordVerifyOtpDto,
+  ): Promise<ParentForgotPasswordVerifyOtpResponseDto> {
+    const person = await this.findParentAccountByUsername(dto.username);
+
+    if (!person) {
+      throw new UnauthorizedException('Invalid or expired verification code');
+    }
+
+    const otpRecord = await this.prisma.passwordResetOtp.findUnique({
+      where: { personId: person.id },
+    });
+
+    if (!otpRecord || otpRecord.expiresAt <= new Date()) {
+      if (otpRecord) {
+        await this.prisma.passwordResetOtp.delete({
+          where: { personId: person.id },
+        });
+      }
+      throw new UnauthorizedException('Invalid or expired verification code');
+    }
+
+    const submittedHash = this.hashOtp(dto.otp);
+    if (submittedHash !== otpRecord.otpHash) {
+      throw new UnauthorizedException('Invalid or expired verification code');
+    }
+
+    await this.prisma.passwordResetOtp.delete({
+      where: { personId: person.id },
+    });
+
+    const resetToken = await this.signPasswordResetToken(person.id);
+    const expiresInMinutes = this.getPasswordResetExpiresInMinutes();
+
+    return {
+      message: 'Verification code confirmed',
+      resetToken,
+      expiresInMinutes,
+    };
+  }
+
+  async resetForgotPassword(
+    dto: ParentForgotPasswordResetDto,
+  ): Promise<ParentForgotPasswordResetResponseDto> {
+    if (dto.newPassword !== dto.confirmPassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
+
+    const personId = await this.verifyPasswordResetToken(dto.resetToken);
+
+    const person = await this.prisma.person.findFirst({
+      where: {
+        id: personId,
+        status: true,
+        parent: { isNot: null },
+      },
+      select: { id: true },
+    });
+
+    if (!person) {
+      throw new UnauthorizedException('Invalid or expired reset token');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+
+    await this.prisma.person.update({
+      where: { id: person.id },
+      data: { password: passwordHash },
+    });
+
+    await this.revokeParentSessions(person.id);
+
+    return { message: 'Password reset successfully' };
+  }
+
   async refresh(refreshToken: string): Promise<ParentRefreshResponseDto> {
     const session = await this.findSessionByRefreshToken(refreshToken);
 
@@ -905,6 +1033,79 @@ export class ParentService {
     if (user.role !== 'parent') {
       throw new ForbiddenException('Only parents can use this endpoint');
     }
+  }
+
+  private async findParentAccountByUsername(username: string) {
+    return this.prisma.person.findFirst({
+      where: {
+        username,
+        status: true,
+        parent: { isNot: null },
+        email: { not: null },
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+      },
+    });
+  }
+
+  private async signPasswordResetToken(personId: number): Promise<string> {
+    const payload: PasswordResetJwtPayload = {
+      sub: personId.toString(),
+      purpose: 'password-reset',
+    };
+
+    return this.jwtService.signAsync(payload, {
+      expiresIn: this.getPasswordResetExpiresIn(),
+    });
+  }
+
+  private async verifyPasswordResetToken(resetToken: string): Promise<number> {
+    try {
+      const payload = await this.jwtService.verifyAsync<PasswordResetJwtPayload>(
+        resetToken,
+        {
+          secret: this.configService.get<string>('jwt.secret'),
+        },
+      );
+
+      if (payload.purpose !== 'password-reset') {
+        throw new UnauthorizedException('Invalid or expired reset token');
+      }
+
+      const personId = parseInt(payload.sub, 10);
+
+      if (!Number.isFinite(personId)) {
+        throw new UnauthorizedException('Invalid or expired reset token');
+      }
+
+      return personId;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      throw new UnauthorizedException('Invalid or expired reset token');
+    }
+  }
+
+  private getPasswordResetExpiresIn(): StringValue {
+    return (this.configService.get<string>('jwt.passwordResetExpiresIn') ??
+      '15m') as StringValue;
+  }
+
+  private getPasswordResetExpiresInMinutes(): number {
+    const ttl = ms(this.getPasswordResetExpiresIn());
+
+    if (typeof ttl !== 'number') {
+      return 15;
+    }
+
+    return Math.max(1, Math.round(ttl / 60000));
   }
 
   private async validateCredentials(
