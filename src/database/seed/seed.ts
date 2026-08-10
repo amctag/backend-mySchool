@@ -1,8 +1,6 @@
 import 'dotenv/config';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { Pool } from 'pg';
+import { SeedPrismaClient } from './seed-prisma.client';
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -10,9 +8,7 @@ if (!connectionString) {
   throw new Error('DATABASE_URL is not defined');
 }
 
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = new SeedPrismaClient(connectionString);
 
 /** All seeded accounts use this password */
 const DEFAULT_PASSWORD = bcrypt.hashSync('password123', 10);
@@ -28,6 +24,9 @@ const baseProfile = {
 async function resetDatabase(): Promise<void> {
   await prisma.$executeRawUnsafe(`
     TRUNCATE TABLE
+      announcement_sections,
+      announcement_targets,
+      announcements,
       weekly_schedule_details,
       weekly_schedules,
       teach,
@@ -455,6 +454,60 @@ async function main(): Promise<void> {
     ],
   });
 
+  console.log('Creating announcements...');
+  const publishNow = new Date();
+
+  await prisma.announcement.create({
+    data: {
+      title: 'Welcome Back to School',
+      content: 'We are excited to welcome all parents and students to the new term.',
+      personId: adminA.id,
+      publishDate: publishNow,
+      publishTime: publishNow,
+      targets: {
+        create: { audienceTarget: 'parent' },
+      },
+    },
+  });
+
+  await prisma.announcement.create({
+    data: {
+      title: 'Class 4A Parent Meeting',
+      content: 'Parents of Class 4 Section A are invited to a meeting this Thursday at 4 PM.',
+      personId: adminA.id,
+      publishDate: publishNow,
+      publishTime: publishNow,
+      targets: {
+        create: { audienceTarget: 'parent' },
+      },
+      sections: {
+        create: {
+          sectionId: academicA.section4A.id,
+          classId: academicA.section4A.classId,
+        },
+      },
+    },
+  });
+
+  await prisma.announcement.create({
+    data: {
+      title: 'Blue Horizon Sports Day',
+      content: 'Sports day for Class 4 students will be held next Monday.',
+      personId: adminB.id,
+      publishDate: publishNow,
+      publishTime: publishNow,
+      targets: {
+        create: { audienceTarget: 'parent' },
+      },
+      sections: {
+        create: {
+          sectionId: academicB.section4A.id,
+          classId: academicB.section4A.classId,
+        },
+      },
+    },
+  });
+
   console.log('Seed completed successfully.');
   console.log('');
   console.log('Schools:');
@@ -485,6 +538,5 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect();
-    await pool.end();
+    await prisma.disconnect();
   });

@@ -62,6 +62,7 @@ model Person {
   registrations         Registration[]
   parentSessions        ParentSession[]
   passwordChangeOtp     PasswordChangeOtp?
+  announcements         Announcement[]
 
   @@unique([schoolId, username])
   @@map("persons")
@@ -168,6 +169,7 @@ model Class {
   stage        Stage         @relation(fields: [stageId], references: [id], onDelete: Restrict)
   sections     Section[]
   classCourses ClassCourse[]
+  announcementSections AnnouncementSection[]
 
   @@map("classes")
 }
@@ -204,6 +206,7 @@ model Section {
   teaches          Teach[]
   weeklySchedules  WeeklySchedule[]
   registrations    Registration[]
+  announcementSections AnnouncementSection[]
 
   @@map("sections")
 }
@@ -369,4 +372,60 @@ model PasswordChangeOtp {
   person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@map("password_change_otps")
+}
+
+enum AnnouncementAudience {
+  parent
+  student
+  teacher
+}
+
+model Announcement {
+  id          Int       @id @default(autoincrement())
+  title       String?   @db.VarChar(255)
+  content     String    @db.Text
+  hits        Int       @default(0)
+  personId    Int       @map("person_id")
+  publishDate DateTime  @map("publish_date") @db.Date
+  publishTime DateTime  @map("publish_time") @db.Time(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  person   Person                @relation(fields: [personId], references: [id], onDelete: Restrict)
+  targets  AnnouncementTarget[]
+  sections AnnouncementSection[]
+
+  @@map("announcements")
+}
+
+model AnnouncementTarget {
+  id             Int                  @id @default(autoincrement())
+  announcementId Int                  @map("announcement_id")
+  audienceTarget AnnouncementAudience @map("audience_target")
+  deletedAt      DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, audienceTarget])
+  @@map("announcement_targets")
+}
+
+model AnnouncementSection {
+  id             Int       @id @default(autoincrement())
+  announcementId Int       @map("announcement_id")
+  sectionId      Int       @map("section_id")
+  classId        Int       @map("class_id")
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  section      Section      @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  class        Class        @relation(fields: [classId], references: [id], onDelete: Restrict)
+
+  @@unique([announcementId, sectionId])
+  @@map("announcement_sections")
 }

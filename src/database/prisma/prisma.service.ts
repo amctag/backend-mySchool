@@ -17,6 +17,10 @@ export class PrismaService
     return super.passwordChangeOtp;
   }
 
+  override get announcement(): PrismaClient['announcement'] {
+    return super.announcement;
+  }
+
   private readonly pool: Pool;
 
   constructor(configService: ConfigService) {

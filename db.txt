@@ -375,7 +375,7 @@ Stores the audience roles selected for an announcement.
 |---|---|---|
 | `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique role-target identifier |
 | `announcement_id` | BIGINT UNSIGNED FK→announcements ON DELETE CASCADE NOT NULL | Announcement |
-| `audience_target` | ENUM('parent','student','teacher','director','supervisor','coordinator') NOT NULL | Recipient role |
+| `audience_target` | ENUM('parent','student','teacher') NOT NULL | Recipient role |
 | `created_at` | TIMESTAMP | Row creation time |
 | `updated_at` | TIMESTAMP | Last update |
 | `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |

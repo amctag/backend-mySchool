@@ -34,6 +34,7 @@ import {
   WeeklyScheduleCourseDto,
   WeeklyScheduleDayDto,
 } from './dto/parent-weekly-schedule-response.dto';
+import { ParentAnnouncementsResponseDto } from './dto/parent-announcements-response.dto';
 
 type LoginParentPerson = {
   id: number;
@@ -275,6 +276,123 @@ export class ParentService {
     return {
       schedules: students.map((student) =>
         this.mapStudentWeeklySchedule(student),
+      ),
+    };
+  }
+
+  async getAnnouncements(
+    user: AuthenticatedParent,
+    studentId?: number,
+  ): Promise<ParentAnnouncementsResponseDto> {
+    this.ensureParentRole(user);
+
+    const students = await this.prisma.student.findMany({
+      where: {
+        parentId: user.parentId,
+        ...(studentId !== undefined ? { id: studentId } : {}),
+      },
+      include: {
+        registrations: {
+          where: { status: true },
+          include: {
+            section: {
+              select: {
+                id: true,
+                schoolId: true,
+                class: { select: { classLevel: true } },
+                sectionTitle: { select: { title: true } },
+                school: { select: { name: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    if (studentId !== undefined && students.length === 0) {
+      throw new NotFoundException('Child not found');
+    }
+
+    const sectionIds = [
+      ...new Set(
+        students
+          .map((student) => student.registrations[0]?.section.id)
+          .filter((id): id is number => id !== undefined),
+      ),
+    ];
+
+    const today = this.getTodayDate();
+    const currentTime = this.getCurrentPublishTime();
+
+    const announcements = await this.prisma.announcement.findMany({
+      where: {
+        deletedAt: null,
+        targets: {
+          some: {
+            audienceTarget: 'parent',
+            deletedAt: null,
+          },
+        },
+        AND: [
+          {
+            OR: [
+              { publishDate: { lt: today } },
+              {
+                publishDate: today,
+                publishTime: { lte: currentTime },
+              },
+            ],
+          },
+        ],
+        OR: [
+          {
+            sections: {
+              none: {
+                deletedAt: null,
+              },
+            },
+          },
+          ...(sectionIds.length > 0
+            ? [
+                {
+                  sections: {
+                    some: {
+                      deletedAt: null,
+                      sectionId: { in: sectionIds },
+                    },
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+      include: {
+        sections: {
+          where: { deletedAt: null },
+          include: {
+            section: {
+              select: {
+                id: true,
+                class: { select: { classLevel: true } },
+                sectionTitle: { select: { title: true } },
+                school: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: [
+        { publishDate: 'desc' },
+        { publishTime: 'desc' },
+        { id: 'desc' },
+      ],
+    });
+
+    return {
+      announcements: announcements.map((announcement) =>
+        this.mapParentAnnouncement(announcement, sectionIds),
       ),
     };
   }
@@ -544,6 +662,73 @@ export class ParentService {
 
   private formatSectionName(title: string): string {
     return title.replace(/^Section\s+/i, '').trim() || title;
+  }
+
+  private mapParentAnnouncement(
+    announcement: {
+      id: number;
+      title: string | null;
+      content: string;
+      publishDate: Date;
+      publishTime: Date;
+      sections: Array<{
+        sectionId: number;
+        section: {
+          id: number;
+          class: { classLevel: number };
+          sectionTitle: { title: string };
+          school: { name: string };
+        };
+      }>;
+    },
+    parentSectionIds: number[],
+  ) {
+    const isGlobal = announcement.sections.length === 0;
+    const matchedSection = announcement.sections.find((item) =>
+      parentSectionIds.includes(item.sectionId),
+    )?.section;
+
+    return {
+      id: announcement.id,
+      title: announcement.title,
+      content: announcement.content,
+      publishedAt: this.combinePublishDateTime(
+        announcement.publishDate,
+        announcement.publishTime,
+      ).toISOString(),
+      isGlobal,
+      schoolName: matchedSection?.school.name ?? '',
+      sectionName: matchedSection
+        ? this.formatSectionName(matchedSection.sectionTitle.title)
+        : null,
+      class: matchedSection ? String(matchedSection.class.classLevel) : null,
+    };
+  }
+
+  private getTodayDate(): Date {
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  }
+
+  private getCurrentPublishTime(): Date {
+    const now = new Date();
+    return new Date(
+      Date.UTC(1970, 0, 1, now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds()),
+    );
+  }
+
+  private combinePublishDateTime(publishDate: Date, publishTime: Date): Date {
+    const combined = new Date(publishDate);
+    const time = new Date(publishTime);
+
+    combined.setUTCHours(
+      time.getUTCHours(),
+      time.getUTCMinutes(),
+      time.getUTCSeconds(),
+      0,
+    );
+
+    return combined;
   }
 
   private generateOtp(): string {
