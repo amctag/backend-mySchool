@@ -7,8 +7,9 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 }
 
 export default registerAs('throttle', () => ({
+  disabled: process.env.THROTTLE_DISABLED === 'true',
   ttl: parsePositiveInt(process.env.THROTTLE_TTL, 60000),
-  limit: parsePositiveInt(process.env.THROTTLE_LIMIT, 100),
+  limit: parsePositiveInt(process.env.THROTTLE_LIMIT, 10000),
   authTtl: parsePositiveInt(process.env.THROTTLE_AUTH_TTL, 60000),
-  authLimit: parsePositiveInt(process.env.THROTTLE_AUTH_LIMIT, 5),
+  authLimit: parsePositiveInt(process.env.THROTTLE_AUTH_LIMIT, 1000),
 }));

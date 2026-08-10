@@ -32,12 +32,12 @@ import { SchoolModule } from './modules/school/school.module';
           {
             name: 'default',
             ttl: configService.get<number>('throttle.ttl') ?? 60000,
-            limit: configService.get<number>('throttle.limit') ?? 100,
+            limit: configService.get<number>('throttle.limit') ?? 10000,
           },
           {
             name: 'auth',
             ttl: configService.get<number>('throttle.authTtl') ?? 60000,
-            limit: configService.get<number>('throttle.authLimit') ?? 5,
+            limit: configService.get<number>('throttle.authLimit') ?? 1000,
           },
         ],
       }),
