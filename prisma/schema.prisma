@@ -61,6 +61,7 @@ model Person {
   weeklyScheduleDetails WeeklyScheduleDetail[]
   registrations         Registration[]
   parentSessions        ParentSession[]
+  passwordChangeOtp     PasswordChangeOtp?
 
   @@unique([schoolId, username])
   @@map("persons")
@@ -356,4 +357,16 @@ model ParentSession {
 
   @@unique([personId])
   @@map("parent_sessions")
+}
+
+model PasswordChangeOtp {
+  id        String   @id @default(uuid()) @db.Uuid
+  personId  Int      @unique @map("person_id")
+  otpHash   String   @map("otp_hash") @db.VarChar(64)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@map("password_change_otps")
 }

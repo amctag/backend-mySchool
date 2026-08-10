@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, randomInt } from 'crypto';
 import ms from 'ms';
 import type { StringValue } from 'ms';
 import {
@@ -16,6 +17,10 @@ import {
 } from '../../auth/interfaces/jwt-payload.interface';
 import { SessionService } from '../../auth/services/session.service';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { MailService } from '../../mail/mail.service';
+import { ParentChangePasswordRequestOtpResponseDto } from './dto/parent-change-password-request-otp-response.dto';
+import { ParentChangePasswordResponseDto } from './dto/parent-change-password-response.dto';
+import { ParentChangePasswordDto } from './dto/parent-change-password.dto';
 import { ParentLoginResponseDto } from './dto/parent-login-response.dto';
 import { ParentLoginDto } from './dto/parent-login.dto';
 import { ParentLogoutResponseDto } from './dto/parent-logout-response.dto';
@@ -46,6 +51,7 @@ export class ParentService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly sessionService: SessionService,
+    private readonly mailService: MailService,
   ) {}
 
   async login(loginDto: ParentLoginDto): Promise<ParentLoginResponseDto> {
@@ -273,6 +279,105 @@ export class ParentService {
     };
   }
 
+  async requestChangePasswordOtp(
+    user: AuthenticatedParent,
+  ): Promise<ParentChangePasswordRequestOtpResponseDto> {
+    this.ensureParentRole(user);
+
+    const person = await this.prisma.person.findFirst({
+      where: {
+        id: user.id,
+        status: true,
+        parent: { id: user.parentId },
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+      },
+    });
+
+    if (!person?.email) {
+      throw new BadRequestException(
+        'No email is linked to your account. Contact the school to add one.',
+      );
+    }
+
+    const otp = this.generateOtp();
+    const expiresAt = this.getOtpExpiryDate();
+    const expiresInMinutes = this.getOtpExpiresInMinutes();
+
+    await this.prisma.passwordChangeOtp.upsert({
+      where: { personId: person.id },
+      create: {
+        personId: person.id,
+        otpHash: this.hashOtp(otp),
+        expiresAt,
+      },
+      update: {
+        otpHash: this.hashOtp(otp),
+        expiresAt,
+      },
+    });
+
+    await this.mailService.sendOtpEmail(
+      person.email,
+      otp,
+      this.formatFullName(person),
+    );
+
+    return {
+      message: 'Verification code sent to your email',
+      email: this.maskEmail(person.email),
+      expiresInMinutes,
+    };
+  }
+
+  async changePassword(
+    user: AuthenticatedParent,
+    changePasswordDto: ParentChangePasswordDto,
+  ): Promise<ParentChangePasswordResponseDto> {
+    this.ensureParentRole(user);
+
+    if (changePasswordDto.newPassword !== changePasswordDto.confirmPassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
+
+    const otpRecord = await this.prisma.passwordChangeOtp.findUnique({
+      where: { personId: user.id },
+    });
+
+    if (!otpRecord || otpRecord.expiresAt <= new Date()) {
+      if (otpRecord) {
+        await this.prisma.passwordChangeOtp.delete({
+          where: { personId: user.id },
+        });
+      }
+      throw new UnauthorizedException('Invalid or expired verification code');
+    }
+
+    const submittedHash = this.hashOtp(changePasswordDto.otp);
+    if (submittedHash !== otpRecord.otpHash) {
+      throw new UnauthorizedException('Invalid or expired verification code');
+    }
+
+    const passwordHash = await bcrypt.hash(changePasswordDto.newPassword, 10);
+
+    await this.prisma.$transaction([
+      this.prisma.person.update({
+        where: { id: user.id },
+        data: { password: passwordHash },
+      }),
+      this.prisma.passwordChangeOtp.delete({
+        where: { personId: user.id },
+      }),
+    ]);
+
+    return { message: 'Password changed successfully' };
+  }
+
   async refresh(refreshToken: string): Promise<ParentRefreshResponseDto> {
     const session = await this.findSessionByRefreshToken(refreshToken);
 
@@ -439,6 +544,52 @@ export class ParentService {
 
   private formatSectionName(title: string): string {
     return title.replace(/^Section\s+/i, '').trim() || title;
+  }
+
+  private generateOtp(): string {
+    return randomInt(100000, 1000000).toString();
+  }
+
+  private hashOtp(otp: string): string {
+    return createHash('sha256').update(otp).digest('hex');
+  }
+
+  private getOtpExpiryDate(): Date {
+    const otpExpiresIn = (this.configService.get<string>('mail.otpExpiresIn') ??
+      '10m') as StringValue;
+    const ttl = ms(otpExpiresIn);
+
+    if (typeof ttl !== 'number') {
+      throw new Error(`Invalid OTP_EXPIRES_IN value: ${otpExpiresIn}`);
+    }
+
+    return new Date(Date.now() + ttl);
+  }
+
+  private getOtpExpiresInMinutes(): number {
+    const otpExpiresIn = (this.configService.get<string>('mail.otpExpiresIn') ??
+      '10m') as StringValue;
+    const ttl = ms(otpExpiresIn);
+
+    if (typeof ttl !== 'number') {
+      return 10;
+    }
+
+    return Math.max(1, Math.round(ttl / 60000));
+  }
+
+  private maskEmail(email: string): string {
+    const [localPart, domain] = email.split('@');
+
+    if (!localPart || !domain) {
+      return email;
+    }
+
+    if (localPart.length <= 1) {
+      return `*@${domain}`;
+    }
+
+    return `${localPart[0]}***@${domain}`;
   }
 
   private ensureParentRole(user: AuthenticatedParent): void {

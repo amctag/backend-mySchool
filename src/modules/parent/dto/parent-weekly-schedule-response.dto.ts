@@ -2,59 +2,59 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class WeeklyScheduleCourseDto {
   @ApiProperty({ example: 1 })
-  courseId: number;
+  courseId!: number;
 
   @ApiProperty({ example: 'Mathematics' })
-  courseTitle: string;
+  courseTitle!: string;
 
   @ApiProperty({ example: '1st Period' })
-  sessionName: string;
+  sessionName!: string;
 
   @ApiProperty({ example: 1 })
-  sessionPosition: number;
+  sessionPosition!: number;
 
   @ApiProperty({ example: 'Sara Ali Nasser', nullable: true })
-  teacherName: string | null;
+  teacherName!: string | null;
 
   @ApiProperty({ example: null, nullable: true })
-  note: string | null;
+  note!: string | null;
 }
 
 export class WeeklyScheduleDayDto {
   @ApiProperty({ example: 'Monday' })
-  dayName: string;
+  dayName!: string;
 
   @ApiProperty({ example: 1 })
-  position: number;
+  position!: number;
 
   @ApiProperty({ type: [WeeklyScheduleCourseDto] })
-  courses: WeeklyScheduleCourseDto[];
+  courses!: WeeklyScheduleCourseDto[];
 }
 
 export class ParentChildWeeklyScheduleDto {
   @ApiProperty({ example: 1 })
-  studentId: number;
+  studentId!: number;
 
   @ApiProperty({ example: 'Layla Ahmad Khalil' })
-  studentName: string;
+  studentName!: string;
 
   @ApiProperty({ example: 'A' })
-  sectionName: string;
+  sectionName!: string;
 
   @ApiProperty({ example: '4' })
-  class: string;
+  class!: string;
 
   @ApiProperty({ example: 'Green Valley School' })
-  schoolName: string;
+  schoolName!: string;
 
   @ApiProperty({ example: '2025-2026' })
-  yearTitle: string;
+  yearTitle!: string;
 
   @ApiProperty({ type: [WeeklyScheduleDayDto] })
-  days: WeeklyScheduleDayDto[];
+  days!: WeeklyScheduleDayDto[];
 }
 
 export class ParentWeeklyScheduleResponseDto {
   @ApiProperty({ type: [ParentChildWeeklyScheduleDto] })
-  schedules: ParentChildWeeklyScheduleDto[];
+  schedules!: ParentChildWeeklyScheduleDto[];
 }

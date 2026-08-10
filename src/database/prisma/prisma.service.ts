@@ -13,6 +13,10 @@ export class PrismaService
     return super.parentSession;
   }
 
+  override get passwordChangeOtp(): PrismaClient['passwordChangeOtp'] {
+    return super.passwordChangeOtp;
+  }
+
   private readonly pool: Pool;
 
   constructor(configService: ConfigService) {

@@ -36,7 +36,7 @@ async function bootstrap() {
     .setVersion('1.0')
     .addBearerAuth()
     .addTag('Parent Auth v1', 'Login, refresh, and logout')
-    .addTag('Parent Profile v1', 'Parent profile and children')
+    .addTag('Parent Profile v1', 'Parent profile, children, and change password')
     .addTag('Parent Schedule v1', 'Weekly schedule')
     .addTag('Teacher v1', 'Teacher endpoints')
     .addTag('School v1', 'School endpoints')
