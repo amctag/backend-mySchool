@@ -41,7 +41,7 @@ async function bootstrap() {
     .addTag('Parent Announcements v1', 'Announcements for parents')
     .addTag('Parent Activities v1', 'School activities and events for parents')
     .addTag('Teacher v1', 'Teacher endpoints')
-    .addTag('School v1', 'School endpoints')
+    .addTag('School v1', 'School information and details')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);

@@ -19,6 +19,10 @@ export class SeedPrismaClient extends PrismaClient {
     return super.activity;
   }
 
+  override get schoolDetail(): PrismaClient['schoolDetail'] {
+    return super.schoolDetail;
+  }
+
   private readonly pool: Pool;
 
   constructor(connectionString: string) {

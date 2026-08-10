@@ -29,6 +29,10 @@ export class PrismaService
     return super.activity;
   }
 
+  override get schoolDetail(): PrismaClient['schoolDetail'] {
+    return super.schoolDetail;
+  }
+
   private readonly pool: Pool;
 
   constructor(configService: ConfigService) {

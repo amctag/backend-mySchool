@@ -22,6 +22,7 @@ model School {
   days          Day[]
   sessions      Session[]
   teacherSchools TeacherSchool[]
+  details        SchoolDetail?
 
   @@map("school")
 }
@@ -462,4 +463,23 @@ model Activity {
   year   Year?  @relation(fields: [yearId], references: [id], onDelete: Restrict)
 
   @@map("activities")
+}
+
+model SchoolDetail {
+  id        Int       @id @default(autoincrement())
+  schoolId  Int       @unique @map("school_id")
+  telephone String    @db.VarChar(255)
+  phone     String    @db.VarChar(255)
+  fax       String    @db.VarChar(255)
+  address   String    @db.VarChar(255)
+  email     String    @db.VarChar(255)
+  website   String    @db.VarChar(255)
+  about     String    @db.Text
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@map("school_details")
 }

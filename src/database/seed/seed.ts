@@ -234,6 +234,34 @@ async function main(): Promise<void> {
     data: { name: 'Blue Horizon Academy', isActive: true },
   });
 
+  console.log('Creating school details...');
+  await prisma.schoolDetail.createMany({
+    data: [
+      {
+        schoolId: schoolA.id,
+        telephone: '+961 1 234 567',
+        phone: '+961 70 123 456',
+        fax: '+961 1 234 568',
+        address: 'Hamra Street, Beirut, Lebanon',
+        email: 'info@greenvalley.edu',
+        website: 'https://greenvalley.edu',
+        about:
+          'Green Valley School provides quality education from primary through middle school.',
+      },
+      {
+        schoolId: schoolB.id,
+        telephone: '+961 1 987 654',
+        phone: '+961 71 987 654',
+        fax: '+961 1 987 655',
+        address: 'Corniche Road, Beirut, Lebanon',
+        email: 'info@bluehorizon.edu',
+        website: 'https://bluehorizon.edu',
+        about:
+          'Blue Horizon Academy focuses on academic excellence and student development.',
+      },
+    ],
+  });
+
   const academicA = await seedSchoolAcademic(schoolA.id, 'a');
   const academicB = await seedSchoolAcademic(schoolB.id, 'b');
 
