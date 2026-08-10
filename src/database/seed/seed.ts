@@ -28,6 +28,9 @@ async function resetDatabase(): Promise<void> {
       announcement_targets,
       announcements,
       activities,
+      attendance_details,
+      attendance,
+      attendance_reasons,
       password_reset_otps,
       password_change_otps,
       school_details,
@@ -215,12 +218,20 @@ async function seedSchoolAcademic(schoolId: number, schoolKey: 'a' | 'b') {
 }
 
 async function main(): Promise<void> {
-  const skipIfSeeded = process.env.SEED_SKIP_IF_EXISTS === 'true';
+  const forceReseed = process.env.SEED_FORCE === 'true';
   const existingSchools = await prisma.school.count();
 
-  if (skipIfSeeded && existingSchools > 0) {
-    console.log('Seed skipped: schools already exist (SEED_SKIP_IF_EXISTS=true).');
+  if (existingSchools > 0 && !forceReseed) {
+    console.log(
+      'Seed skipped: database already has data. Set SEED_FORCE=true only on a dev/test DB to wipe and re-seed.',
+    );
     return;
+  }
+
+  if (forceReseed) {
+    console.log('SEED_FORCE=true — resetting database before seed...');
+  } else {
+    console.log('Empty database — running initial seed...');
   }
 
   console.log('Resetting database...');
@@ -572,6 +583,82 @@ async function main(): Promise<void> {
       image: 'https://cdn.example.com/activities/blue-art-exhibition.jpg',
       personId: adminB.id,
       yearId: academicB.year.id,
+    },
+  });
+
+  console.log('Creating attendance absences...');
+  const sickReason = await prisma.attendanceReason.create({
+    data: {
+      title: 'Sick',
+      personId: adminA.id,
+    },
+  });
+
+  const familyReason = await prisma.attendanceReason.create({
+    data: {
+      title: 'Family reason',
+      personId: adminB.id,
+    },
+  });
+
+  await prisma.attendance.create({
+    data: {
+      date: new Date('2026-08-03'),
+      sectionId: academicA.section4A.id,
+      personId: adminA.id,
+      details: {
+        create: {
+          studentId: studentLaylaPerson.student!.id,
+          status: 'absent',
+          attendanceReasonId: sickReason.id,
+          description: 'Fever',
+        },
+      },
+    },
+  });
+
+  await prisma.attendance.create({
+    data: {
+      date: new Date('2026-08-07'),
+      sectionId: academicA.section4A.id,
+      personId: adminA.id,
+      details: {
+        create: {
+          studentId: studentLaylaPerson.student!.id,
+          status: 'absent',
+          attendanceReasonId: sickReason.id,
+        },
+      },
+    },
+  });
+
+  await prisma.attendance.create({
+    data: {
+      date: new Date('2026-08-05'),
+      sectionId: academicB.section4A.id,
+      personId: adminB.id,
+      details: {
+        create: {
+          studentId: studentOmarPerson.student!.id,
+          status: 'absent',
+          attendanceReasonId: familyReason.id,
+          description: 'Travel with family',
+        },
+      },
+    },
+  });
+
+  await prisma.attendance.create({
+    data: {
+      date: new Date('2026-08-04'),
+      sectionId: academicA.section4A.id,
+      personId: adminA.id,
+      details: {
+        create: {
+          studentId: studentLaylaPerson.student!.id,
+          status: 'present',
+        },
+      },
     },
   });
 

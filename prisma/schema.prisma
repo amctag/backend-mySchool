@@ -66,6 +66,8 @@ model Person {
   passwordResetOtp      PasswordResetOtp?
   announcements         Announcement[]
   activities            Activity[]
+  attendances           Attendance[]
+  attendanceReasons     AttendanceReason[]
 
   @@unique([schoolId, username])
   @@map("persons")
@@ -125,6 +127,7 @@ model Student {
   person        Person         @relation(fields: [personId], references: [id], onDelete: Cascade)
   parent        Parent?        @relation(fields: [parentId], references: [id], onDelete: SetNull)
   registrations Registration[]
+  attendanceDetails AttendanceDetail[]
 
   @@map("students")
 }
@@ -211,6 +214,7 @@ model Section {
   weeklySchedules  WeeklySchedule[]
   registrations    Registration[]
   announcementSections AnnouncementSection[]
+  attendances      Attendance[]
 
   @@map("sections")
 }
@@ -482,4 +486,61 @@ model SchoolDetail {
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@map("school_details")
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  late
+  excused
+}
+
+model AttendanceReason {
+  id        Int       @id @default(autoincrement())
+  title     String    @db.VarChar(255)
+  personId  Int       @map("person_id")
+  status    Boolean   @default(true)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  person            Person             @relation(fields: [personId], references: [id], onDelete: Restrict)
+  attendanceDetails AttendanceDetail[]
+
+  @@map("attendance_reasons")
+}
+
+model Attendance {
+  id        Int       @id @default(autoincrement())
+  date      DateTime  @db.Date
+  sectionId Int       @map("section_id")
+  status    Boolean   @default(true)
+  personId  Int       @map("person_id")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  section Section            @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  person  Person             @relation(fields: [personId], references: [id], onDelete: Restrict)
+  details AttendanceDetail[]
+
+  @@map("attendance")
+}
+
+model AttendanceDetail {
+  id                 Int              @id @default(autoincrement())
+  attendanceId       Int              @map("attendance_id")
+  studentId          Int              @map("student_id")
+  status             AttendanceStatus
+  description        String?          @db.Text
+  attendanceReasonId Int?             @map("attendance_reason_id")
+  deletedAt          DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  attendance       Attendance        @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  student          Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  attendanceReason AttendanceReason? @relation(fields: [attendanceReasonId], references: [id], onDelete: SetNull)
+
+  @@map("attendance_details")
 }

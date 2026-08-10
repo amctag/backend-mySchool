@@ -44,6 +44,7 @@ import {
 import { ParentAnnouncementsResponseDto } from './dto/parent-announcements-response.dto';
 import { ParentActivitiesResponseDto } from './dto/parent-activities-response.dto';
 import { ParentSchoolDetailsResponseDto } from './dto/parent-school-details-response.dto';
+import { ParentAttendanceAbsencesResponseDto } from './dto/parent-attendance-absences-response.dto';
 import { SchoolService } from '../school/school.service';
 
 type LoginParentPerson = {
@@ -541,6 +542,114 @@ export class ParentService {
     return { schools };
   }
 
+  async getAttendanceAbsences(
+    user: AuthenticatedParent,
+    month: string,
+    studentId?: number,
+  ): Promise<ParentAttendanceAbsencesResponseDto> {
+    this.ensureParentRole(user);
+
+    const students = await this.prisma.student.findMany({
+      where: {
+        parentId: user.parentId,
+        ...(studentId !== undefined ? { id: studentId } : {}),
+      },
+      include: {
+        person: {
+          select: {
+            firstName: true,
+            middleName: true,
+            lastName: true,
+          },
+        },
+        registrations: {
+          where: { status: true },
+          include: {
+            section: {
+              select: { id: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: {
+        person: { firstName: 'asc' },
+      },
+    });
+
+    if (studentId !== undefined && students.length === 0) {
+      throw new NotFoundException('Child not found');
+    }
+
+    const studentFilters = students.flatMap((student) => {
+      const sectionId = student.registrations[0]?.section.id;
+
+      if (!sectionId) {
+        return [];
+      }
+
+      return [{ studentId: student.id, sectionId }];
+    });
+
+    if (studentFilters.length === 0) {
+      return { month, absences: [] };
+    }
+
+    const { startDate, endDate } = this.parseMonthRange(month);
+
+    const absenceRecords = await this.prisma.attendanceDetail.findMany({
+      where: {
+        deletedAt: null,
+        status: 'absent',
+        OR: studentFilters.map((filter) => ({
+          studentId: filter.studentId,
+          attendance: {
+            sectionId: filter.sectionId,
+            deletedAt: null,
+            status: true,
+            date: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
+        })),
+      },
+      include: {
+        attendance: {
+          select: { date: true },
+        },
+        attendanceReason: {
+          select: { title: true },
+        },
+        student: {
+          include: {
+            person: {
+              select: {
+                firstName: true,
+                middleName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ attendance: { date: 'desc' } }, { id: 'desc' }],
+    });
+
+    return {
+      month,
+      absences: absenceRecords.map((record) => ({
+        studentId: record.studentId,
+        studentName: this.formatFullName(record.student.person),
+        date: this.formatActivityDate(record.attendance.date),
+        status: record.status,
+        reason: record.attendanceReason?.title ?? null,
+        description: record.description,
+      })),
+    };
+  }
+
   async requestChangePasswordOtp(
     user: AuthenticatedParent,
   ): Promise<ParentChangePasswordRequestOtpResponseDto> {
@@ -1002,6 +1111,17 @@ export class ParentService {
     const day = String(date.getUTCDate()).padStart(2, '0');
 
     return `${year}-${month}-${day}`;
+  }
+
+  private parseMonthRange(month: string): { startDate: Date; endDate: Date } {
+    const [yearText, monthText] = month.split('-');
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+
+    return {
+      startDate: new Date(Date.UTC(year, monthIndex, 1)),
+      endDate: new Date(Date.UTC(year, monthIndex + 1, 0)),
+    };
   }
 
   private getTodayDate(): Date {
