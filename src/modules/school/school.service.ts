@@ -7,6 +7,40 @@ export class SchoolService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getSchoolDetails(schoolId: number): Promise<SchoolDetailsResponseDto> {
+    const details = await this.findSchoolDetails(schoolId);
+
+    if (!details) {
+      throw new NotFoundException('School details not found');
+    }
+
+    return details;
+  }
+
+  async getSchoolDetailsForSchoolIds(
+    schoolIds: number[],
+  ): Promise<SchoolDetailsResponseDto[]> {
+    if (schoolIds.length === 0) {
+      return [];
+    }
+
+    const details = await this.prisma.schoolDetail.findMany({
+      where: {
+        schoolId: { in: schoolIds },
+        deletedAt: null,
+        school: { isActive: true },
+      },
+      include: {
+        school: {
+          select: { name: true },
+        },
+      },
+      orderBy: [{ schoolId: 'asc' }],
+    });
+
+    return details.map((item) => this.mapSchoolDetails(item));
+  }
+
+  private async findSchoolDetails(schoolId: number) {
     const details = await this.prisma.schoolDetail.findFirst({
       where: {
         schoolId,
@@ -20,10 +54,21 @@ export class SchoolService {
       },
     });
 
-    if (!details) {
-      throw new NotFoundException('School details not found');
-    }
+    return details ? this.mapSchoolDetails(details) : null;
+  }
 
+  private mapSchoolDetails(details: {
+    id: number;
+    schoolId: number;
+    telephone: string;
+    phone: string;
+    fax: string;
+    address: string;
+    email: string;
+    website: string;
+    about: string;
+    school: { name: string };
+  }): SchoolDetailsResponseDto {
     return {
       id: details.id,
       schoolId: details.schoolId,

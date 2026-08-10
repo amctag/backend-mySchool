@@ -518,7 +518,7 @@ Stores the school contact, address, website, and about information.
 | Field | Type | Brief explanation |
 |---|---|---|
 | `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique details identifier |
-| `school_id` | BIGINT UNSIGNED FK→school NOT NULL | School this record belongs to |
+| `school_id` | BIGINT UNSIGNED FK→school UNIQUE NOT NULL | School this record belongs to (one row per school) |
 | `telephone` | VARCHAR(255) NOT NULL | Landline number |
 | `phone` | VARCHAR(255) NOT NULL | Mobile number |
 | `fax` | VARCHAR(255) NOT NULL | Fax number |

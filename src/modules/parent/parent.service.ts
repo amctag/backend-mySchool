@@ -43,6 +43,8 @@ import {
 } from './dto/parent-weekly-schedule-response.dto';
 import { ParentAnnouncementsResponseDto } from './dto/parent-announcements-response.dto';
 import { ParentActivitiesResponseDto } from './dto/parent-activities-response.dto';
+import { ParentSchoolDetailsResponseDto } from './dto/parent-school-details-response.dto';
+import { SchoolService } from '../school/school.service';
 
 type LoginParentPerson = {
   id: number;
@@ -61,6 +63,7 @@ export class ParentService {
     private readonly configService: ConfigService,
     private readonly sessionService: SessionService,
     private readonly mailService: MailService,
+    private readonly schoolService: SchoolService,
   ) {}
 
   async login(loginDto: ParentLoginDto): Promise<ParentLoginResponseDto> {
@@ -492,6 +495,50 @@ export class ParentService {
     return {
       activities: activities.map((activity) => this.mapParentActivity(activity)),
     };
+  }
+
+  async getSchoolDetails(
+    user: AuthenticatedParent,
+    studentId?: number,
+  ): Promise<ParentSchoolDetailsResponseDto> {
+    this.ensureParentRole(user);
+
+    const students = await this.prisma.student.findMany({
+      where: {
+        parentId: user.parentId,
+        ...(studentId !== undefined ? { id: studentId } : {}),
+      },
+      include: {
+        registrations: {
+          where: { status: true },
+          include: {
+            section: {
+              select: { schoolId: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    if (studentId !== undefined && students.length === 0) {
+      throw new NotFoundException('Child not found');
+    }
+
+    const schoolIds = [
+      ...new Set(
+        students
+          .map((student) => student.registrations[0]?.section.schoolId)
+          .filter((id): id is number => id !== undefined),
+      ),
+    ];
+
+    const schools = await this.schoolService.getSchoolDetailsForSchoolIds(
+      schoolIds,
+    );
+
+    return { schools };
   }
 
   async requestChangePasswordOtp(

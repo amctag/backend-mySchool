@@ -1,4 +1,4 @@
-CREATE TABLE "school_details" (
+CREATE TABLE IF NOT EXISTS "school_details" (
     "id" SERIAL NOT NULL,
     "school_id" INTEGER NOT NULL,
     "telephone" VARCHAR(255) NOT NULL,
@@ -15,9 +15,18 @@ CREATE TABLE "school_details" (
     CONSTRAINT "school_details_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "school_details_school_id_key"
+CREATE UNIQUE INDEX IF NOT EXISTS "school_details_school_id_key"
 ON "school_details"("school_id");
 
-ALTER TABLE "school_details"
-ADD CONSTRAINT "school_details_school_id_fkey"
-FOREIGN KEY ("school_id") REFERENCES "school"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'school_details_school_id_fkey'
+  ) THEN
+    ALTER TABLE "school_details"
+    ADD CONSTRAINT "school_details_school_id_fkey"
+    FOREIGN KEY ("school_id") REFERENCES "school"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;

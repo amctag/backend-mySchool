@@ -30,6 +30,7 @@ async function resetDatabase(): Promise<void> {
       activities,
       password_reset_otps,
       password_change_otps,
+      school_details,
       weekly_schedule_details,
       weekly_schedules,
       teach,
