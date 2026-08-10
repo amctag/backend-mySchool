@@ -5,6 +5,7 @@ import {
   ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
+  ApiResponse,
   ApiTags,
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
@@ -30,6 +31,7 @@ export class ParentPasswordController {
   @ApiBadRequestResponse({ description: 'Email not found on account' })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
   @ApiTooManyRequestsResponse({ description: 'Too many OTP requests' })
+  @ApiResponse({ status: 503, description: 'Unable to send verification email' })
   requestChangePasswordOtp(
     @Req() request: Request & { user: AuthenticatedParent },
   ): Promise<ParentChangePasswordRequestOtpResponseDto> {

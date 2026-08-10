@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer, { Transporter } from 'nodemailer';
+import { MailSendFailedException } from './mail-send-failed.exception';
 
 @Injectable()
 export class MailService {
@@ -40,8 +41,24 @@ export class MailService {
       return;
     }
 
-    const transporter = this.getTransporter();
-    await transporter.sendMail({ from, to, subject, text, html });
+    const host = this.configService.get<string>('mail.host');
+    const port = this.configService.get<number>('mail.port') ?? 587;
+    const user = this.configService.get<string>('mail.user');
+
+    try {
+      const transporter = this.getTransporter();
+      await transporter.sendMail({ from, to, subject, text, html });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown mail error';
+
+      this.logger.error(
+        `Failed to send email via ${host}:${port} as ${user} — ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      throw new MailSendFailedException();
+    }
   }
 
   private getFromAddress(): string {
@@ -57,7 +74,8 @@ export class MailService {
   private isConfigured(): boolean {
     return Boolean(
       this.configService.get<string>('mail.host') &&
-        this.configService.get<string>('mail.user'),
+        this.configService.get<string>('mail.user') &&
+        this.configService.get<string>('mail.pass'),
     );
   }
 
@@ -71,6 +89,9 @@ export class MailService {
         auth: {
           user: this.configService.get<string>('mail.user'),
           pass: this.configService.get<string>('mail.pass'),
+        },
+        tls: {
+          minVersion: 'TLSv1.2',
         },
       });
     }

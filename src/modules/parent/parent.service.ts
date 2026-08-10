@@ -309,6 +309,12 @@ export class ParentService {
     const expiresAt = this.getOtpExpiryDate();
     const expiresInMinutes = this.getOtpExpiresInMinutes();
 
+    await this.mailService.sendOtpEmail(
+      person.email,
+      otp,
+      this.formatFullName(person),
+    );
+
     await this.prisma.passwordChangeOtp.upsert({
       where: { personId: person.id },
       create: {
@@ -321,12 +327,6 @@ export class ParentService {
         expiresAt,
       },
     });
-
-    await this.mailService.sendOtpEmail(
-      person.email,
-      otp,
-      this.formatFullName(person),
-    );
 
     return {
       message: 'Verification code sent to your email',
