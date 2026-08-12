@@ -41,6 +41,7 @@ async function bootstrap() {
     .addTag('Parent Announcements v1', 'Announcements for parents')
     .addTag('Parent Activities v1', 'School activities and events for parents')
     .addTag('Parent Attendance v1', 'Student absence days for parents')
+    .addTag('Parent Notices v1', 'Notices for parent children')
     .addTag('Teacher v1', 'Teacher endpoints')
     .addTag('School v1', 'School information and details')
     .build();

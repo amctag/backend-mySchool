@@ -326,6 +326,116 @@ async function seedAttendanceAbsences(): Promise<void> {
   console.log(`  attendance absences: ${created} created, ${skipped} skipped`);
 }
 
+async function seedNoticesIfEmpty(): Promise<void> {
+  const existingCount = await prisma.notice.count({
+    where: { deletedAt: null },
+  });
+
+  if (existingCount > 0) {
+    console.log(`  notices already exist (${existingCount}) — skipped`);
+    return;
+  }
+
+  const recorder = await prisma.person.findFirst({
+    where: { status: true },
+    orderBy: { id: 'asc' },
+    select: { id: true },
+  });
+
+  if (!recorder) {
+    console.log('  no person found — skipped notices');
+    return;
+  }
+
+  const layla = await prisma.student.findFirst({
+    where: { person: { username: 'layla.khalil' } },
+    include: {
+      registrations: {
+        where: { status: true },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { sectionId: true },
+      },
+    },
+  });
+
+  const omar = await prisma.student.findFirst({
+    where: { person: { username: 'omar.khalil' } },
+    include: {
+      registrations: {
+        where: { status: true },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { sectionId: true },
+      },
+    },
+  });
+
+  const laylaSectionId = layla?.registrations[0]?.sectionId;
+  const omarSectionId = omar?.registrations[0]?.sectionId;
+
+  if (laylaSectionId) {
+    const laylaSection = await prisma.section.findUnique({
+      where: { id: laylaSectionId },
+      select: { schoolId: true },
+    });
+
+    if (laylaSection) {
+      await prisma.notice.create({
+        data: {
+          schoolId: laylaSection.schoolId,
+          description: 'Please submit the medical form by Friday.',
+          personId: recorder.id,
+          date: new Date('2026-08-10'),
+          sections: { create: { sectionId: laylaSectionId } },
+        },
+      });
+    }
+  }
+
+  if (layla) {
+    const laylaSchoolId = (
+      await prisma.student.findUnique({
+        where: { id: layla.id },
+        select: { person: { select: { schoolId: true } } },
+      })
+    )?.person.schoolId;
+
+    if (laylaSchoolId) {
+      await prisma.notice.create({
+        data: {
+          schoolId: laylaSchoolId,
+          description: 'Reminder: science project is due next week.',
+          personId: recorder.id,
+          date: new Date('2026-08-08'),
+          students: { create: { studentId: layla.id } },
+        },
+      });
+    }
+  }
+
+  if (omarSectionId) {
+    const omarSection = await prisma.section.findUnique({
+      where: { id: omarSectionId },
+      select: { schoolId: true },
+    });
+
+    if (omarSection) {
+      await prisma.notice.create({
+        data: {
+          schoolId: omarSection.schoolId,
+          description: 'Library books must be returned before the end of the month.',
+          personId: recorder.id,
+          date: new Date('2026-08-09'),
+          sections: { create: { sectionId: omarSectionId } },
+        },
+      });
+    }
+  }
+
+  console.log('  created demo notices');
+}
+
 async function main(): Promise<void> {
   console.log('Adding fake demo data (does NOT delete existing data)...');
   console.log('');
@@ -334,6 +444,7 @@ async function main(): Promise<void> {
   await seedAnnouncementsIfEmpty();
   await seedActivitiesIfEmpty();
   await seedAttendanceAbsences();
+  await seedNoticesIfEmpty();
 
   console.log('');
   console.log('Fake data finished.');
@@ -341,6 +452,10 @@ async function main(): Promise<void> {
   console.log('Test attendance API (August 2026):');
   console.log('  GET /api/v1/parent/me/attendance/absences?month=2026-08');
   console.log('  GET /api/v1/parent/me/attendance/absences?month=2026-08&studentId=1');
+  console.log('');
+  console.log('Test notices API:');
+  console.log('  GET /api/v1/parent/me/notices');
+  console.log('  GET /api/v1/parent/me/notices?studentId=1');
 }
 
 main()

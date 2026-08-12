@@ -9,6 +9,7 @@ import { ParentActivityController } from './parent-activity.controller';
 import { ParentForgotPasswordController } from './parent-forgot-password.controller';
 import { ParentPasswordController } from './parent-password.controller';
 import { ParentAttendanceController } from './parent-attendance.controller';
+import { ParentNoticeController } from './parent-notice.controller';
 import { ParentScheduleController } from './parent-schedule.controller';
 import { ParentSchoolDetailsController } from './parent-school-details.controller';
 import { ParentService } from './parent.service';
@@ -24,6 +25,7 @@ import { ParentService } from './parent.service';
     ParentAnnouncementController,
     ParentActivityController,
     ParentAttendanceController,
+    ParentNoticeController,
     ParentScheduleController,
   ],
   providers: [ParentService],

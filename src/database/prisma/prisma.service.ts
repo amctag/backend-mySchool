@@ -45,6 +45,22 @@ export class PrismaService
     return super.attendanceReason;
   }
 
+  override get notice(): PrismaClient['notice'] {
+    return super.notice;
+  }
+
+  override get noticeStudent(): PrismaClient['noticeStudent'] {
+    return super.noticeStudent;
+  }
+
+  override get noticeSection(): PrismaClient['noticeSection'] {
+    return super.noticeSection;
+  }
+
+  override get noticeType(): PrismaClient['noticeType'] {
+    return super.noticeType;
+  }
+
   private readonly pool: Pool;
 
   constructor(configService: ConfigService) {

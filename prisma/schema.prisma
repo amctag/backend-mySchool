@@ -23,6 +23,7 @@ model School {
   sessions      Session[]
   teacherSchools TeacherSchool[]
   details        SchoolDetail?
+  notices        Notice[]
 
   @@map("school")
 }
@@ -68,6 +69,8 @@ model Person {
   activities            Activity[]
   attendances           Attendance[]
   attendanceReasons     AttendanceReason[]
+  notices               Notice[]
+  noticeTypes           NoticeType[]
 
   @@unique([schoolId, username])
   @@map("persons")
@@ -128,6 +131,7 @@ model Student {
   parent        Parent?        @relation(fields: [parentId], references: [id], onDelete: SetNull)
   registrations Registration[]
   attendanceDetails AttendanceDetail[]
+  noticeStudents    NoticeStudent[]
 
   @@map("students")
 }
@@ -215,6 +219,7 @@ model Section {
   registrations    Registration[]
   announcementSections AnnouncementSection[]
   attendances      Attendance[]
+  noticeSections   NoticeSection[]
 
   @@map("sections")
 }
@@ -543,4 +548,66 @@ model AttendanceDetail {
   attendanceReason AttendanceReason? @relation(fields: [attendanceReasonId], references: [id], onDelete: SetNull)
 
   @@map("attendance_details")
+}
+
+model NoticeType {
+  id        Int       @id @default(autoincrement())
+  title     String    @db.VarChar(255)
+  personId  Int       @map("person_id")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  @@map("notice_types")
+}
+
+model Notice {
+  id          Int       @id @default(autoincrement())
+  schoolId    Int       @map("school_id")
+  description String    @db.Text
+  personId    Int       @map("person_id")
+  date        DateTime  @db.Date
+  status      Boolean   @default(true)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  school   School          @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  person   Person          @relation(fields: [personId], references: [id], onDelete: Restrict)
+  students NoticeStudent[]
+  sections NoticeSection[]
+
+  @@map("notices")
+}
+
+model NoticeStudent {
+  id        Int       @id @default(autoincrement())
+  noticeId  Int       @map("notice_id")
+  studentId Int       @map("student_id")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  notice  Notice  @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@unique([noticeId, studentId])
+  @@map("notice_students")
+}
+
+model NoticeSection {
+  id        Int       @id @default(autoincrement())
+  noticeId  Int       @map("notice_id")
+  sectionId Int       @map("section_id")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  notice  Notice  @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+
+  @@unique([noticeId, sectionId])
+  @@map("notice_sections")
 }

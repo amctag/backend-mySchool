@@ -537,7 +537,7 @@ Stores shared notice content sent to selected students and/or sections.
 | Field | Type | Brief explanation |
 |---|---|---|
 | `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique notice identifier |
-| `notice_description_template_id` | BIGINT UNSIGNED FK→notice_description_templates NULLABLE | Optional template used to create the notice |
+| `school_id` | BIGINT UNSIGNED FK→school NOT NULL | School this notice belongs to |
 | `description` | TEXT NOT NULL | Notice content; may be edited after creation |
 | `person_id` | BIGINT UNSIGNED FK→persons NOT NULL | Person who created the notice |
 | `date` | DATE NOT NULL | Notice date |
@@ -585,20 +585,7 @@ Stores notice categories used by reusable templates.
 | `updated_at` | TIMESTAMP | Last update |
 | `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
 
-### `notice_description_templates`
 
-Stores reusable notice descriptions grouped by notice type.
-
-| Field | Type | Brief explanation |
-|---|---|---|
-| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique template identifier |
-| `description` | TEXT NOT NULL | Template content |
-| `notice_type_id` | BIGINT UNSIGNED FK→notice_types NOT NULL | Notice type |
-| `created_at` | TIMESTAMP | Row creation time |
-| `updated_at` | TIMESTAMP | Last update |
-| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
-
-## `databse-phase3.md`
 
 ### `registrations`
 

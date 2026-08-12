@@ -45,6 +45,7 @@ import { ParentAnnouncementsResponseDto } from './dto/parent-announcements-respo
 import { ParentActivitiesResponseDto } from './dto/parent-activities-response.dto';
 import { ParentSchoolDetailsResponseDto } from './dto/parent-school-details-response.dto';
 import { ParentAttendanceAbsencesResponseDto } from './dto/parent-attendance-absences-response.dto';
+import { ParentNoticesResponseDto } from './dto/parent-notices-response.dto';
 import { SchoolService } from '../school/school.service';
 
 type LoginParentPerson = {
@@ -650,6 +651,169 @@ export class ParentService {
     };
   }
 
+  async getNotices(
+    user: AuthenticatedParent,
+    studentId?: number,
+    page = 1,
+    limit = 10,
+  ): Promise<ParentNoticesResponseDto> {
+    this.ensureParentRole(user);
+
+    const students = await this.prisma.student.findMany({
+      where: {
+        parentId: user.parentId,
+        ...(studentId !== undefined ? { id: studentId } : {}),
+      },
+      include: {
+        person: {
+          select: {
+            firstName: true,
+            middleName: true,
+            lastName: true,
+          },
+        },
+        registrations: {
+          where: { status: true },
+          include: {
+            section: {
+              include: {
+                class: { select: { classLevel: true } },
+                sectionTitle: { select: { title: true } },
+                school: { select: { name: true, id: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: {
+        person: { firstName: 'asc' },
+      },
+    });
+
+    if (studentId !== undefined && students.length === 0) {
+      throw new NotFoundException('Child not found');
+    }
+
+    const studentIds = students.map((student) => student.id);
+    const sectionIds = [
+      ...new Set(
+        students
+          .map((student) => student.registrations[0]?.section.id)
+          .filter((id): id is number => id !== undefined),
+      ),
+    ];
+
+    const schoolIds = [
+      ...new Set(
+        students
+          .map((student) => student.registrations[0]?.section.schoolId)
+          .filter((id): id is number => id !== undefined),
+      ),
+    ];
+
+    if (studentIds.length === 0) {
+      return {
+        notices: [],
+        pagination: this.buildPaginationMeta(page, limit, 0),
+      };
+    }
+
+    const notices = await this.prisma.notice.findMany({
+      where: {
+        deletedAt: null,
+        status: true,
+        ...(schoolIds.length > 0 ? { schoolId: { in: schoolIds } } : {}),
+        OR: [
+          {
+            students: {
+              some: {
+                studentId: { in: studentIds },
+                deletedAt: null,
+              },
+            },
+          },
+          ...(sectionIds.length > 0
+            ? [
+                {
+                  sections: {
+                    some: {
+                      sectionId: { in: sectionIds },
+                      deletedAt: null,
+                    },
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+      include: {
+        students: {
+          where: { deletedAt: null },
+          select: { studentId: true },
+        },
+        sections: {
+          where: { deletedAt: null },
+          select: { sectionId: true },
+        },
+      },
+      orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    });
+
+    const results: ParentNoticesResponseDto['notices'] = [];
+
+    for (const student of students) {
+      const section = student.registrations[0]?.section;
+
+      if (!section) {
+        continue;
+      }
+
+      for (const notice of notices) {
+        const viaStudent = notice.students.some(
+          (target) => target.studentId === student.id,
+        );
+        const viaSection = notice.sections.some(
+          (target) => target.sectionId === section.id,
+        );
+
+        if (!viaStudent && !viaSection) {
+          continue;
+        }
+
+        results.push({
+          id: notice.id,
+          studentId: student.id,
+          studentName: this.formatFullName(student.person),
+          description: notice.description,
+          date: this.formatActivityDate(notice.date),
+          schoolName: section.school.name,
+          sectionName: this.formatSectionName(section.sectionTitle.title),
+          class: String(section.class.classLevel),
+          receivedVia: viaStudent ? 'student' : 'section',
+        });
+      }
+    }
+
+    results.sort((first, second) => {
+      const dateCompare = second.date.localeCompare(first.date);
+
+      if (dateCompare !== 0) {
+        return dateCompare;
+      }
+
+      return second.id - first.id;
+    });
+
+    const paginated = this.paginateResults(results, page, limit);
+
+    return {
+      notices: paginated.items,
+      pagination: paginated.pagination,
+    };
+  }
+
   async requestChangePasswordOtp(
     user: AuthenticatedParent,
   ): Promise<ParentChangePasswordRequestOtpResponseDto> {
@@ -1121,6 +1285,36 @@ export class ParentService {
     return {
       startDate: new Date(Date.UTC(year, monthIndex, 1)),
       endDate: new Date(Date.UTC(year, monthIndex + 1, 0)),
+    };
+  }
+
+  private paginateResults<T>(
+    items: T[],
+    page: number,
+    limit: number,
+  ): { items: T[]; pagination: { page: number; limit: number; total: number; totalPages: number } } {
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.max(1, limit);
+    const total = items.length;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / safeLimit);
+    const offset = (safePage - 1) * safeLimit;
+
+    return {
+      items: items.slice(offset, offset + safeLimit),
+      pagination: this.buildPaginationMeta(safePage, safeLimit, total),
+    };
+  }
+
+  private buildPaginationMeta(
+    page: number,
+    limit: number,
+    total: number,
+  ): { page: number; limit: number; total: number; totalPages: number } {
+    return {
+      page,
+      limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
     };
   }
 

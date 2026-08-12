@@ -31,6 +31,10 @@ async function resetDatabase(): Promise<void> {
       attendance_details,
       attendance,
       attendance_reasons,
+      notice_students,
+      notice_sections,
+      notices,
+      notice_types,
       password_reset_otps,
       password_change_otps,
       school_details,
@@ -657,6 +661,70 @@ async function main(): Promise<void> {
         create: {
           studentId: studentLaylaPerson.student!.id,
           status: 'present',
+        },
+      },
+    },
+  });
+
+  console.log('Creating notices...');
+  await prisma.noticeType.create({
+    data: {
+      title: 'Behavior',
+      personId: adminA.id,
+    },
+  });
+
+  await prisma.notice.create({
+    data: {
+      schoolId: schoolA.id,
+      description: 'Please submit the medical form by Friday.',
+      personId: adminA.id,
+      date: new Date('2026-08-10'),
+      sections: {
+        create: {
+          sectionId: academicA.section4A.id,
+        },
+      },
+    },
+  });
+
+  await prisma.notice.create({
+    data: {
+      schoolId: schoolA.id,
+      description: 'Reminder: science project is due next week.',
+      personId: adminA.id,
+      date: new Date('2026-08-08'),
+      students: {
+        create: {
+          studentId: studentLaylaPerson.student!.id,
+        },
+      },
+    },
+  });
+
+  await prisma.notice.create({
+    data: {
+      schoolId: schoolB.id,
+      description: 'Library books must be returned before the end of the month.',
+      personId: adminB.id,
+      date: new Date('2026-08-09'),
+      sections: {
+        create: {
+          sectionId: academicB.section4A.id,
+        },
+      },
+    },
+  });
+
+  await prisma.notice.create({
+    data: {
+      schoolId: schoolA.id,
+      description: 'Individual follow-up required for recent homework submissions.',
+      personId: adminA.id,
+      date: new Date('2026-08-11'),
+      students: {
+        create: {
+          studentId: studentRanaPerson.student!.id,
         },
       },
     },
