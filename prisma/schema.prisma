@@ -71,6 +71,7 @@ model Person {
   attendanceReasons     AttendanceReason[]
   notices               Notice[]
   noticeTypes           NoticeType[]
+  agendas               Agenda[]
 
   @@unique([schoolId, username])
   @@map("persons")
@@ -220,6 +221,7 @@ model Section {
   announcementSections AnnouncementSection[]
   attendances      Attendance[]
   noticeSections   NoticeSection[]
+  agendaSections   AgendaSection[]
 
   @@map("sections")
 }
@@ -240,6 +242,7 @@ model Course {
   classCourses          ClassCourse[]
   teaches               Teach[]
   weeklyScheduleDetails WeeklyScheduleDetail[]
+  agendas               Agenda[]
 
   @@map("courses")
 }
@@ -610,4 +613,40 @@ model NoticeSection {
 
   @@unique([noticeId, sectionId])
   @@map("notice_sections")
+}
+
+model Agenda {
+  id            Int       @id @default(autoincrement())
+  description   String    @db.Text
+  date          DateTime  @db.Date
+  time          String    @db.VarChar(10)
+  personId      Int       @map("person_id")
+  courseId      Int       @map("course_id")
+  imageLink     String    @map("image_link") @db.Text
+  fileLink      String    @map("file_link") @db.Text
+  publishedDate DateTime  @map("published_date") @db.Date
+  createdAt     DateTime  @map("created_at") @db.Date
+  status        Int       @default(1)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  person   Person          @relation(fields: [personId], references: [id], onDelete: Restrict)
+  course   Course          @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  sections AgendaSection[]
+
+  @@map("agendas")
+}
+
+model AgendaSection {
+  id        Int       @id @default(autoincrement())
+  agendaId  Int       @map("agenda_id")
+  sectionId Int       @map("section_id")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  agenda  Agenda  @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+
+  @@unique([agendaId, sectionId])
+  @@map("agenda_sections")
 }

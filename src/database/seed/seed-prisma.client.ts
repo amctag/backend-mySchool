@@ -51,6 +51,14 @@ export class SeedPrismaClient extends PrismaClient {
     return super.noticeType;
   }
 
+  override get agenda(): PrismaClient['agenda'] {
+    return super.agenda;
+  }
+
+  override get agendaSection(): PrismaClient['agendaSection'] {
+    return super.agendaSection;
+  }
+
   private readonly pool: Pool;
 
   constructor(connectionString: string) {

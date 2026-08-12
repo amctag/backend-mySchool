@@ -46,6 +46,7 @@ import { ParentActivitiesResponseDto } from './dto/parent-activities-response.dt
 import { ParentSchoolDetailsResponseDto } from './dto/parent-school-details-response.dto';
 import { ParentAttendanceAbsencesResponseDto } from './dto/parent-attendance-absences-response.dto';
 import { ParentNoticesResponseDto } from './dto/parent-notices-response.dto';
+import { ParentAgendasResponseDto } from './dto/parent-agendas-response.dto';
 import { SchoolService } from '../school/school.service';
 
 type LoginParentPerson = {
@@ -810,6 +811,165 @@ export class ParentService {
 
     return {
       notices: paginated.items,
+      pagination: paginated.pagination,
+    };
+  }
+
+  async getAgendas(
+    user: AuthenticatedParent,
+    month: string,
+    studentId?: number,
+    page = 1,
+    limit = 10,
+  ): Promise<ParentAgendasResponseDto> {
+    this.ensureParentRole(user);
+
+    const students = await this.prisma.student.findMany({
+      where: {
+        parentId: user.parentId,
+        ...(studentId !== undefined ? { id: studentId } : {}),
+      },
+      include: {
+        person: {
+          select: {
+            firstName: true,
+            middleName: true,
+            lastName: true,
+          },
+        },
+        registrations: {
+          where: { status: true },
+          include: {
+            section: {
+              include: {
+                class: { select: { classLevel: true } },
+                sectionTitle: { select: { title: true } },
+                school: { select: { name: true, id: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: {
+        person: { firstName: 'asc' },
+      },
+    });
+
+    if (studentId !== undefined && students.length === 0) {
+      throw new NotFoundException('Child not found');
+    }
+
+    const sectionIds = [
+      ...new Set(
+        students
+          .map((student) => student.registrations[0]?.section.id)
+          .filter((id): id is number => id !== undefined),
+      ),
+    ];
+
+    if (sectionIds.length === 0) {
+      return {
+        month,
+        agendas: [],
+        pagination: this.buildPaginationMeta(page, limit, 0),
+      };
+    }
+
+    const { startDate, endDate } = this.parseMonthRange(month);
+    const todayUtc = new Date();
+    const todayDate = new Date(
+      Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), todayUtc.getUTCDate()),
+    );
+
+    const agendas = await this.prisma.agenda.findMany({
+      where: {
+        deletedAt: null,
+        status: 1,
+        publishedDate: { lte: todayDate },
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+        sections: {
+          some: {
+            sectionId: { in: sectionIds },
+            deletedAt: null,
+          },
+        },
+      },
+      include: {
+        course: { select: { title: true, schoolId: true } },
+        sections: {
+          where: { deletedAt: null },
+          select: { sectionId: true },
+        },
+      },
+      orderBy: [{ date: 'desc' }, { time: 'desc' }, { id: 'desc' }],
+    });
+
+    const results: ParentAgendasResponseDto['agendas'] = [];
+
+    for (const student of students) {
+      const section = student.registrations[0]?.section;
+
+      if (!section) {
+        continue;
+      }
+
+      for (const agenda of agendas) {
+        const targetsSection = agenda.sections.some(
+          (target) => target.sectionId === section.id,
+        );
+
+        if (!targetsSection) {
+          continue;
+        }
+
+        if (agenda.course.schoolId !== section.schoolId) {
+          continue;
+        }
+
+        results.push({
+          id: agenda.id,
+          studentId: student.id,
+          studentName: this.formatFullName(student.person),
+          description: agenda.description,
+          date: this.formatActivityDate(agenda.date),
+          time: agenda.time,
+          courseTitle: agenda.course.title,
+          imageLink: agenda.imageLink,
+          fileLink: agenda.fileLink,
+          publishedDate: this.formatActivityDate(agenda.publishedDate),
+          schoolName: section.school.name,
+          sectionName: this.formatSectionName(section.sectionTitle.title),
+          class: String(section.class.classLevel),
+        });
+      }
+    }
+
+    results.sort((first, second) => {
+      const dateCompare = second.date.localeCompare(first.date);
+
+      if (dateCompare !== 0) {
+        return dateCompare;
+      }
+
+      const timeCompare = second.time.localeCompare(first.time);
+
+      if (timeCompare !== 0) {
+        return timeCompare;
+      }
+
+      return second.id - first.id;
+    });
+
+    const paginated = this.paginateResults(results, page, limit);
+
+    return {
+      month,
+      agendas: paginated.items,
       pagination: paginated.pagination,
     };
   }

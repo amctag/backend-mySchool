@@ -35,6 +35,8 @@ async function resetDatabase(): Promise<void> {
       notice_sections,
       notices,
       notice_types,
+      agenda_sections,
+      agendas,
       password_reset_otps,
       password_change_otps,
       school_details,
@@ -747,6 +749,64 @@ async function main(): Promise<void> {
         create: {
           studentId: studentRanaPerson.student!.id,
         },
+      },
+    },
+  });
+
+  console.log('Creating agendas...');
+  const agendaCreatedAt = new Date('2026-08-01');
+  const agendaPublished = new Date('2026-08-05');
+
+  await prisma.agenda.create({
+    data: {
+      description: 'Complete exercises 1–10 on page 42.',
+      date: new Date('2026-08-10'),
+      time: '09:00',
+      personId: adminA.id,
+      courseId: academicA.math.id,
+      imageLink: 'https://cdn.example.com/agendas/math-homework.jpg',
+      fileLink: 'https://cdn.example.com/agendas/math-worksheet.pdf',
+      publishedDate: agendaPublished,
+      createdAt: agendaCreatedAt,
+      status: 1,
+      sections: {
+        create: { sectionId: academicA.section4A.id },
+      },
+    },
+  });
+
+  await prisma.agenda.create({
+    data: {
+      description: 'Read chapter 3 and prepare a short summary.',
+      date: new Date('2026-08-12'),
+      time: '10:30',
+      personId: adminA.id,
+      courseId: academicA.english.id,
+      imageLink: 'https://cdn.example.com/agendas/english-reading.jpg',
+      fileLink: 'https://cdn.example.com/agendas/english-summary.pdf',
+      publishedDate: agendaPublished,
+      createdAt: agendaCreatedAt,
+      status: 1,
+      sections: {
+        create: { sectionId: academicA.section4A.id },
+      },
+    },
+  });
+
+  await prisma.agenda.create({
+    data: {
+      description: 'Review multiplication tables for the quiz.',
+      date: new Date('2026-08-08'),
+      time: '08:45',
+      personId: adminB.id,
+      courseId: academicB.math.id,
+      imageLink: 'https://cdn.example.com/agendas/math-quiz.jpg',
+      fileLink: 'https://cdn.example.com/agendas/math-quiz-guide.pdf',
+      publishedDate: agendaPublished,
+      createdAt: agendaCreatedAt,
+      status: 1,
+      sections: {
+        create: { sectionId: academicB.section4A.id },
       },
     },
   });
