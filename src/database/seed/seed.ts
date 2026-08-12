@@ -674,6 +674,13 @@ async function main(): Promise<void> {
     },
   });
 
+  await prisma.noticeType.create({
+    data: {
+      title: 'Behavior',
+      personId: adminB.id,
+    },
+  });
+
   await prisma.notice.create({
     data: {
       schoolId: schoolA.id,
@@ -711,6 +718,20 @@ async function main(): Promise<void> {
       sections: {
         create: {
           sectionId: academicB.section4A.id,
+        },
+      },
+    },
+  });
+
+  await prisma.notice.create({
+    data: {
+      schoolId: schoolB.id,
+      description: 'Please bring your PE uniform on Monday.',
+      personId: adminB.id,
+      date: new Date('2026-08-07'),
+      students: {
+        create: {
+          studentId: studentOmarPerson.student!.id,
         },
       },
     },
