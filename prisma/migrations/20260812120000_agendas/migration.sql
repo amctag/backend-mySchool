@@ -1,14 +1,14 @@
 CREATE TABLE "agendas" (
     "id" SERIAL NOT NULL,
     "description" TEXT NOT NULL,
-    "date" DATE NOT NULL,
+    "agenda_date" DATE NOT NULL,
     "time" VARCHAR(10) NOT NULL,
     "person_id" INTEGER NOT NULL,
     "course_id" INTEGER NOT NULL,
     "image_link" TEXT NOT NULL,
     "file_link" TEXT NOT NULL,
-    "published_date" DATE NOT NULL,
-    "created_at" DATE NOT NULL,
+    "published_date" TIMESTAMPTZ(6) NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "status" INTEGER NOT NULL DEFAULT 1,
     "deleted_at" TIMESTAMPTZ(6),
 

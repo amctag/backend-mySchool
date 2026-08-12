@@ -533,7 +533,7 @@ const FAKE_AGENDAS: Array<{
   studentUsername: string;
   courseTitle: string;
   description: string;
-  date: string;
+  agendaDate: string;
   time: string;
   imageLink: string;
   fileLink: string;
@@ -544,34 +544,34 @@ const FAKE_AGENDAS: Array<{
     studentUsername: 'layla.khalil',
     courseTitle: 'Mathematics',
     description: 'Complete exercises 1–10 on page 42.',
-    date: '2026-08-10',
+    agendaDate: '2026-08-10',
     time: '09:00',
     imageLink: 'https://cdn.example.com/agendas/math-homework.jpg',
     fileLink: 'https://cdn.example.com/agendas/math-worksheet.pdf',
-    publishedDate: '2026-08-05',
-    createdAt: '2026-08-01',
+    publishedDate: '2026-08-05T08:00:00.000Z',
+    createdAt: '2026-08-01T09:00:00.000Z',
   },
   {
     studentUsername: 'layla.khalil',
     courseTitle: 'English',
     description: 'Read chapter 3 and prepare a short summary.',
-    date: '2026-08-12',
+    agendaDate: '2026-08-12',
     time: '10:30',
     imageLink: 'https://cdn.example.com/agendas/english-reading.jpg',
     fileLink: 'https://cdn.example.com/agendas/english-summary.pdf',
-    publishedDate: '2026-08-05',
-    createdAt: '2026-08-01',
+    publishedDate: '2026-08-05T08:00:00.000Z',
+    createdAt: '2026-08-01T09:00:00.000Z',
   },
   {
     studentUsername: 'omar.khalil',
     courseTitle: 'Mathematics',
     description: 'Review multiplication tables for the quiz.',
-    date: '2026-08-08',
+    agendaDate: '2026-08-08',
     time: '08:45',
     imageLink: 'https://cdn.example.com/agendas/math-quiz.jpg',
     fileLink: 'https://cdn.example.com/agendas/math-quiz-guide.pdf',
-    publishedDate: '2026-08-05',
-    createdAt: '2026-08-01',
+    publishedDate: '2026-08-05T08:00:00.000Z',
+    createdAt: '2026-08-01T09:00:00.000Z',
   },
 ];
 
@@ -625,13 +625,13 @@ async function seedAgendas(): Promise<void> {
       continue;
     }
 
-    const agendaDate = new Date(item.date);
+    const agendaDay = new Date(item.agendaDate);
 
     const existing = await prisma.agenda.findFirst({
       where: {
         courseId: course.id,
         description: item.description,
-        date: agendaDate,
+        agendaDate: agendaDay,
         deletedAt: null,
       },
       select: { id: true },
@@ -645,7 +645,7 @@ async function seedAgendas(): Promise<void> {
     await prisma.agenda.create({
       data: {
         description: item.description,
-        date: agendaDate,
+        agendaDate: agendaDay,
         time: item.time,
         personId: recorderId,
         courseId: course.id,
@@ -689,9 +689,9 @@ async function main(): Promise<void> {
   console.log('  GET /api/v1/parent/me/notices?studentId=1&page=1&limit=10');
   console.log('');
   console.log('Test agendas API:');
-  console.log('  GET /api/v1/parent/me/agendas?month=2026-08');
-  console.log('  GET /api/v1/parent/me/agendas?month=2026-08&studentId=1');
-  console.log('  GET /api/v1/parent/me/agendas?month=2026-08&studentId=1&page=1&limit=10');
+  console.log('  GET /api/v1/parent/me/agendas?agendaDate=2026-08-10');
+  console.log('  GET /api/v1/parent/me/agendas?agendaDate=2026-08-10&studentId=1');
+  console.log('  GET /api/v1/parent/me/agendas?agendaDate=2026-08-10&studentId=1&page=1&limit=10');
   console.log('');
   console.log('Accounts (password: password123):');
   console.log('  ahmad.khalil — global parent → layla + omar notices');

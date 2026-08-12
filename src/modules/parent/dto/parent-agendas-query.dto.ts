@@ -4,13 +4,13 @@ import { IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
 
 export class ParentAgendasQueryDto {
   @ApiProperty({
-    example: '2026-08',
-    description: 'Month filter in YYYY-MM format',
+    example: '2026-08-10',
+    description: 'Required day filter in YYYY-MM-DD format',
   })
-  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, {
-    message: 'month must be in YYYY-MM format',
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, {
+    message: 'agendaDate must be in YYYY-MM-DD format',
   })
-  month!: string;
+  agendaDate!: string;
 
   @ApiPropertyOptional({
     description: 'Filter by child student id. Omit to return agendas for all children.',

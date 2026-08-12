@@ -24,7 +24,7 @@ export class ParentAgendaController {
     summary: 'Get course agendas for the logged-in parent children',
     description:
       'Returns published agendas when the child section is a recipient. ' +
-      'Pass month in YYYY-MM format. Optionally filter by studentId. Supports page and limit pagination.',
+      'Pass agendaDate in YYYY-MM-DD format. Optionally filter by studentId. Supports page and limit pagination.',
   })
   @ApiOkResponse({ type: ParentAgendasResponseDto })
   @ApiNotFoundResponse({ description: 'Child not found' })
@@ -35,7 +35,7 @@ export class ParentAgendaController {
   ): Promise<ParentAgendasResponseDto> {
     return this.parentService.getAgendas(
       request.user,
-      query.month,
+      query.agendaDate,
       query.studentId,
       query.page ?? 1,
       query.limit ?? 10,

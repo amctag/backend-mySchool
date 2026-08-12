@@ -817,7 +817,7 @@ export class ParentService {
 
   async getAgendas(
     user: AuthenticatedParent,
-    month: string,
+    agendaDate: string,
     studentId?: number,
     page = 1,
     limit = 10,
@@ -871,27 +871,21 @@ export class ParentService {
 
     if (sectionIds.length === 0) {
       return {
-        month,
+        agendaDate,
         agendas: [],
         pagination: this.buildPaginationMeta(page, limit, 0),
       };
     }
 
-    const { startDate, endDate } = this.parseMonthRange(month);
-    const todayUtc = new Date();
-    const todayDate = new Date(
-      Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), todayUtc.getUTCDate()),
-    );
+    const filterDate = this.parseDay(agendaDate);
+    const now = new Date();
 
     const agendas = await this.prisma.agenda.findMany({
       where: {
         deletedAt: null,
         status: 1,
-        publishedDate: { lte: todayDate },
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
+        publishedDate: { lte: now },
+        agendaDate: filterDate,
         sections: {
           some: {
             sectionId: { in: sectionIds },
@@ -906,7 +900,7 @@ export class ParentService {
           select: { sectionId: true },
         },
       },
-      orderBy: [{ date: 'desc' }, { time: 'desc' }, { id: 'desc' }],
+      orderBy: [{ time: 'desc' }, { id: 'desc' }],
     });
 
     const results: ParentAgendasResponseDto['agendas'] = [];
@@ -936,12 +930,12 @@ export class ParentService {
           studentId: student.id,
           studentName: this.formatFullName(student.person),
           description: agenda.description,
-          date: this.formatActivityDate(agenda.date),
+          agendaDate: this.formatActivityDate(agenda.agendaDate),
           time: agenda.time,
           courseTitle: agenda.course.title,
           imageLink: agenda.imageLink,
           fileLink: agenda.fileLink,
-          publishedDate: this.formatActivityDate(agenda.publishedDate),
+          publishedDate: agenda.publishedDate.toISOString(),
           schoolName: section.school.name,
           sectionName: this.formatSectionName(section.sectionTitle.title),
           class: String(section.class.classLevel),
@@ -950,12 +944,6 @@ export class ParentService {
     }
 
     results.sort((first, second) => {
-      const dateCompare = second.date.localeCompare(first.date);
-
-      if (dateCompare !== 0) {
-        return dateCompare;
-      }
-
       const timeCompare = second.time.localeCompare(first.time);
 
       if (timeCompare !== 0) {
@@ -968,7 +956,7 @@ export class ParentService {
     const paginated = this.paginateResults(results, page, limit);
 
     return {
-      month,
+      agendaDate,
       agendas: paginated.items,
       pagination: paginated.pagination,
     };
@@ -1446,6 +1434,14 @@ export class ParentService {
       startDate: new Date(Date.UTC(year, monthIndex, 1)),
       endDate: new Date(Date.UTC(year, monthIndex + 1, 0)),
     };
+  }
+
+  private parseDay(day: string): Date {
+    const [yearText, monthText, dayText] = day.split('-');
+
+    return new Date(
+      Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText)),
+    );
   }
 
   private paginateResults<T>(

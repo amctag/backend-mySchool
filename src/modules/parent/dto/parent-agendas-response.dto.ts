@@ -15,7 +15,7 @@ export class ParentAgendaItemDto {
   description!: string;
 
   @ApiProperty({ example: '2026-08-10' })
-  date!: string;
+  agendaDate!: string;
 
   @ApiProperty({ example: '09:00' })
   time!: string;
@@ -29,7 +29,7 @@ export class ParentAgendaItemDto {
   @ApiProperty({ example: 'https://cdn.example.com/agendas/worksheet.pdf' })
   fileLink!: string;
 
-  @ApiProperty({ example: '2026-08-08' })
+  @ApiProperty({ example: '2026-08-05T08:00:00.000Z' })
   publishedDate!: string;
 
   @ApiProperty({ example: 'Green Valley School' })
@@ -43,8 +43,8 @@ export class ParentAgendaItemDto {
 }
 
 export class ParentAgendasResponseDto {
-  @ApiProperty({ example: '2026-08' })
-  month!: string;
+  @ApiProperty({ example: '2026-08-10' })
+  agendaDate!: string;
 
   @ApiProperty({ type: [ParentAgendaItemDto] })
   agendas!: ParentAgendaItemDto[];

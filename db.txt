@@ -292,14 +292,14 @@ Stores shared agenda content for a course and date; recipient sections are linke
 |---|---|---|
 | `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique agenda identifier |
 | `description` | TEXT NOT NULL | Shared agenda content |
-| `date` | DATE NOT NULL | Agenda date |
+| `agenda_date` | DATE NOT NULL | Agenda day |
 | `time` | VARCHAR(10) NOT NULL | Existing agenda time |
 | `person_id` | BIGINT UNSIGNED FK→persons NOT NULL | Creator person |
 | `course_id` | BIGINT UNSIGNED FK→courses NOT NULL | Course for the agenda |
 | `image_link` | TEXT NOT NULL | Image attachment link |
 | `file_link` | TEXT NOT NULL | File attachment link |
-| `published_date` | DATE NOT NULL | Publication date |
-| `created_at` | DATE NOT NULL | Original creation date |
+| `published_date` | TIMESTAMP NOT NULL | Publication date and time |
+| `created_at` | TIMESTAMP NOT NULL | Original creation date and time |
 | `status` | INT NOT NULL | Agenda status |
 | `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
 
