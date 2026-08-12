@@ -664,6 +664,136 @@ async function seedAgendas(): Promise<void> {
   console.log(`  agendas: ${created} created, ${skipped} skipped`);
 }
 
+const FAKE_ALBUMS: Array<{
+  schoolName: string;
+  yearTitle: string;
+  title: string;
+  description: string;
+  date: string;
+  images: Array<{ imageLink: string; caption: string; position: number }>;
+}> = [
+  {
+    schoolName: 'Green Valley School',
+    yearTitle: '2025-2026',
+    title: 'Sports Day 2026',
+    description: 'Photos from the annual sports day at Green Valley School.',
+    date: '2026-03-15',
+    images: [
+      {
+        imageLink: 'https://cdn.example.com/albums/green-sports-1.jpg',
+        caption: 'Opening ceremony',
+        position: 1,
+      },
+      {
+        imageLink: 'https://cdn.example.com/albums/green-sports-2.jpg',
+        caption: 'Relay race',
+        position: 2,
+      },
+    ],
+  },
+  {
+    schoolName: 'Green Valley School',
+    yearTitle: '2025-2026',
+    title: 'Science Fair 2026',
+    description: 'Student projects and experiments from the science fair.',
+    date: '2026-04-20',
+    images: [
+      {
+        imageLink: 'https://cdn.example.com/albums/green-science-1.jpg',
+        caption: 'Project displays',
+        position: 1,
+      },
+    ],
+  },
+  {
+    schoolName: 'Blue Horizon Academy',
+    yearTitle: '2025-2026',
+    title: 'Art Exhibition 2026',
+    description: 'Student artwork displayed at Blue Horizon Academy.',
+    date: '2026-05-10',
+    images: [
+      {
+        imageLink: 'https://cdn.example.com/albums/blue-art-1.jpg',
+        caption: 'Main hall display',
+        position: 1,
+      },
+      {
+        imageLink: 'https://cdn.example.com/albums/blue-art-2.jpg',
+        caption: 'Painting section',
+        position: 2,
+      },
+    ],
+  },
+];
+
+async function seedAlbums(): Promise<void> {
+  let created = 0;
+  let skipped = 0;
+
+  for (const item of FAKE_ALBUMS) {
+    const school = await prisma.school.findFirst({
+      where: { name: item.schoolName, isActive: true },
+      select: { id: true },
+    });
+
+    if (!school) {
+      console.log(`  skipped album "${item.title}" — school ${item.schoolName} not found`);
+      skipped += 1;
+      continue;
+    }
+
+    const year = await prisma.year.findFirst({
+      where: {
+        schoolId: school.id,
+        title: item.yearTitle,
+      },
+      select: { id: true },
+    });
+
+    if (!year) {
+      console.log(`  skipped album "${item.title}" — year ${item.yearTitle} not found`);
+      skipped += 1;
+      continue;
+    }
+
+    const albumDate = new Date(item.date);
+
+    const existing = await prisma.album.findFirst({
+      where: {
+        schoolId: school.id,
+        yearId: year.id,
+        title: item.title,
+        date: albumDate,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      skipped += 1;
+      continue;
+    }
+
+    await prisma.album.create({
+      data: {
+        schoolId: school.id,
+        yearId: year.id,
+        title: item.title,
+        description: item.description,
+        date: albumDate,
+        status: 1,
+        images: {
+          create: item.images,
+        },
+      },
+    });
+
+    created += 1;
+  }
+
+  console.log(`  albums: ${created} created, ${skipped} skipped`);
+}
+
 async function main(): Promise<void> {
   console.log('Adding fake demo data (does NOT delete existing data)...');
   console.log('');
@@ -675,6 +805,7 @@ async function main(): Promise<void> {
   await seedNoticeTypesIfMissing();
   await seedNotices();
   await seedAgendas();
+  await seedAlbums();
 
   console.log('');
   console.log('Fake data finished.');
@@ -691,7 +822,11 @@ async function main(): Promise<void> {
   console.log('Test agendas API:');
   console.log('  GET /api/v1/parent/me/agendas?agendaDate=2026-08-10');
   console.log('  GET /api/v1/parent/me/agendas?agendaDate=2026-08-10&studentId=1');
-  console.log('  GET /api/v1/parent/me/agendas?agendaDate=2026-08-10&studentId=1&page=1&limit=10');
+  console.log('');
+  console.log('Test albums API:');
+  console.log('  GET /api/v1/parent/me/albums');
+  console.log('  GET /api/v1/parent/me/albums?studentId=1');
+  console.log('  GET /api/v1/parent/me/albums/1');
   console.log('');
   console.log('Accounts (password: password123):');
   console.log('  ahmad.khalil — global parent → layla + omar notices');

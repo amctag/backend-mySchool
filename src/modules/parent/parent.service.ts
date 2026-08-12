@@ -47,6 +47,11 @@ import { ParentSchoolDetailsResponseDto } from './dto/parent-school-details-resp
 import { ParentAttendanceAbsencesResponseDto } from './dto/parent-attendance-absences-response.dto';
 import { ParentNoticesResponseDto } from './dto/parent-notices-response.dto';
 import { ParentAgendasResponseDto } from './dto/parent-agendas-response.dto';
+import {
+  ParentAlbumDetailResponseDto,
+  ParentAlbumImageDto,
+  ParentAlbumsResponseDto,
+} from './dto/parent-albums-response.dto';
 import { SchoolService } from '../school/school.service';
 
 type LoginParentPerson = {
@@ -542,6 +547,125 @@ export class ParentService {
     );
 
     return { schools };
+  }
+
+  async getAlbums(
+    user: AuthenticatedParent,
+    studentId?: number,
+  ): Promise<ParentAlbumsResponseDto> {
+    this.ensureParentRole(user);
+
+    const schoolContexts = await this.resolveParentSchoolContexts(
+      user.parentId,
+      studentId,
+    );
+
+    if (schoolContexts.length === 0) {
+      return { schools: [] };
+    }
+
+    const albums = await this.prisma.album.findMany({
+      where: {
+        deletedAt: null,
+        status: 1,
+        OR: schoolContexts.map((context) => ({
+          schoolId: context.schoolId,
+          yearId: context.yearId,
+        })),
+      },
+      include: {
+        school: { select: { id: true, name: true } },
+        year: { select: { title: true } },
+        images: {
+          where: { deletedAt: null },
+          orderBy: [{ position: 'asc' }, { id: 'asc' }],
+        },
+      },
+      orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    });
+
+    const grouped = new Map<
+      number,
+      { schoolId: number; schoolName: string; albums: ParentAlbumsResponseDto['schools'][number]['albums'] }
+    >();
+
+    for (const context of schoolContexts) {
+      if (!grouped.has(context.schoolId)) {
+        grouped.set(context.schoolId, {
+          schoolId: context.schoolId,
+          schoolName: context.schoolName,
+          albums: [],
+        });
+      }
+    }
+
+    for (const album of albums) {
+      const schoolGroup = grouped.get(album.schoolId);
+
+      if (!schoolGroup) {
+        continue;
+      }
+
+      schoolGroup.albums.push(this.mapParentAlbum(album));
+    }
+
+    return {
+      schools: [...grouped.values()].sort((first, second) =>
+        first.schoolName.localeCompare(second.schoolName),
+      ),
+    };
+  }
+
+  async getAlbumById(
+    user: AuthenticatedParent,
+    albumId: number,
+    studentId?: number,
+  ): Promise<ParentAlbumDetailResponseDto> {
+    this.ensureParentRole(user);
+
+    const schoolContexts = await this.resolveParentSchoolContexts(
+      user.parentId,
+      studentId,
+    );
+
+    if (schoolContexts.length === 0) {
+      throw new NotFoundException('Album not found');
+    }
+
+    const album = await this.prisma.album.findFirst({
+      where: {
+        id: albumId,
+        deletedAt: null,
+        status: 1,
+        OR: schoolContexts.map((context) => ({
+          schoolId: context.schoolId,
+          yearId: context.yearId,
+        })),
+      },
+      include: {
+        school: { select: { id: true, name: true } },
+        year: { select: { title: true } },
+        images: {
+          where: { deletedAt: null },
+          orderBy: [{ position: 'asc' }, { id: 'asc' }],
+        },
+      },
+    });
+
+    if (!album) {
+      throw new NotFoundException('Album not found');
+    }
+
+    return {
+      id: album.id,
+      schoolId: album.school.id,
+      schoolName: album.school.name,
+      title: album.title,
+      description: album.description,
+      date: this.formatActivityDate(album.date),
+      yearTitle: album.year.title,
+      images: album.images.map((image) => this.mapParentAlbumImage(image)),
+    };
   }
 
   async getAttendanceAbsences(
@@ -1388,6 +1512,104 @@ export class ParentService {
         ? this.formatSectionName(matchedSection.sectionTitle.title)
         : null,
       class: matchedSection ? String(matchedSection.class.classLevel) : null,
+    };
+  }
+
+  private async resolveParentSchoolContexts(
+    parentId: number,
+    studentId?: number,
+  ): Promise<
+    Array<{
+      schoolId: number;
+      schoolName: string;
+      yearId: number;
+    }>
+  > {
+    const students = await this.prisma.student.findMany({
+      where: {
+        parentId,
+        ...(studentId !== undefined ? { id: studentId } : {}),
+      },
+      include: {
+        registrations: {
+          where: { status: true },
+          include: {
+            section: {
+              include: {
+                school: { select: { id: true, name: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    if (studentId !== undefined && students.length === 0) {
+      throw new NotFoundException('Child not found');
+    }
+
+    const uniqueContexts = new Map<
+      string,
+      { schoolId: number; schoolName: string; yearId: number }
+    >();
+
+    for (const student of students) {
+      const section = student.registrations[0]?.section;
+
+      if (!section) {
+        continue;
+      }
+
+      const key = `${section.schoolId}:${section.yearId}`;
+
+      if (!uniqueContexts.has(key)) {
+        uniqueContexts.set(key, {
+          schoolId: section.schoolId,
+          schoolName: section.school.name,
+          yearId: section.yearId,
+        });
+      }
+    }
+
+    return [...uniqueContexts.values()];
+  }
+
+  private mapParentAlbumImage(image: {
+    id: number;
+    imageLink: string;
+    caption: string | null;
+    position: number;
+  }): ParentAlbumImageDto {
+    return {
+      id: image.id,
+      imageLink: image.imageLink,
+      caption: image.caption,
+      position: image.position,
+    };
+  }
+
+  private mapParentAlbum(album: {
+    id: number;
+    title: string;
+    description: string;
+    date: Date;
+    year: { title: string };
+    images: Array<{
+      id: number;
+      imageLink: string;
+      caption: string | null;
+      position: number;
+    }>;
+  }) {
+    return {
+      id: album.id,
+      title: album.title,
+      description: album.description,
+      date: this.formatActivityDate(album.date),
+      yearTitle: album.year.title,
+      images: album.images.map((image) => this.mapParentAlbumImage(image)),
     };
   }
 

@@ -59,6 +59,14 @@ export class SeedPrismaClient extends PrismaClient {
     return super.agendaSection;
   }
 
+  override get album(): PrismaClient['album'] {
+    return super.album;
+  }
+
+  override get albumImage(): PrismaClient['albumImage'] {
+    return super.albumImage;
+  }
+
   private readonly pool: Pool;
 
   constructor(connectionString: string) {

@@ -24,6 +24,7 @@ model School {
   teacherSchools TeacherSchool[]
   details        SchoolDetail?
   notices        Notice[]
+  albums         Album[]
 
   @@map("school")
 }
@@ -150,6 +151,7 @@ model Year {
   classCourses ClassCourse[]
   teaches      Teach[]
   activities   Activity[]
+  albums       Album[]
 
   @@unique([schoolId, title])
   @@map("years")
@@ -649,4 +651,38 @@ model AgendaSection {
 
   @@unique([agendaId, sectionId])
   @@map("agenda_sections")
+}
+
+model Album {
+  id          Int       @id @default(autoincrement())
+  schoolId    Int       @map("school_id")
+  title       String    @db.Text
+  description String    @db.Text
+  date        DateTime  @db.Date
+  status      Int       @default(1)
+  yearId      Int       @map("year_id")
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  school School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  year   Year         @relation(fields: [yearId], references: [id], onDelete: Restrict)
+  images AlbumImage[]
+
+  @@map("albums")
+}
+
+model AlbumImage {
+  id        Int       @id @default(autoincrement())
+  albumId   Int       @map("album_id")
+  imageLink String    @map("image_link") @db.Text
+  caption   String?   @db.Text
+  position  Int       @default(0)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+  @@map("album_images")
 }

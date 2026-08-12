@@ -37,6 +37,8 @@ async function resetDatabase(): Promise<void> {
       notice_types,
       agenda_sections,
       agendas,
+      album_images,
+      albums,
       password_reset_otps,
       password_change_otps,
       school_details,
@@ -805,6 +807,88 @@ async function main(): Promise<void> {
       status: 1,
       sections: {
         create: { sectionId: academicB.section4A.id },
+      },
+    },
+  });
+
+  console.log('Creating albums...');
+
+  await prisma.album.create({
+    data: {
+      schoolId: schoolA.id,
+      yearId: academicA.year.id,
+      title: 'Sports Day 2026',
+      description: 'Photos from the annual sports day at Green Valley School.',
+      date: new Date('2026-03-15'),
+      status: 1,
+      images: {
+        create: [
+          {
+            imageLink: 'https://cdn.example.com/albums/green-sports-1.jpg',
+            caption: 'Opening ceremony',
+            position: 1,
+          },
+          {
+            imageLink: 'https://cdn.example.com/albums/green-sports-2.jpg',
+            caption: 'Relay race',
+            position: 2,
+          },
+          {
+            imageLink: 'https://cdn.example.com/albums/green-sports-3.jpg',
+            caption: 'Award ceremony',
+            position: 3,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.album.create({
+    data: {
+      schoolId: schoolA.id,
+      yearId: academicA.year.id,
+      title: 'Science Fair 2026',
+      description: 'Student projects and experiments from the science fair.',
+      date: new Date('2026-04-20'),
+      status: 1,
+      images: {
+        create: [
+          {
+            imageLink: 'https://cdn.example.com/albums/green-science-1.jpg',
+            caption: 'Project displays',
+            position: 1,
+          },
+          {
+            imageLink: 'https://cdn.example.com/albums/green-science-2.jpg',
+            caption: 'Judges visit',
+            position: 2,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.album.create({
+    data: {
+      schoolId: schoolB.id,
+      yearId: academicB.year.id,
+      title: 'Art Exhibition 2026',
+      description: 'Student artwork displayed at Blue Horizon Academy.',
+      date: new Date('2026-05-10'),
+      status: 1,
+      images: {
+        create: [
+          {
+            imageLink: 'https://cdn.example.com/albums/blue-art-1.jpg',
+            caption: 'Main hall display',
+            position: 1,
+          },
+          {
+            imageLink: 'https://cdn.example.com/albums/blue-art-2.jpg',
+            caption: 'Painting section',
+            position: 2,
+          },
+        ],
       },
     },
   });

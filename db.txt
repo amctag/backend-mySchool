@@ -336,16 +336,32 @@ Stores school activities and events, optionally scoped to an academic year.
 
 ### `albums`
 
-Stores photo album metadata for one academic year.
+Stores photo album metadata scoped to a school and academic year.
 
 | Field | Type | Brief explanation |
 |---|---|---|
 | `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique album identifier |
+| `school_id` | BIGINT UNSIGNED FK→school NOT NULL | School this album belongs to |
 | `title` | TEXT NOT NULL | Album title |
 | `description` | TEXT NOT NULL | Album description |
 | `date` | DATE NOT NULL | Album date |
 | `status` | INT NOT NULL | Active or archived status |
 | `year_id` | BIGINT UNSIGNED FK→years NOT NULL | Academic year |
+| `created_at` | TIMESTAMP | Row creation time |
+| `updated_at` | TIMESTAMP | Last update |
+| `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
+
+### `album_images`
+
+Stores images belonging to an album.
+
+| Field | Type | Brief explanation |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK AUTO_INCREMENT | Unique album image identifier |
+| `album_id` | BIGINT UNSIGNED FK→albums ON DELETE CASCADE NOT NULL | Parent album |
+| `image_link` | TEXT NOT NULL | Image URL or stored image value |
+| `caption` | TEXT NULLABLE | Optional image caption |
+| `position` | INT NOT NULL DEFAULT 0 | Display order inside the album |
 | `created_at` | TIMESTAMP | Row creation time |
 | `updated_at` | TIMESTAMP | Last update |
 | `deleted_at` | TIMESTAMP NULL DEFAULT NULL | Soft-delete marker |
