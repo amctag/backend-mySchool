@@ -39,6 +39,10 @@ async function resetDatabase(): Promise<void> {
       agendas,
       album_images,
       albums,
+      exam_schedule_details,
+      exam_dates,
+      exam_schedules,
+      grade_types,
       password_reset_otps,
       password_change_otps,
       school_details,
@@ -887,6 +891,135 @@ async function main(): Promise<void> {
             imageLink: 'https://cdn.example.com/albums/blue-art-2.jpg',
             caption: 'Painting section',
             position: 2,
+          },
+        ],
+      },
+    },
+  });
+
+  console.log('Creating exam schedules...');
+
+  const midtermType = await prisma.gradeType.create({
+    data: {
+      title: 'Midterm',
+      type: 'exam',
+      isMain: true,
+      position: 1,
+    },
+  });
+
+  const finalType = await prisma.gradeType.create({
+    data: {
+      title: 'Final',
+      type: 'exam',
+      isMain: true,
+      position: 2,
+    },
+  });
+
+  await prisma.examSchedule.create({
+    data: {
+      title: 'Midterm Exams 2026',
+      classId: academicA.section4A.classId,
+      yearId: academicA.year.id,
+      gradeTypeId: midtermType.id,
+      personId: adminA.id,
+      note: 'Please arrive 15 minutes before each exam.',
+      dates: {
+        create: [
+          {
+            date: new Date('2026-06-10'),
+            details: {
+              create: [
+                {
+                  courseId: academicA.math.id,
+                  position: 1,
+                  startTime: '09:00',
+                  duration: 90,
+                },
+                {
+                  courseId: academicA.english.id,
+                  position: 2,
+                  startTime: '11:00',
+                  duration: 60,
+                },
+              ],
+            },
+          },
+          {
+            date: new Date('2026-06-12'),
+            details: {
+              create: [
+                {
+                  courseId: academicA.math.id,
+                  position: 1,
+                  startTime: '09:00',
+                  duration: 90,
+                  note: 'Room 204',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.examSchedule.create({
+    data: {
+      title: 'Final Exams 2026',
+      classId: academicA.section4A.classId,
+      yearId: academicA.year.id,
+      gradeTypeId: finalType.id,
+      personId: adminA.id,
+      dates: {
+        create: [
+          {
+            date: new Date('2026-06-20'),
+            details: {
+              create: [
+                {
+                  courseId: academicA.math.id,
+                  position: 1,
+                  startTime: '08:30',
+                  duration: 120,
+                },
+                {
+                  courseId: academicA.english.id,
+                  position: 2,
+                  startTime: '11:00',
+                  duration: 90,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.examSchedule.create({
+    data: {
+      title: 'Midterm Exams 2026',
+      classId: academicB.section4A.classId,
+      yearId: academicB.year.id,
+      gradeTypeId: midtermType.id,
+      personId: adminB.id,
+      note: 'Bring your student ID card.',
+      dates: {
+        create: [
+          {
+            date: new Date('2026-06-11'),
+            details: {
+              create: [
+                {
+                  courseId: academicB.math.id,
+                  position: 1,
+                  startTime: '10:00',
+                  duration: 90,
+                },
+              ],
+            },
           },
         ],
       },

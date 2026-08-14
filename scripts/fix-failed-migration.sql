@@ -1,22 +1,12 @@
--- Run this in Easypanel PostgreSQL console if deploy still fails.
--- Fixes failed migration: 20260812160000_exam_schedule_detail_start_time
+-- Run this in Easypanel PostgreSQL console if deploy still fails
+-- because 20260812160000_exam_schedule_detail_start_time is marked failed.
 
--- Option A: mark as applied (use when start_time column already exists)
 UPDATE "_prisma_migrations"
-SET
-  finished_at = COALESCE(finished_at, started_at, NOW()),
-  applied_steps_count = 1,
-  logs = NULL
+SET rolled_back_at = NOW()
 WHERE migration_name = '20260812160000_exam_schedule_detail_start_time'
-  AND finished_at IS NULL;
+  AND finished_at IS NULL
+  AND rolled_back_at IS NULL;
 
--- Option B: if Option A did not unblock deploy, mark as rolled back instead
--- UPDATE "_prisma_migrations"
--- SET rolled_back_at = NOW()
--- WHERE migration_name = '20260812160000_exam_schedule_detail_start_time'
---   AND finished_at IS NULL;
-
--- Verify
 SELECT migration_name, finished_at, rolled_back_at, started_at
 FROM "_prisma_migrations"
 WHERE migration_name LIKE '%exam%'

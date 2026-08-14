@@ -794,6 +794,226 @@ async function seedAlbums(): Promise<void> {
   console.log(`  albums: ${created} created, ${skipped} skipped`);
 }
 
+async function findOrCreateGradeType(title: string): Promise<number> {
+  const existing = await prisma.gradeType.findFirst({
+    where: { title, status: true },
+    select: { id: true },
+  });
+
+  if (existing) {
+    return existing.id;
+  }
+
+  const created = await prisma.gradeType.create({
+    data: {
+      title,
+      type: 'exam',
+      isMain: true,
+      position: title === 'Midterm' ? 1 : 2,
+    },
+    select: { id: true },
+  });
+
+  return created.id;
+}
+
+const FAKE_EXAM_SCHEDULES: Array<{
+  studentUsername: string;
+  gradeTypeTitle: string;
+  title: string;
+  note?: string;
+  dates: Array<{
+    date: string;
+    exams: Array<{
+      courseTitle: string;
+      position: number;
+      startTime: string;
+      duration: number;
+      note?: string;
+    }>;
+  }>;
+}> = [
+  {
+    studentUsername: 'layla.khalil',
+    gradeTypeTitle: 'Midterm',
+    title: 'Midterm Exams 2026',
+    note: 'Please arrive 15 minutes before each exam.',
+    dates: [
+      {
+        date: '2026-06-10',
+        exams: [
+          { courseTitle: 'Mathematics', position: 1, startTime: '09:00', duration: 90 },
+          { courseTitle: 'English', position: 2, startTime: '11:00', duration: 60 },
+        ],
+      },
+      {
+        date: '2026-06-12',
+        exams: [
+          {
+            courseTitle: 'Mathematics',
+            position: 1,
+            startTime: '09:00',
+            duration: 90,
+            note: 'Room 204',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    studentUsername: 'layla.khalil',
+    gradeTypeTitle: 'Final',
+    title: 'Final Exams 2026',
+    dates: [
+      {
+        date: '2026-06-20',
+        exams: [
+          { courseTitle: 'Mathematics', position: 1, startTime: '08:30', duration: 120 },
+          { courseTitle: 'English', position: 2, startTime: '11:00', duration: 90 },
+        ],
+      },
+    ],
+  },
+  {
+    studentUsername: 'omar.khalil',
+    gradeTypeTitle: 'Midterm',
+    title: 'Midterm Exams 2026',
+    note: 'Bring your student ID card.',
+    dates: [
+      {
+        date: '2026-06-11',
+        exams: [{ courseTitle: 'Mathematics', position: 1, startTime: '10:00', duration: 90 }],
+      },
+    ],
+  },
+];
+
+async function seedExamSchedules(): Promise<void> {
+  let created = 0;
+  let skipped = 0;
+
+  for (const item of FAKE_EXAM_SCHEDULES) {
+    const student = await resolveStudentForNotice(item.studentUsername);
+    const section = student?.registrations[0]?.section;
+
+    if (!student || !section) {
+      console.log(
+        `  skipped exam schedule "${item.title}" — student ${item.studentUsername} not found`,
+      );
+      skipped += 1;
+      continue;
+    }
+
+    const fullSection = await prisma.section.findUnique({
+      where: { id: section.id },
+      select: { classId: true, yearId: true, schoolId: true },
+    });
+
+    if (!fullSection) {
+      skipped += 1;
+      continue;
+    }
+
+    const recorderId = await findRecorderForSchool(fullSection.schoolId);
+
+    if (!recorderId) {
+      console.log(
+        `  skipped exam schedule "${item.title}" — no recorder for school ${fullSection.schoolId}`,
+      );
+      skipped += 1;
+      continue;
+    }
+
+    const gradeTypeId = await findOrCreateGradeType(item.gradeTypeTitle);
+
+    const existing = await prisma.examSchedule.findFirst({
+      where: {
+        title: item.title,
+        classId: fullSection.classId,
+        yearId: fullSection.yearId,
+        gradeTypeId,
+        status: true,
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      skipped += 1;
+      continue;
+    }
+
+    const datesPayload: Array<{
+      date: Date;
+      details: {
+        create: Array<{
+          courseId: number;
+          position: number;
+          startTime: string;
+          duration: number;
+          note?: string;
+        }>;
+      };
+    }> = [];
+
+    for (const examDate of item.dates) {
+      const examsPayload: Array<{
+        courseId: number;
+        position: number;
+        startTime: string;
+        duration: number;
+        note?: string;
+      }> = [];
+
+      for (const exam of examDate.exams) {
+        const course = await findCourseForSchool(fullSection.schoolId, exam.courseTitle);
+
+        if (!course) {
+          continue;
+        }
+
+        examsPayload.push({
+          courseId: course.id,
+          position: exam.position,
+          startTime: exam.startTime,
+          duration: exam.duration,
+          note: exam.note,
+        });
+      }
+
+      if (examsPayload.length === 0) {
+        continue;
+      }
+
+      datesPayload.push({
+        date: new Date(examDate.date),
+        details: { create: examsPayload },
+      });
+    }
+
+    if (datesPayload.length === 0) {
+      console.log(`  skipped exam schedule "${item.title}" — no valid courses found`);
+      skipped += 1;
+      continue;
+    }
+
+    await prisma.examSchedule.create({
+      data: {
+        title: item.title,
+        classId: fullSection.classId,
+        yearId: fullSection.yearId,
+        gradeTypeId,
+        personId: recorderId,
+        note: item.note,
+        dates: { create: datesPayload },
+      },
+    });
+
+    created += 1;
+  }
+
+  console.log(`  exam schedules: ${created} created, ${skipped} skipped`);
+}
+
 async function main(): Promise<void> {
   console.log('Adding fake demo data (does NOT delete existing data)...');
   console.log('');
@@ -806,6 +1026,7 @@ async function main(): Promise<void> {
   await seedNotices();
   await seedAgendas();
   await seedAlbums();
+  await seedExamSchedules();
 
   console.log('');
   console.log('Fake data finished.');
@@ -827,6 +1048,11 @@ async function main(): Promise<void> {
   console.log('  GET /api/v1/parent/me/albums');
   console.log('  GET /api/v1/parent/me/albums?studentId=1');
   console.log('  GET /api/v1/parent/me/albums/1');
+  console.log('');
+  console.log('Test exam schedules API:');
+  console.log('  GET /api/v1/parent/me/exam-schedules');
+  console.log('  GET /api/v1/parent/me/exam-schedules?studentId=1');
+  console.log('  GET /api/v1/parent/me/exam-schedules/1');
   console.log('');
   console.log('Accounts (password: password123):');
   console.log('  ahmad.khalil — global parent → layla + omar notices');

@@ -67,6 +67,22 @@ export class SeedPrismaClient extends PrismaClient {
     return super.albumImage;
   }
 
+  override get gradeType(): PrismaClient['gradeType'] {
+    return super.gradeType;
+  }
+
+  override get examSchedule(): PrismaClient['examSchedule'] {
+    return super.examSchedule;
+  }
+
+  override get examDate(): PrismaClient['examDate'] {
+    return super.examDate;
+  }
+
+  override get examScheduleDetail(): PrismaClient['examScheduleDetail'] {
+    return super.examScheduleDetail;
+  }
+
   private readonly pool: Pool;
 
   constructor(connectionString: string) {

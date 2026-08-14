@@ -73,6 +73,7 @@ model Person {
   notices               Notice[]
   noticeTypes           NoticeType[]
   agendas               Agenda[]
+  examSchedules         ExamSchedule[]
 
   @@unique([schoolId, username])
   @@map("persons")
@@ -150,8 +151,9 @@ model Year {
   sections     Section[]
   classCourses ClassCourse[]
   teaches      Teach[]
-  activities   Activity[]
-  albums       Album[]
+  activities    Activity[]
+  albums        Album[]
+  examSchedules ExamSchedule[]
 
   @@unique([schoolId, title])
   @@map("years")
@@ -184,6 +186,7 @@ model Class {
   sections     Section[]
   classCourses ClassCourse[]
   announcementSections AnnouncementSection[]
+  examSchedules        ExamSchedule[]
 
   @@map("classes")
 }
@@ -245,6 +248,7 @@ model Course {
   teaches               Teach[]
   weeklyScheduleDetails WeeklyScheduleDetail[]
   agendas               Agenda[]
+  examScheduleDetails   ExamScheduleDetail[]
 
   @@map("courses")
 }
@@ -685,4 +689,73 @@ model AlbumImage {
   album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
 
   @@map("album_images")
+}
+
+model GradeType {
+  id         Int      @id @default(autoincrement())
+  title      String   @db.VarChar(255)
+  isAbstract Boolean  @default(false) @map("is_abstract")
+  position   Int      @default(0) @db.SmallInt
+  isMain     Boolean  @default(false) @map("is_main")
+  type       String   @db.VarChar(30)
+  status     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  examSchedules ExamSchedule[]
+
+  @@map("grade_types")
+}
+
+model ExamSchedule {
+  id          Int      @id @default(autoincrement())
+  title       String   @db.VarChar(255)
+  classId     Int      @map("class_id")
+  yearId      Int      @map("year_id")
+  gradeTypeId Int      @map("grade_type_id")
+  personId    Int      @map("person_id")
+  note        String?  @db.Text
+  status      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  class     Class      @relation(fields: [classId], references: [id], onDelete: Restrict)
+  year      Year       @relation(fields: [yearId], references: [id], onDelete: Restrict)
+  gradeType GradeType  @relation(fields: [gradeTypeId], references: [id], onDelete: Restrict)
+  person    Person     @relation(fields: [personId], references: [id], onDelete: Restrict)
+  dates     ExamDate[]
+
+  @@map("exam_schedules")
+}
+
+model ExamDate {
+  id             Int      @id @default(autoincrement())
+  date           DateTime @db.Date
+  examScheduleId Int      @map("exam_schedule_id")
+  status         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  examSchedule ExamSchedule         @relation(fields: [examScheduleId], references: [id], onDelete: Cascade)
+  details      ExamScheduleDetail[]
+
+  @@map("exam_dates")
+}
+
+model ExamScheduleDetail {
+  id         Int      @id @default(autoincrement())
+  examDateId Int      @map("exam_date_id")
+  courseId   Int      @map("course_id")
+  position   Int      @default(0) @db.SmallInt
+  startTime  String   @map("start_time") @db.VarChar(10)
+  duration   Int
+  note       String?  @db.Text
+  status     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  examDate ExamDate @relation(fields: [examDateId], references: [id], onDelete: Cascade)
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Restrict)
+
+  @@map("exam_schedule_details")
 }

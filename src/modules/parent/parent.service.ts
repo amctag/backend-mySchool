@@ -52,6 +52,11 @@ import {
   ParentAlbumImageDto,
   ParentAlbumsResponseDto,
 } from './dto/parent-albums-response.dto';
+import {
+  ParentExamScheduleDetailResponseDto,
+  ParentExamScheduleItemDto,
+  ParentExamSchedulesResponseDto,
+} from './dto/parent-exam-schedules-response.dto';
 import { SchoolService } from '../school/school.service';
 
 type LoginParentPerson = {
@@ -665,6 +670,101 @@ export class ParentService {
       date: this.formatActivityDate(album.date),
       yearTitle: album.year.title,
       images: album.images.map((image) => this.mapParentAlbumImage(image)),
+    };
+  }
+
+  async getExamSchedules(
+    user: AuthenticatedParent,
+    studentId?: number,
+  ): Promise<ParentExamSchedulesResponseDto> {
+    this.ensureParentRole(user);
+
+    const studentContexts = await this.resolveParentClassYearContexts(
+      user.parentId,
+      studentId,
+    );
+
+    if (studentContexts.length === 0) {
+      return { students: [] };
+    }
+
+    const students: ParentExamSchedulesResponseDto['students'] = [];
+
+    for (const context of studentContexts) {
+      const schedules = await this.prisma.examSchedule.findMany({
+        where: {
+          status: true,
+          classId: context.classId,
+          yearId: context.yearId,
+        },
+        include: this.getExamScheduleInclude(),
+        orderBy: [{ id: 'desc' }],
+      });
+
+      students.push({
+        studentId: context.studentId,
+        studentName: context.studentName,
+        schoolName: context.schoolName,
+        className: context.className,
+        sectionName: context.sectionName,
+        examSchedules: schedules.map((schedule) =>
+          this.mapParentExamSchedule(schedule),
+        ),
+      });
+    }
+
+    return { students };
+  }
+
+  async getExamScheduleById(
+    user: AuthenticatedParent,
+    scheduleId: number,
+    studentId?: number,
+  ): Promise<ParentExamScheduleDetailResponseDto> {
+    this.ensureParentRole(user);
+
+    const studentContexts = await this.resolveParentClassYearContexts(
+      user.parentId,
+      studentId,
+    );
+
+    if (studentContexts.length === 0) {
+      throw new NotFoundException('Exam schedule not found');
+    }
+
+    const schedule = await this.prisma.examSchedule.findFirst({
+      where: {
+        id: scheduleId,
+        status: true,
+        OR: studentContexts.map((context) => ({
+          classId: context.classId,
+          yearId: context.yearId,
+        })),
+      },
+      include: this.getExamScheduleInclude(),
+    });
+
+    if (!schedule) {
+      throw new NotFoundException('Exam schedule not found');
+    }
+
+    const matchedContext = studentContexts.find(
+      (context) =>
+        context.classId === schedule.classId &&
+        context.yearId === schedule.yearId,
+    );
+
+    if (!matchedContext) {
+      throw new NotFoundException('Exam schedule not found');
+    }
+
+    return {
+      ...this.mapParentExamSchedule(schedule),
+      studentId: matchedContext.studentId,
+      studentName: matchedContext.studentName,
+      schoolName: matchedContext.schoolName,
+      className: matchedContext.className,
+      sectionName: matchedContext.sectionName,
     };
   }
 
@@ -1574,6 +1674,142 @@ export class ParentService {
     }
 
     return [...uniqueContexts.values()];
+  }
+
+  private async resolveParentClassYearContexts(
+    parentId: number,
+    studentId?: number,
+  ): Promise<
+    Array<{
+      studentId: number;
+      studentName: string;
+      classId: number;
+      yearId: number;
+      schoolName: string;
+      className: string;
+      sectionName: string;
+    }>
+  > {
+    const students = await this.prisma.student.findMany({
+      where: {
+        parentId,
+        ...(studentId !== undefined ? { id: studentId } : {}),
+      },
+      include: {
+        person: {
+          select: {
+            firstName: true,
+            middleName: true,
+            lastName: true,
+          },
+        },
+        registrations: {
+          where: { status: true },
+          include: {
+            section: {
+              include: {
+                class: { select: { id: true, className: true } },
+                sectionTitle: { select: { title: true } },
+                school: { select: { name: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: {
+        person: { firstName: 'asc' },
+      },
+    });
+
+    if (studentId !== undefined && students.length === 0) {
+      throw new NotFoundException('Child not found');
+    }
+
+    return students.flatMap((student) => {
+      const section = student.registrations[0]?.section;
+
+      if (!section) {
+        return [];
+      }
+
+      return [
+        {
+          studentId: student.id,
+          studentName: this.formatFullName(student.person),
+          classId: section.classId,
+          yearId: section.yearId,
+          schoolName: section.school.name,
+          className: section.class.className,
+          sectionName: this.formatSectionName(section.sectionTitle.title),
+        },
+      ];
+    });
+  }
+
+  private getExamScheduleInclude() {
+    return {
+      gradeType: { select: { title: true } },
+      year: { select: { title: true } },
+      dates: {
+        where: { status: true },
+        orderBy: { date: 'asc' as const },
+        include: {
+          details: {
+            where: { status: true },
+            orderBy: [
+              { startTime: 'asc' as const },
+              { position: 'asc' as const },
+              { id: 'asc' as const },
+            ],
+            include: {
+              course: { select: { title: true } },
+            },
+          },
+        },
+      },
+    };
+  }
+
+  private mapParentExamSchedule(schedule: {
+    id: number;
+    title: string;
+    note: string | null;
+    gradeType: { title: string };
+    year: { title: string };
+    dates: Array<{
+      id: number;
+      date: Date;
+      details: Array<{
+        id: number;
+        position: number;
+        startTime: string;
+        duration: number;
+        note: string | null;
+        course: { title: string };
+      }>;
+    }>;
+  }): ParentExamScheduleItemDto {
+    return {
+      id: schedule.id,
+      title: schedule.title,
+      gradeTypeTitle: schedule.gradeType.title,
+      yearTitle: schedule.year.title,
+      note: schedule.note,
+      dates: schedule.dates.map((examDate) => ({
+        id: examDate.id,
+        date: this.formatActivityDate(examDate.date),
+        exams: examDate.details.map((detail) => ({
+          id: detail.id,
+          courseTitle: detail.course.title,
+          position: detail.position,
+          startTime: detail.startTime,
+          duration: detail.duration,
+          note: detail.note,
+        })),
+      })),
+    };
   }
 
   private mapParentAlbumImage(image: {

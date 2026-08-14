@@ -1,13 +1,11 @@
 import { execSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 
 /**
- * Migrations removed from the codebase but may still be marked failed/applied
- * in production _prisma_migrations (e.g. after reverting main to album-only).
+ * Production previously failed on 20260812160000 (duplicate start_time).
+ * Mark it rolled back so migrate deploy can re-run the now-idempotent SQL.
  */
-const ORPHANED_MIGRATION_NAMES = [
+const FAILED_MIGRATIONS_TO_RETRY = [
   '20260812160000_exam_schedule_detail_start_time',
-  '20260812150000_exam_schedules',
 ];
 
 function run(command, { inherit = false } = {}) {
@@ -27,15 +25,8 @@ function tryResolve(name, flag) {
   }
 }
 
-for (const name of ORPHANED_MIGRATION_NAMES) {
-  if (existsSync(`prisma/migrations/${name}/migration.sql`)) {
-    continue;
-  }
-
-  // Failed duplicate-column case: column already exists from prior migration.
-  if (!tryResolve(name, '--applied')) {
-    tryResolve(name, '--rolled-back');
-  }
+for (const name of FAILED_MIGRATIONS_TO_RETRY) {
+  tryResolve(name, '--rolled-back');
 }
 
 console.log('Running prisma migrate deploy...');
