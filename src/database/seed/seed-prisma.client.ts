@@ -83,6 +83,18 @@ export class SeedPrismaClient extends PrismaClient {
     return super.examScheduleDetail;
   }
 
+  override get grade(): PrismaClient['grade'] {
+    return super.grade;
+  }
+
+  override get gradeDetail(): PrismaClient['gradeDetail'] {
+    return super.gradeDetail;
+  }
+
+  override get gradeForm(): PrismaClient['gradeForm'] {
+    return super.gradeForm;
+  }
+
   private readonly pool: Pool;
 
   constructor(connectionString: string) {

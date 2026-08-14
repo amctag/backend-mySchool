@@ -25,6 +25,9 @@ model School {
   details        SchoolDetail?
   notices        Notice[]
   albums         Album[]
+  grades         Grade[]
+  gradeForms     GradeForm[]
+  gradeTypes     GradeType[]
 
   @@map("school")
 }
@@ -74,6 +77,7 @@ model Person {
   noticeTypes           NoticeType[]
   agendas               Agenda[]
   examSchedules         ExamSchedule[]
+  grades                Grade[]
 
   @@unique([schoolId, username])
   @@map("persons")
@@ -154,6 +158,7 @@ model Year {
   activities    Activity[]
   albums        Album[]
   examSchedules ExamSchedule[]
+  gradeForms    GradeForm[]
 
   @@unique([schoolId, title])
   @@map("years")
@@ -187,6 +192,7 @@ model Class {
   classCourses ClassCourse[]
   announcementSections AnnouncementSection[]
   examSchedules        ExamSchedule[]
+  gradeFormClasses     GradeFormClass[]
 
   @@map("classes")
 }
@@ -227,6 +233,7 @@ model Section {
   attendances      Attendance[]
   noticeSections   NoticeSection[]
   agendaSections   AgendaSection[]
+  grades           Grade[]
 
   @@map("sections")
 }
@@ -249,6 +256,7 @@ model Course {
   weeklyScheduleDetails WeeklyScheduleDetail[]
   agendas               Agenda[]
   examScheduleDetails   ExamScheduleDetail[]
+  grades                Grade[]
 
   @@map("courses")
 }
@@ -366,6 +374,7 @@ model Registration {
   section Section @relation(fields: [sectionId], references: [id], onDelete: Restrict)
   student Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
   person  Person  @relation(fields: [personId], references: [id], onDelete: Restrict)
+  gradeDetails GradeDetail[]
 
   @@map("registrations")
 }
@@ -693,6 +702,7 @@ model AlbumImage {
 
 model GradeType {
   id         Int      @id @default(autoincrement())
+  schoolId   Int?     @map("school_id")
   title      String   @db.VarChar(255)
   isAbstract Boolean  @default(false) @map("is_abstract")
   position   Int      @default(0) @db.SmallInt
@@ -702,7 +712,10 @@ model GradeType {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  examSchedules ExamSchedule[]
+  school            School?           @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  examSchedules     ExamSchedule[]
+  grades            Grade[]
+  gradeFormDetails  GradeFormDetail[]
 
   @@map("grade_types")
 }
@@ -758,4 +771,108 @@ model ExamScheduleDetail {
   course   Course   @relation(fields: [courseId], references: [id], onDelete: Restrict)
 
   @@map("exam_schedule_details")
+}
+
+model Grade {
+  id          Int       @id @default(autoincrement())
+  schoolId    Int       @map("school_id")
+  sectionId   Int       @map("section_id")
+  courseId    Int       @map("course_id")
+  gradeTypeId Int       @map("grade_type_id")
+  maxGrade    Decimal   @map("max_grade") @db.Decimal(7, 2)
+  publishDate DateTime? @map("publish_date") @db.Timestamptz(6)
+  personId    Int       @map("person_id")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  school    School        @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  section   Section       @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  course    Course        @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  gradeType GradeType     @relation(fields: [gradeTypeId], references: [id], onDelete: Restrict)
+  person    Person        @relation(fields: [personId], references: [id], onDelete: Restrict)
+  details   GradeDetail[]
+
+  @@map("grades")
+}
+
+model GradeDetail {
+  id             Int      @id @default(autoincrement())
+  gradeId        Int      @map("grade_id")
+  registrationId Int      @map("registration_id")
+  grade          Decimal? @db.Decimal(7, 2)
+  comment        String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  gradeSheet   Grade        @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+
+  @@unique([gradeId, registrationId])
+  @@map("grade_details")
+}
+
+model GradeForm {
+  id             Int      @id @default(autoincrement())
+  schoolId       Int      @map("school_id")
+  title          String   @db.VarChar(255)
+  yearId         Int      @map("year_id")
+  gradeBackground String? @map("grade_background") @db.VarChar(255)
+  average        Boolean  @default(true)
+  direction      String   @default("ltr") @db.VarChar(10)
+  tableFormat    String   @default("standard") @map("table_format") @db.VarChar(30)
+  gradeFormatId  Int      @map("grade_format_id")
+  status         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  school  School           @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  year    Year             @relation(fields: [yearId], references: [id], onDelete: Restrict)
+  classes GradeFormClass[]
+  details GradeFormDetail[]
+
+  @@map("grade_form")
+}
+
+model GradeFormClass {
+  id          Int      @id @default(autoincrement())
+  classId     Int      @map("class_id")
+  gradeFormId Int      @map("grade_form_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  class     Class     @relation(fields: [classId], references: [id], onDelete: Restrict)
+  gradeForm GradeForm @relation(fields: [gradeFormId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, gradeFormId])
+  @@map("grade_form_class")
+}
+
+model GradeFormDetail {
+  id          Int      @id @default(autoincrement())
+  gradeTypeId Int      @map("grade_type_id")
+  gradeFormId Int      @map("grade_form_id")
+  position    Int      @default(0) @db.SmallInt
+  status      Boolean  @default(true)
+  isVisible   Boolean  @default(true) @map("is_visible")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  gradeType   GradeType             @relation(fields: [gradeTypeId], references: [id], onDelete: Restrict)
+  gradeForm   GradeForm             @relation(fields: [gradeFormId], references: [id], onDelete: Cascade)
+  percentages GradeFormPercentage[]
+
+  @@map("grade_form_detail")
+}
+
+model GradeFormPercentage {
+  id                   Int      @id @default(autoincrement())
+  gradeFormatDetailId  Int      @map("grade_format_detail_id")
+  percentage           Decimal  @db.Decimal(5, 2)
+  status               Boolean  @default(true)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  gradeFormDetail GradeFormDetail @relation(fields: [gradeFormatDetailId], references: [id], onDelete: Cascade)
+
+  @@map("grade_form_percentage")
 }

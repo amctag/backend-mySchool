@@ -57,6 +57,7 @@ import {
   ParentExamScheduleItemDto,
   ParentExamSchedulesResponseDto,
 } from './dto/parent-exam-schedules-response.dto';
+import { ParentGradesResponseDto } from './dto/parent-grades-response.dto';
 import { SchoolService } from '../school/school.service';
 
 type LoginParentPerson = {
@@ -766,6 +767,73 @@ export class ParentService {
       className: matchedContext.className,
       sectionName: matchedContext.sectionName,
     };
+  }
+
+  async getGrades(
+    user: AuthenticatedParent,
+    studentId?: number,
+  ): Promise<ParentGradesResponseDto> {
+    this.ensureParentRole(user);
+
+    const studentContexts = await this.resolveParentClassYearContexts(
+      user.parentId,
+      studentId,
+    );
+
+    if (studentContexts.length === 0) {
+      return { students: [] };
+    }
+
+    const now = new Date();
+    const students: ParentGradesResponseDto['students'] = [];
+
+    for (const context of studentContexts) {
+      const gradeSheets = await this.prisma.grade.findMany({
+        where: {
+          schoolId: context.schoolId,
+          sectionId: context.sectionId,
+          publishDate: {
+            not: null,
+            lte: now,
+          },
+          details: {
+            some: {
+              registrationId: context.registrationId,
+            },
+          },
+        },
+        include: {
+          course: { select: { title: true } },
+          gradeType: { select: { title: true, position: true } },
+          details: {
+            where: { registrationId: context.registrationId },
+            take: 1,
+          },
+        },
+        orderBy: [{ publishDate: 'desc' }, { id: 'desc' }],
+      });
+
+      students.push({
+        studentId: context.studentId,
+        studentName: context.studentName,
+        schoolId: context.schoolId,
+        schoolName: context.schoolName,
+        className: context.className,
+        sectionName: context.sectionName,
+        grades: gradeSheets.map((sheet) => ({
+          id: sheet.id,
+          schoolId: sheet.schoolId,
+          courseTitle: sheet.course.title,
+          gradeTypeTitle: sheet.gradeType.title,
+          maxGrade: Number(sheet.maxGrade),
+          score: sheet.details[0]?.grade == null ? null : Number(sheet.details[0].grade),
+          comment: sheet.details[0]?.comment ?? null,
+          publishDate: sheet.publishDate!.toISOString(),
+        })),
+      });
+    }
+
+    return { students };
   }
 
   async getAttendanceAbsences(
@@ -1685,9 +1753,12 @@ export class ParentService {
       studentName: string;
       classId: number;
       yearId: number;
+      schoolId: number;
       schoolName: string;
       className: string;
       sectionName: string;
+      sectionId: number;
+      registrationId: number;
     }>
   > {
     const students = await this.prisma.student.findMany({
@@ -1728,9 +1799,10 @@ export class ParentService {
     }
 
     return students.flatMap((student) => {
-      const section = student.registrations[0]?.section;
+      const registration = student.registrations[0];
+      const section = registration?.section;
 
-      if (!section) {
+      if (!registration || !section) {
         return [];
       }
 
@@ -1740,9 +1812,12 @@ export class ParentService {
           studentName: this.formatFullName(student.person),
           classId: section.classId,
           yearId: section.yearId,
+          schoolId: section.schoolId,
           schoolName: section.school.name,
           className: section.class.className,
           sectionName: this.formatSectionName(section.sectionTitle.title),
+          sectionId: section.id,
+          registrationId: registration.id,
         },
       ];
     });

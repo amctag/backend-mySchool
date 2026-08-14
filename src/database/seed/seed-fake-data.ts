@@ -1014,6 +1014,138 @@ async function seedExamSchedules(): Promise<void> {
   console.log(`  exam schedules: ${created} created, ${skipped} skipped`);
 }
 
+const FAKE_GRADES: Array<{
+  studentUsername: string;
+  courseTitle: string;
+  gradeTypeTitle: string;
+  maxGrade: number;
+  score: number;
+  comment?: string;
+}> = [
+  {
+    studentUsername: 'layla.khalil',
+    courseTitle: 'Mathematics',
+    gradeTypeTitle: 'Midterm',
+    maxGrade: 100,
+    score: 86.5,
+    comment: 'Good work',
+  },
+  {
+    studentUsername: 'layla.khalil',
+    courseTitle: 'English',
+    gradeTypeTitle: 'Midterm',
+    maxGrade: 100,
+    score: 91,
+  },
+  {
+    studentUsername: 'omar.khalil',
+    courseTitle: 'Mathematics',
+    gradeTypeTitle: 'Midterm',
+    maxGrade: 100,
+    score: 78,
+    comment: 'Needs more practice',
+  },
+  {
+    studentUsername: 'rana.hassan',
+    courseTitle: 'Mathematics',
+    gradeTypeTitle: 'Midterm',
+    maxGrade: 100,
+    score: 88,
+  },
+];
+
+async function seedGrades(): Promise<void> {
+  let created = 0;
+  let skipped = 0;
+  const publishedAt = new Date('2026-06-15T08:00:00.000Z');
+
+  for (const item of FAKE_GRADES) {
+    const student = await resolveStudentForNotice(item.studentUsername);
+    const section = student?.registrations[0]?.section;
+
+    if (!student || !section) {
+      console.log(`  skipped grade "${item.courseTitle}" — student ${item.studentUsername} not found`);
+      skipped += 1;
+      continue;
+    }
+
+    const fullSection = await prisma.section.findUnique({
+      where: { id: section.id },
+      select: { id: true, schoolId: true },
+    });
+
+    const registration = await prisma.registration.findFirst({
+      where: {
+        studentId: student.id,
+        sectionId: section.id,
+        status: true,
+      },
+      select: { id: true },
+    });
+
+    if (!fullSection || !registration) {
+      skipped += 1;
+      continue;
+    }
+
+    const recorderId = await findRecorderForSchool(fullSection.schoolId);
+
+    if (!recorderId) {
+      skipped += 1;
+      continue;
+    }
+
+    const course = await findCourseForSchool(fullSection.schoolId, item.courseTitle);
+
+    if (!course) {
+      console.log(`  skipped grade "${item.courseTitle}" — course not found`);
+      skipped += 1;
+      continue;
+    }
+
+    const gradeTypeId = await findOrCreateGradeType(item.gradeTypeTitle);
+
+    const existing = await prisma.grade.findFirst({
+      where: {
+        schoolId: fullSection.schoolId,
+        sectionId: fullSection.id,
+        courseId: course.id,
+        gradeTypeId,
+        details: { some: { registrationId: registration.id } },
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      skipped += 1;
+      continue;
+    }
+
+    await prisma.grade.create({
+      data: {
+        schoolId: fullSection.schoolId,
+        sectionId: fullSection.id,
+        courseId: course.id,
+        gradeTypeId,
+        maxGrade: item.maxGrade,
+        publishDate: publishedAt,
+        personId: recorderId,
+        details: {
+          create: {
+            registrationId: registration.id,
+            grade: item.score,
+            comment: item.comment,
+          },
+        },
+      },
+    });
+
+    created += 1;
+  }
+
+  console.log(`  grades: ${created} created, ${skipped} skipped`);
+}
+
 async function main(): Promise<void> {
   console.log('Adding fake demo data (does NOT delete existing data)...');
   console.log('');
@@ -1027,6 +1159,7 @@ async function main(): Promise<void> {
   await seedAgendas();
   await seedAlbums();
   await seedExamSchedules();
+  await seedGrades();
 
   console.log('');
   console.log('Fake data finished.');
@@ -1053,6 +1186,10 @@ async function main(): Promise<void> {
   console.log('  GET /api/v1/parent/me/exam-schedules');
   console.log('  GET /api/v1/parent/me/exam-schedules?studentId=1');
   console.log('  GET /api/v1/parent/me/exam-schedules/1');
+  console.log('');
+  console.log('Test grades API:');
+  console.log('  GET /api/v1/parent/me/grades');
+  console.log('  GET /api/v1/parent/me/grades?studentId=1');
   console.log('');
   console.log('Accounts (password: password123):');
   console.log('  ahmad.khalil — global parent → layla + omar notices');

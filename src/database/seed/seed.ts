@@ -42,6 +42,12 @@ async function resetDatabase(): Promise<void> {
       exam_schedule_details,
       exam_dates,
       exam_schedules,
+      grade_form_percentage,
+      grade_form_detail,
+      grade_form_class,
+      grade_form,
+      grade_details,
+      grades,
       grade_types,
       password_reset_otps,
       password_change_otps,
@@ -1022,6 +1028,121 @@ async function main(): Promise<void> {
             },
           },
         ],
+      },
+    },
+  });
+
+  console.log('Creating grades...');
+
+  const laylaRegistration = await prisma.registration.findFirst({
+    where: { studentId: studentLaylaPerson.student!.id, status: true },
+  });
+  const omarRegistration = await prisma.registration.findFirst({
+    where: { studentId: studentOmarPerson.student!.id, status: true },
+  });
+  const ranaRegistration = await prisma.registration.findFirst({
+    where: { studentId: studentRanaPerson.student!.id, status: true },
+  });
+
+  const publishedAt = new Date('2026-06-15T08:00:00.000Z');
+
+  if (laylaRegistration) {
+    await prisma.grade.create({
+      data: {
+        schoolId: schoolA.id,
+        sectionId: academicA.section4A.id,
+        courseId: academicA.math.id,
+        gradeTypeId: midtermType.id,
+        maxGrade: 100,
+        publishDate: publishedAt,
+        personId: adminA.id,
+        details: {
+          create: {
+            registrationId: laylaRegistration.id,
+            grade: 86.5,
+            comment: 'Good work',
+          },
+        },
+      },
+    });
+
+    await prisma.grade.create({
+      data: {
+        schoolId: schoolA.id,
+        sectionId: academicA.section4A.id,
+        courseId: academicA.english.id,
+        gradeTypeId: midtermType.id,
+        maxGrade: 100,
+        publishDate: publishedAt,
+        personId: adminA.id,
+        details: {
+          create: {
+            registrationId: laylaRegistration.id,
+            grade: 91,
+          },
+        },
+      },
+    });
+  }
+
+  if (omarRegistration) {
+    await prisma.grade.create({
+      data: {
+        schoolId: schoolB.id,
+        sectionId: academicB.section4A.id,
+        courseId: academicB.math.id,
+        gradeTypeId: midtermType.id,
+        maxGrade: 100,
+        publishDate: publishedAt,
+        personId: adminB.id,
+        details: {
+          create: {
+            registrationId: omarRegistration.id,
+            grade: 78,
+            comment: 'Needs more practice',
+          },
+        },
+      },
+    });
+  }
+
+  if (ranaRegistration) {
+    await prisma.grade.create({
+      data: {
+        schoolId: schoolA.id,
+        sectionId: academicA.section5B.id,
+        courseId: academicA.math.id,
+        gradeTypeId: midtermType.id,
+        maxGrade: 100,
+        publishDate: publishedAt,
+        personId: adminA.id,
+        details: {
+          create: {
+            registrationId: ranaRegistration.id,
+            grade: 88,
+          },
+        },
+      },
+    });
+  }
+
+  await prisma.gradeForm.create({
+    data: {
+      schoolId: schoolA.id,
+      title: 'Primary Report Card',
+      yearId: academicA.year.id,
+      gradeFormatId: 1,
+      classes: {
+        create: { classId: academicA.section4A.classId },
+      },
+      details: {
+        create: {
+          gradeTypeId: midtermType.id,
+          position: 1,
+          percentages: {
+            create: { percentage: 100 },
+          },
+        },
       },
     },
   });

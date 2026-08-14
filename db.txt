@@ -625,6 +625,7 @@ Stores reusable grade categories and flags that control grading behavior and dis
 | Field | Type | Brief explanation |
 |---|---|---|
 | `id` | INTEGER PK IDENTITY | Unique grade-type identifier |
+| `school_id` | INTEGER NULL FK→`school.id` | Optional school this grade type belongs to |
 | `title` | VARCHAR(255) NOT NULL | Grade-type title |
 | `is_abstract` | BOOLEAN NOT NULL DEFAULT FALSE | Indicates a calculated/non-entered grade |
 | `position` | SMALLINT NOT NULL DEFAULT 0 | Display order |
@@ -641,6 +642,7 @@ Stores one grade sheet for a section, course, and grade type; publication is dri
 | Field | Type | Brief explanation |
 |---|---|---|
 | `id` | INTEGER PK IDENTITY | Unique grade-sheet identifier |
+| `school_id` | INTEGER NOT NULL FK→`school.id` | School this grade sheet belongs to |
 | `section_id` | INTEGER NOT NULL FK→`sections.id` | Target section |
 | `course_id` | INTEGER NOT NULL FK→`courses.id` | Related course |
 | `grade_type_id` | INTEGER NOT NULL FK→`grade_types.id` | Grade category |
@@ -671,6 +673,7 @@ Stores a reusable report-card or grade-report layout for an academic year.
 | Field | Type | Brief explanation |
 |---|---|---|
 | `id` | INTEGER PK IDENTITY | Unique form identifier |
+| `school_id` | INTEGER NOT NULL FK→`school.id` | School this form belongs to |
 | `title` | VARCHAR(255) NOT NULL | Form title |
 | `year_id` | INTEGER NOT NULL FK→`years.id` | Academic year |
 | `grade_background` | VARCHAR(255) NULL | Background image, path, or style value |

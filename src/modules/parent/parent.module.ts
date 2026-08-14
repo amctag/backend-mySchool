@@ -13,6 +13,7 @@ import { ParentNoticeController } from './parent-notice.controller';
 import { ParentAgendaController } from './parent-agenda.controller';
 import { ParentAlbumController } from './parent-album.controller';
 import { ParentExamScheduleController } from './parent-exam-schedule.controller';
+import { ParentGradeController } from './parent-grade.controller';
 import { ParentScheduleController } from './parent-schedule.controller';
 import { ParentSchoolDetailsController } from './parent-school-details.controller';
 import { ParentService } from './parent.service';
@@ -32,6 +33,7 @@ import { ParentService } from './parent.service';
     ParentAgendaController,
     ParentAlbumController,
     ParentExamScheduleController,
+    ParentGradeController,
     ParentScheduleController,
   ],
   providers: [ParentService],
