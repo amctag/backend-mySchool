@@ -13,6 +13,12 @@ export class ParentGradeItemDto {
   @ApiProperty({ example: 'Midterm' })
   gradeTypeTitle!: string;
 
+  @ApiProperty({ example: 1 })
+  yearId!: number;
+
+  @ApiProperty({ example: '2025-2026' })
+  yearTitle!: string;
+
   @ApiProperty({ example: 100 })
   maxGrade!: number;
 
@@ -30,6 +36,9 @@ export class ParentStudentGradesDto {
   @ApiProperty({ example: 1 })
   studentId!: number;
 
+  @ApiProperty({ example: 12 })
+  registrationId!: number;
+
   @ApiProperty({ example: 'Layla Ahmad Khalil' })
   studentName!: string;
 
@@ -44,6 +53,12 @@ export class ParentStudentGradesDto {
 
   @ApiProperty({ example: 'A' })
   sectionName!: string;
+
+  @ApiProperty({ example: 1 })
+  yearId!: number;
+
+  @ApiProperty({ example: '2025-2026' })
+  yearTitle!: string;
 
   @ApiProperty({ type: [ParentGradeItemDto] })
   grades!: ParentGradeItemDto[];

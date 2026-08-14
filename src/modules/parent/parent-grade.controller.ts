@@ -24,7 +24,7 @@ export class ParentGradeController {
     summary: 'Get published grades for the parent children',
     description:
       'Returns published grade sheets for each child school, section, and registration. ' +
-      'Only grades with publishDate on or before now are returned. Pass studentId to filter by one child.',
+      'Only grades with publishDate on or before now are returned. Pass studentId and/or registrationId to filter.',
   })
   @ApiOkResponse({ type: ParentGradesResponseDto })
   @ApiNotFoundResponse({ description: 'Child not found' })
@@ -33,6 +33,10 @@ export class ParentGradeController {
     @Req() request: Request & { user: AuthenticatedParent },
     @Query() query: ParentGradesQueryDto,
   ): Promise<ParentGradesResponseDto> {
-    return this.parentService.getGrades(request.user, query.studentId);
+    return this.parentService.getGrades(
+      request.user,
+      query.studentId,
+      query.registrationId,
+    );
   }
 }

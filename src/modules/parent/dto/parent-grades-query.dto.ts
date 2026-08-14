@@ -12,4 +12,14 @@ export class ParentGradesQueryDto {
   @IsInt()
   @Min(1)
   studentId?: number;
+
+  @ApiPropertyOptional({
+    description: 'Filter by child registration id from GET /parent/me/children.',
+    example: 12,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  registrationId?: number;
 }

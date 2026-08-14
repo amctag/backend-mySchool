@@ -773,13 +773,24 @@ export class ParentService {
   async getGrades(
     user: AuthenticatedParent,
     studentId?: number,
+    registrationId?: number,
   ): Promise<ParentGradesResponseDto> {
     this.ensureParentRole(user);
 
-    const studentContexts = await this.resolveParentClassYearContexts(
+    let studentContexts = await this.resolveParentClassYearContexts(
       user.parentId,
       studentId,
     );
+
+    if (registrationId !== undefined) {
+      studentContexts = studentContexts.filter(
+        (context) => context.registrationId === registrationId,
+      );
+
+      if (studentContexts.length === 0) {
+        throw new NotFoundException('Registration not found');
+      }
+    }
 
     if (studentContexts.length === 0) {
       return { students: [] };
@@ -806,6 +817,11 @@ export class ParentService {
         include: {
           course: { select: { title: true } },
           gradeType: { select: { title: true, position: true } },
+          section: {
+            select: {
+              year: { select: { id: true, title: true } },
+            },
+          },
           details: {
             where: { registrationId: context.registrationId },
             take: 1,
@@ -816,16 +832,21 @@ export class ParentService {
 
       students.push({
         studentId: context.studentId,
+        registrationId: context.registrationId,
         studentName: context.studentName,
         schoolId: context.schoolId,
         schoolName: context.schoolName,
         className: context.className,
         sectionName: context.sectionName,
+        yearId: context.yearId,
+        yearTitle: context.yearTitle,
         grades: gradeSheets.map((sheet) => ({
           id: sheet.id,
           schoolId: sheet.schoolId,
           courseTitle: sheet.course.title,
           gradeTypeTitle: sheet.gradeType.title,
+          yearId: sheet.section.year.id,
+          yearTitle: sheet.section.year.title,
           maxGrade: Number(sheet.maxGrade),
           score: sheet.details[0]?.grade == null ? null : Number(sheet.details[0].grade),
           comment: sheet.details[0]?.comment ?? null,
@@ -1760,6 +1781,7 @@ export class ParentService {
       sectionName: string;
       sectionId: number;
       registrationId: number;
+      yearTitle: string;
     }>
   > {
     const students = await this.prisma.student.findMany({
@@ -1783,6 +1805,7 @@ export class ParentService {
                 class: { select: { id: true, className: true } },
                 sectionTitle: { select: { title: true } },
                 school: { select: { name: true } },
+                year: { select: { title: true } },
               },
             },
           },
@@ -1819,6 +1842,7 @@ export class ParentService {
           sectionName: this.formatSectionName(section.sectionTitle.title),
           sectionId: section.id,
           registrationId: registration.id,
+          yearTitle: section.year.title,
         },
       ];
     });
