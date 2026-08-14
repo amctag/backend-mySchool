@@ -1,6 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ParentChildRegistrationDto {
+  @ApiProperty({ example: 12 })
+  id: number;
+
   @ApiProperty({ example: 1 })
   sectionId: number;
 

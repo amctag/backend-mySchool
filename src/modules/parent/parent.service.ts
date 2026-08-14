@@ -166,6 +166,7 @@ export class ParentService {
     return {
       children: students.map((student) => ({
         studentId: student.id,
+        registrationId: student.registrations[0]?.id ?? null,
         name: this.formatFullName(student.person),
         yearTitle: student.registrations[0]?.section.year.title ?? null,
       })),
@@ -2289,6 +2290,7 @@ export class ParentService {
       school: { id: number; name: string } | null;
     };
     registrations: Array<{
+      id: number;
       section: {
         id: number;
         class: { className: string };
@@ -2320,6 +2322,7 @@ export class ParentService {
       motherPhone: student.motherPhone,
       registration: registration
         ? {
+            id: registration.id,
             sectionId: registration.section.id,
             className: registration.section.class.className,
             sectionTitle: registration.section.sectionTitle.title,

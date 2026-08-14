@@ -77,34 +77,6 @@ export class PrismaService
     return super.albumImage;
   }
 
-  override get gradeType(): PrismaClient['gradeType'] {
-    return super.gradeType;
-  }
-
-  override get examSchedule(): PrismaClient['examSchedule'] {
-    return super.examSchedule;
-  }
-
-  override get examDate(): PrismaClient['examDate'] {
-    return super.examDate;
-  }
-
-  override get examScheduleDetail(): PrismaClient['examScheduleDetail'] {
-    return super.examScheduleDetail;
-  }
-
-  override get grade(): PrismaClient['grade'] {
-    return super.grade;
-  }
-
-  override get gradeDetail(): PrismaClient['gradeDetail'] {
-    return super.gradeDetail;
-  }
-
-  override get gradeForm(): PrismaClient['gradeForm'] {
-    return super.gradeForm;
-  }
-
   private readonly pool: Pool;
 
   constructor(configService: ConfigService) {
@@ -115,7 +87,12 @@ export class PrismaService
       throw new Error('DATABASE_URL is not defined');
     }
 
-    const pool = new Pool({ connectionString });
+    const pool = new Pool({
+      connectionString,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    });
     const adapter = new PrismaPg(pool);
 
     super({ adapter });

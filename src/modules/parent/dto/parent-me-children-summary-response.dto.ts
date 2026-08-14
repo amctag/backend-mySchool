@@ -4,6 +4,9 @@ export class ParentChildSummaryDto {
   @ApiProperty({ example: 1 })
   studentId: number;
 
+  @ApiProperty({ example: 12, nullable: true })
+  registrationId: number | null;
+
   @ApiProperty({ example: 'Layla Ahmad Khalil' })
   name: string;
 

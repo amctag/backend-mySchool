@@ -140,6 +140,7 @@ model Student {
   attendanceDetails AttendanceDetail[]
   noticeStudents    NoticeStudent[]
 
+  @@index([parentId])
   @@map("students")
 }
 
@@ -235,6 +236,8 @@ model Section {
   agendaSections   AgendaSection[]
   grades           Grade[]
 
+  @@index([schoolId, yearId])
+  @@index([classId, yearId])
   @@map("sections")
 }
 
@@ -376,6 +379,8 @@ model Registration {
   person  Person  @relation(fields: [personId], references: [id], onDelete: Restrict)
   gradeDetails GradeDetail[]
 
+  @@index([studentId, status])
+  @@index([sectionId, status])
   @@map("registrations")
 }
 
@@ -547,6 +552,7 @@ model Attendance {
   person  Person             @relation(fields: [personId], references: [id], onDelete: Restrict)
   details AttendanceDetail[]
 
+  @@index([sectionId, date])
   @@map("attendance")
 }
 
@@ -565,6 +571,7 @@ model AttendanceDetail {
   student          Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
   attendanceReason AttendanceReason? @relation(fields: [attendanceReasonId], references: [id], onDelete: SetNull)
 
+  @@index([studentId, status])
   @@map("attendance_details")
 }
 
@@ -597,6 +604,7 @@ model Notice {
   students NoticeStudent[]
   sections NoticeSection[]
 
+  @@index([schoolId, status, date])
   @@map("notices")
 }
 
@@ -612,6 +620,7 @@ model NoticeStudent {
   student Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
 
   @@unique([noticeId, studentId])
+  @@index([studentId])
   @@map("notice_students")
 }
 
@@ -627,6 +636,7 @@ model NoticeSection {
   section Section @relation(fields: [sectionId], references: [id], onDelete: Restrict)
 
   @@unique([noticeId, sectionId])
+  @@index([sectionId])
   @@map("notice_sections")
 }
 
@@ -648,6 +658,7 @@ model Agenda {
   course   Course          @relation(fields: [courseId], references: [id], onDelete: Restrict)
   sections AgendaSection[]
 
+  @@index([agendaDate, status, publishedDate])
   @@map("agendas")
 }
 
@@ -663,6 +674,7 @@ model AgendaSection {
   section Section @relation(fields: [sectionId], references: [id], onDelete: Restrict)
 
   @@unique([agendaId, sectionId])
+  @@index([sectionId])
   @@map("agenda_sections")
 }
 
@@ -682,6 +694,7 @@ model Album {
   year   Year         @relation(fields: [yearId], references: [id], onDelete: Restrict)
   images AlbumImage[]
 
+  @@index([schoolId, yearId, status])
   @@map("albums")
 }
 
@@ -697,6 +710,7 @@ model AlbumImage {
 
   album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
 
+  @@index([albumId])
   @@map("album_images")
 }
 
@@ -717,6 +731,7 @@ model GradeType {
   grades            Grade[]
   gradeFormDetails  GradeFormDetail[]
 
+  @@index([schoolId])
   @@map("grade_types")
 }
 
@@ -738,6 +753,7 @@ model ExamSchedule {
   person    Person     @relation(fields: [personId], references: [id], onDelete: Restrict)
   dates     ExamDate[]
 
+  @@index([classId, yearId, status])
   @@map("exam_schedules")
 }
 
@@ -752,6 +768,7 @@ model ExamDate {
   examSchedule ExamSchedule         @relation(fields: [examScheduleId], references: [id], onDelete: Cascade)
   details      ExamScheduleDetail[]
 
+  @@index([examScheduleId, date])
   @@map("exam_dates")
 }
 
@@ -770,6 +787,7 @@ model ExamScheduleDetail {
   examDate ExamDate @relation(fields: [examDateId], references: [id], onDelete: Cascade)
   course   Course   @relation(fields: [courseId], references: [id], onDelete: Restrict)
 
+  @@index([examDateId, status])
   @@map("exam_schedule_details")
 }
 
@@ -792,6 +810,7 @@ model Grade {
   person    Person        @relation(fields: [personId], references: [id], onDelete: Restrict)
   details   GradeDetail[]
 
+  @@index([schoolId, sectionId, publishDate])
   @@map("grades")
 }
 
@@ -808,6 +827,7 @@ model GradeDetail {
   registration Registration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
 
   @@unique([gradeId, registrationId])
+  @@index([registrationId])
   @@map("grade_details")
 }
 
@@ -830,6 +850,7 @@ model GradeForm {
   classes GradeFormClass[]
   details GradeFormDetail[]
 
+  @@index([schoolId, yearId])
   @@map("grade_form")
 }
 

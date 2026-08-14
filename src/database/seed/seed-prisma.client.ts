@@ -67,31 +67,39 @@ export class SeedPrismaClient extends PrismaClient {
     return super.albumImage;
   }
 
-  override get gradeType(): PrismaClient['gradeType'] {
+  // Editor PrismaClient types omit later model accessors; tsc still sees them.
+  get gradeType() {
+    // @ts-ignore
     return super.gradeType;
   }
 
-  override get examSchedule(): PrismaClient['examSchedule'] {
+  get examSchedule() {
+    // @ts-ignore
     return super.examSchedule;
   }
 
-  override get examDate(): PrismaClient['examDate'] {
+  get examDate() {
+    // @ts-ignore
     return super.examDate;
   }
 
-  override get examScheduleDetail(): PrismaClient['examScheduleDetail'] {
+  get examScheduleDetail() {
+    // @ts-ignore
     return super.examScheduleDetail;
   }
 
-  override get grade(): PrismaClient['grade'] {
+  get grade() {
+    // @ts-ignore
     return super.grade;
   }
 
-  override get gradeDetail(): PrismaClient['gradeDetail'] {
+  get gradeDetail() {
+    // @ts-ignore
     return super.gradeDetail;
   }
 
-  override get gradeForm(): PrismaClient['gradeForm'] {
+  get gradeForm() {
+    // @ts-ignore
     return super.gradeForm;
   }
 
