@@ -27,6 +27,9 @@ export class ParentExamScheduleDateDto {
   @ApiProperty({ example: '2026-06-10' })
   date!: string;
 
+  @ApiProperty({ example: 'Wednesday' })
+  dayName!: string;
+
   @ApiProperty({ type: [ParentExamScheduleCourseDto] })
   exams!: ParentExamScheduleCourseDto[];
 }

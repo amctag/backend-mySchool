@@ -1800,6 +1800,7 @@ export class ParentService {
       dates: schedule.dates.map((examDate) => ({
         id: examDate.id,
         date: this.formatActivityDate(examDate.date),
+        dayName: this.formatDayName(examDate.date),
         exams: examDate.details.map((detail) => ({
           id: detail.id,
           courseTitle: detail.course.title,
@@ -1881,6 +1882,20 @@ export class ParentService {
     const day = String(date.getUTCDate()).padStart(2, '0');
 
     return `${year}-${month}-${day}`;
+  }
+
+  private formatDayName(date: Date): string {
+    const dayNames = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
+
+    return dayNames[date.getUTCDay()] ?? '';
   }
 
   private parseMonthRange(month: string): { startDate: Date; endDate: Date } {
