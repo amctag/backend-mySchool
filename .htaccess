@@ -1,7 +1,0 @@
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-
-  RewriteCond %{HTTP_HOST} amctag-evimersin\.38f0fz\.easypanel\.host [NC,OR]
-  RewriteCond %{HTTP:X-Forwarded-Host} amctag-evimersin\.38f0fz\.easypanel\.host [NC]
-  RewriteRule ^ https://evimersin.co%{REQUEST_URI} [R=301,L]
-</IfModule>
