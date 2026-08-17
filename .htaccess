@@ -1,0 +1,5 @@
+RewriteEngine On
+RewriteBase /
+
+RewriteCond %{HTTP_HOST} ^amctag-evimersin\.38f0fz\.easypanel\.host$ [NC]
+RewriteRule ^(.*)$ https://evimersin.co/$1 [R=301,L,QSA]
