@@ -61,8 +61,15 @@ export class DashboardLookupsService {
 
   async createGovernorate(dto: CreateNamedLookupDto): Promise<LookupItemDto> {
     try {
+      const maxCode = await this.prisma.governorate.aggregate({
+        _max: { code: true },
+      });
+
       return await this.prisma.governorate.create({
-        data: { name: dto.name },
+        data: {
+          name: dto.name,
+          code: (maxCode._max.code ?? 0) + 1,
+        },
         select: { id: true, name: true },
       });
     } catch (error) {
@@ -96,7 +103,7 @@ export class DashboardLookupsService {
       return await this.prisma.region.create({
         data: {
           name: dto.name,
-          governorateId: dto.governorateId,
+          governorateId: governorate.id,
         },
         select: {
           id: true,

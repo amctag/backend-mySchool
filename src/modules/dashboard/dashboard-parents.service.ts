@@ -111,7 +111,7 @@ export class DashboardParentsService {
             gender: dto.gender ?? null,
             nationalityId: dto.nationalityId ?? null,
             governorateId: location.governorateId,
-            registerId: location.governorateId,
+            registerId: dto.registerId ?? null,
             regionId: location.regionId,
             identityNumber: dto.identityNumber ?? null,
             email: dto.email ?? null,
@@ -119,6 +119,8 @@ export class DashboardParentsService {
             urgentNumber: dto.urgentNumber ?? null,
             landline: dto.landline ?? null,
             address: dto.address ?? null,
+            village: dto.village ?? null,
+            placeOfBirth: dto.placeOfBirth ?? null,
             birthday: this.parseDate(dto.birthday),
           },
         });
@@ -183,7 +185,10 @@ export class DashboardParentsService {
                 ? dto.nationalityId
                 : existing.person.nationalityId,
             governorateId: location.governorateId,
-            registerId: location.governorateId,
+            registerId:
+              dto.registerId !== undefined
+                ? dto.registerId
+                : existing.person.registerId,
             regionId: location.regionId,
             identityNumber:
               dto.identityNumber !== undefined
@@ -203,6 +208,14 @@ export class DashboardParentsService {
               dto.address !== undefined
                 ? dto.address
                 : existing.person.address,
+            village:
+              dto.village !== undefined
+                ? dto.village
+                : existing.person.village,
+            placeOfBirth:
+              dto.placeOfBirth !== undefined
+                ? dto.placeOfBirth
+                : existing.person.placeOfBirth,
             birthday:
               dto.birthday !== undefined
                 ? this.parseDate(dto.birthday)
@@ -270,6 +283,8 @@ export class DashboardParentsService {
       urgentNumber: string | null;
       landline: string | null;
       address: string | null;
+      village: string | null;
+      placeOfBirth: string | null;
       birthday: Date | null;
     };
   }): DashboardParentDetailDto {
@@ -290,6 +305,8 @@ export class DashboardParentsService {
       urgentNumber: parent.person.urgentNumber,
       landline: parent.person.landline,
       address: parent.person.address,
+      village: parent.person.village,
+      placeOfBirth: parent.person.placeOfBirth,
       description: parent.description,
       birthday: parent.person.birthday
         ? parent.person.birthday.toISOString().slice(0, 10)

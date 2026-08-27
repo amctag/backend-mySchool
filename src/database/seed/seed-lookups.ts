@@ -18,8 +18,8 @@ type LookupPrisma = {
   governorate: {
     upsert: (args: {
       where: { name: string };
-      create: { name: string };
-      update: Record<string, never>;
+      create: { name: string; code: number };
+      update: { code: number };
     }) => Promise<{ id: number }>;
   };
   region: {
@@ -59,8 +59,8 @@ export async function seedLookups(prisma: LookupPrisma): Promise<void> {
   for (const governorate of LEBANON_GOVERNORATES) {
     const saved = await prisma.governorate.upsert({
       where: { name: governorate.name },
-      create: { name: governorate.name },
-      update: {},
+      create: { name: governorate.name, code: governorate.code },
+      update: { code: governorate.code },
     });
 
     for (const name of governorate.regions) {

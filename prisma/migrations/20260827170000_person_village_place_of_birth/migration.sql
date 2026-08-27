@@ -1,0 +1,3 @@
+ALTER TABLE "persons" DROP COLUMN IF EXISTS "village_id";
+ALTER TABLE "persons" ADD COLUMN IF NOT EXISTS "village" VARCHAR(255);
+ALTER TABLE "persons" ADD COLUMN IF NOT EXISTS "place_of_birth" VARCHAR(255);

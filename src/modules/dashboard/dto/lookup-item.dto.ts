@@ -11,7 +11,16 @@ export class LookupItemDto {
   isDefault?: boolean;
 }
 
+export class GovernorateItemDto extends LookupItemDto {
+  @ApiProperty({
+    example: 1,
+    description: 'Custom number used as persons.governorate_id',
+  })
+  code!: number;
+}
+
 export class RegionItemDto extends LookupItemDto {
   @ApiProperty({ example: 1 })
   governorateId!: number;
 }
+

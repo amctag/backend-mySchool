@@ -68,16 +68,14 @@ export class DashboardLookupsController {
   }
 
   @Get('governorates')
-  @ApiOperation({ summary: 'List governorates' })
+  @ApiOperation({ summary: 'List governorates by name' })
   @ApiOkResponse({ type: [LookupItemDto] })
   listGovernorates(): Promise<LookupItemDto[]> {
     return this.dashboardLookupsService.listGovernorates();
   }
 
   @Post('governorates')
-  @ApiOperation({
-    summary: 'Add a governorate (auto id, custom name)',
-  })
+  @ApiOperation({ summary: 'Add a governorate name' })
   @ApiCreatedResponse({ type: LookupItemDto })
   createGovernorate(
     @Body() dto: CreateNamedLookupDto,

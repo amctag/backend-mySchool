@@ -21,11 +21,14 @@ export class DashboardParentDetailDto {
 
   @ApiPropertyOptional({
     nullable: true,
-    description: 'Governorate id; same value as register_id',
+    description: 'Governorate table id (selected by name)',
   })
   governorateId!: number | null;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Free register number; not related to any table',
+  })
   registerId!: number | null;
 
   @ApiPropertyOptional({ nullable: true })
@@ -54,6 +57,12 @@ export class DashboardParentDetailDto {
 
   @ApiPropertyOptional({ nullable: true })
   description!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  village!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  placeOfBirth!: string | null;
 
   @ApiPropertyOptional({ nullable: true, example: '1985-03-15' })
   birthday!: string | null;

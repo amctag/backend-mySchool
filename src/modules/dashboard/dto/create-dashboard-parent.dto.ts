@@ -62,13 +62,22 @@ export class CreateDashboardParentDto {
 
   @ApiPropertyOptional({
     example: 1,
-    description: 'Home governorate; also stored as register_id',
+    description: 'Governorate from the governorates table (by name)',
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   governorateId?: number;
+
+  @ApiPropertyOptional({
+    example: 2045,
+    description: 'Free register number on the person; not related to any lookup table',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  registerId?: number | null;
 
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()
@@ -132,6 +141,20 @@ export class CreateDashboardParentDto {
   @IsString()
   @MaxLength(4000)
   description?: string;
+
+  @ApiPropertyOptional({ example: 'Hamra' })
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  @MaxLength(255)
+  village?: string;
+
+  @ApiPropertyOptional({ example: 'Beirut' })
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  @MaxLength(255)
+  placeOfBirth?: string;
 
   @ApiPropertyOptional({ example: '2010-01-15' })
   @IsOptional()

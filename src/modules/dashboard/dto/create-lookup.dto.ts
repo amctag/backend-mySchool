@@ -16,9 +16,13 @@ export class CreateNamedLookupDto {
 }
 
 export class CreateRegionDto extends CreateNamedLookupDto {
-  @ApiProperty({ example: 1 })
+  @ApiProperty({
+    example: 1,
+    description: 'Governorate table id',
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   governorateId!: number;
 }
+
