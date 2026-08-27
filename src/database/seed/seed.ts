@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import * as bcrypt from 'bcrypt';
+import { LEBANON_GOVERNORATES } from './lebanon-geography';
 import { SeedPrismaClient } from './seed-prisma.client';
 
 const connectionString = process.env.DATABASE_URL;
@@ -81,6 +82,10 @@ async function resetDatabase(): Promise<void> {
       days,
       sessions,
       persons,
+      regions,
+      governorates,
+      nationalities,
+      parent_jobs,
       school
     RESTART IDENTITY CASCADE
   `);
@@ -338,6 +343,34 @@ async function main(): Promise<void> {
       },
     ],
   });
+
+  console.log('Creating lookup tables...');
+  await prisma.nationality.createMany({
+    data: [
+      { name: 'Lebanese', isDefault: true },
+      { name: 'Syrian', isDefault: false },
+      { name: 'Jordanian', isDefault: false },
+    ],
+  });
+  await prisma.parentJob.createMany({
+    data: [
+      { name: 'Employee' },
+      { name: 'Teacher' },
+      { name: 'Engineer' },
+      { name: 'Other' },
+    ],
+  });
+
+  for (const governorate of LEBANON_GOVERNORATES) {
+    await prisma.governorate.create({
+      data: {
+        name: governorate.name,
+        regions: {
+          create: governorate.regions.map((name) => ({ name })),
+        },
+      },
+    });
+  }
 
   const academicA = await seedSchoolAcademic(schoolA.id, 'a');
   const academicB = await seedSchoolAcademic(schoolB.id, 'b');

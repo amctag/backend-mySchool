@@ -66,6 +66,9 @@ model Person {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   school                School?                @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  nationality           Nationality?           @relation(fields: [nationalityId], references: [id], onDelete: SetNull)
+  governorate           Governorate?           @relation(fields: [governorateId], references: [id], onDelete: SetNull)
+  region                Region?                @relation(fields: [regionId], references: [id], onDelete: SetNull)
   teacher               Teacher?
   parent                Parent?
   student               Student?
@@ -122,13 +125,65 @@ model Parent {
   id           Int      @id @default(autoincrement())
   personId     Int      @unique @map("person_id")
   currentJobId Int?     @map("current_job_id")
+  description  String?  @db.Text
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  person   Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
-  students Student[]
+  person     Person     @relation(fields: [personId], references: [id], onDelete: Cascade)
+  currentJob ParentJob? @relation(fields: [currentJobId], references: [id], onDelete: SetNull)
+  students   Student[]
 
   @@map("parents")
+}
+
+model Nationality {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(100)
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  persons Person[]
+
+  @@map("nationalities")
+}
+
+model Governorate {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  regions Region[]
+  persons Person[]
+
+  @@map("governorates")
+}
+
+model Region {
+  id            Int      @id @default(autoincrement())
+  governorateId Int      @map("governorate_id")
+  name          String   @db.VarChar(100)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  governorate Governorate @relation(fields: [governorateId], references: [id], onDelete: Cascade)
+  persons     Person[]
+
+  @@unique([governorateId, name])
+  @@index([governorateId])
+  @@map("regions")
+}
+
+model ParentJob {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  parents Parent[]
+
+  @@map("parent_jobs")
 }
 
 model Student {
