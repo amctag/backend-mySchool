@@ -37,13 +37,6 @@ export class CreateDashboardStudentDto {
   @MaxLength(100)
   firstName!: string;
 
-  @ApiPropertyOptional({ example: 'Ahmad' })
-  @IsOptional()
-  @Transform(emptyToUndefined)
-  @IsString()
-  @MaxLength(100)
-  middleName?: string;
-
   @ApiPropertyOptional({
     example: 0,
     description: '0 = male, 1 = female',
@@ -102,13 +95,6 @@ export class CreateDashboardStudentDto {
   @IsString()
   @MaxLength(50)
   phoneNumber?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Transform(emptyToUndefined)
-  @IsString()
-  @MaxLength(50)
-  urgentNumber?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

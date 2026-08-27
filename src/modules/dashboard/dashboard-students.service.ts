@@ -52,7 +52,7 @@ export class DashboardStudentsService {
             username,
             password,
             firstName: dto.firstName,
-            middleName: dto.middleName ?? '',
+            middleName: parent.person.middleName,
             lastName,
             gender: dto.gender ?? null,
             nationalityId: dto.nationalityId ?? parent.person.nationalityId,
@@ -62,9 +62,9 @@ export class DashboardStudentsService {
             identityNumber: dto.identityNumber ?? null,
             email: dto.email ?? null,
             phoneNumber: phoneNumber || parent.person.phoneNumber,
-            urgentNumber: dto.urgentNumber ?? parent.person.urgentNumber,
+            urgentNumber: parent.person.urgentNumber,
             landline: dto.landline ?? parent.person.landline,
-            address: dto.address ?? parent.person.address,
+            address: dto.address ?? null,
             village: dto.village ?? parent.person.village,
             placeOfBirth: dto.placeOfBirth ?? null,
             birthday: this.parseDate(dto.birthday),
@@ -124,10 +124,7 @@ export class DashboardStudentsService {
           where: { id: existing.personId },
           data: {
             firstName: dto.firstName ?? existing.person.firstName,
-            middleName:
-              dto.middleName !== undefined
-                ? (dto.middleName ?? '')
-                : existing.person.middleName,
+            middleName: parent.person.middleName,
             lastName,
             gender:
               dto.gender !== undefined ? dto.gender : existing.person.gender,
@@ -150,10 +147,7 @@ export class DashboardStudentsService {
               dto.phoneNumber !== undefined
                 ? dto.phoneNumber
                 : existing.person.phoneNumber,
-            urgentNumber:
-              dto.urgentNumber !== undefined
-                ? dto.urgentNumber
-                : existing.person.urgentNumber,
+            urgentNumber: parent.person.urgentNumber,
             landline:
               dto.landline !== undefined
                 ? dto.landline
