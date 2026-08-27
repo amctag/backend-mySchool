@@ -7,6 +7,10 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { createCorsDelegate } from './config/cors';
 import { createValidationPipe } from './config/validation';
+import { ParentModule } from './modules/parent/parent.module';
+import { TeacherModule } from './modules/teacher/teacher.module';
+import { SchoolModule } from './modules/school/school.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -34,7 +38,9 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('My School API')
-    .setDescription('School management system API v1')
+    .setDescription(
+      'Parent, teacher, and school public API v1. Dashboard admin APIs are documented separately at /api/docs/dashboard',
+    )
     .setVersion('1.0')
     .addBearerAuth()
     .addTag('Parent Auth v1', 'Login, refresh, logout, and forgot password')
@@ -49,8 +55,25 @@ async function bootstrap() {
     .addTag('School v1', 'School information and details')
     .build();
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  const document = SwaggerModule.createDocument(app, swaggerConfig, {
+    include: [ParentModule, TeacherModule, SchoolModule],
+  });
   SwaggerModule.setup('api/docs', app, document);
+
+  const dashboardSwaggerConfig = new DocumentBuilder()
+    .setTitle('My School Dashboard API')
+    .setDescription('School admin dashboard API v1')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .addTag('Dashboard Parents v1', 'Parents for the school admin dashboard')
+    .build();
+
+  const dashboardDocument = SwaggerModule.createDocument(
+    app,
+    dashboardSwaggerConfig,
+    { include: [DashboardModule] },
+  );
+  SwaggerModule.setup('api/docs/dashboard', app, dashboardDocument);
 
   const port = configService.get<number>('app.port') ?? 3000;
 

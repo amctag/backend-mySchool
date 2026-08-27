@@ -18,6 +18,7 @@ import { AuthModule } from './auth/auth.module';
 import { ParentModule } from './modules/parent/parent.module';
 import { TeacherModule } from './modules/teacher/teacher.module';
 import { SchoolModule } from './modules/school/school.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { SchoolModule } from './modules/school/school.module';
     ParentModule,
     TeacherModule,
     SchoolModule,
+    DashboardModule,
   ],
   providers: [
     {

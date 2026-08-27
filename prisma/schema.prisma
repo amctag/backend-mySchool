@@ -85,6 +85,8 @@ model Person {
   grades                Grade[]
 
   @@unique([schoolId, username])
+  @@index([schoolId])
+  @@index([firstName, lastName])
   @@map("persons")
 }
 

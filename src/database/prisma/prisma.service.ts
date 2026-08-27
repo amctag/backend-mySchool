@@ -13,6 +13,10 @@ export class PrismaService
     return super.parentSession;
   }
 
+  override get parent(): PrismaClient['parent'] {
+    return super.parent;
+  }
+
   override get passwordChangeOtp(): PrismaClient['passwordChangeOtp'] {
     return super.passwordChangeOtp;
   }
