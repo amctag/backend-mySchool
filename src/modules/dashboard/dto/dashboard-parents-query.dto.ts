@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { Allow, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 function trimString({ value }: { value: unknown }): unknown {
   return typeof value === 'string' ? value.trim() : value;
@@ -67,6 +67,8 @@ export class DashboardParentsQueryDto {
     default: 'id',
   })
   @IsOptional()
+  @Allow()
+  @IsString()
   @IsIn(['id', 'name', 'address', 'phone', 'childrenCount'])
   sortBy?: 'id' | 'name' | 'address' | 'phone' | 'childrenCount';
 
@@ -77,6 +79,8 @@ export class DashboardParentsQueryDto {
     default: 'asc',
   })
   @IsOptional()
+  @Allow()
+  @IsString()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.toLowerCase() : value,
   )
