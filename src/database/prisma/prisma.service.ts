@@ -73,6 +73,14 @@ export class PrismaService
     return super.year;
   }
 
+  override get section(): PrismaClient['section'] {
+    return super.section;
+  }
+
+  override get sectionTitle(): PrismaClient['sectionTitle'] {
+    return super.sectionTitle;
+  }
+
   override get registration(): PrismaClient['registration'] {
     return super.registration;
   }
