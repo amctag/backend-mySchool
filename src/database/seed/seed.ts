@@ -13,6 +13,17 @@ const prisma = new SeedPrismaClient(connectionString);
 /** All seeded accounts use this password */
 const DEFAULT_PASSWORD = bcrypt.hashSync('password123', 10);
 
+const SCHOOL_LOGINS = [
+  {
+    name: 'Green Valley School',
+    email: 'school@greenvalley.edu',
+  },
+  {
+    name: 'Blue Horizon Academy',
+    email: 'school@bluehorizon.edu',
+  },
+] as const;
+
 const baseProfile = {
   password: DEFAULT_PASSWORD,
   status: true,
@@ -235,13 +246,39 @@ async function seedSchoolAcademic(schoolId: number, schoolKey: 'a' | 'b') {
   };
 }
 
+async function syncSchoolLogins(): Promise<void> {
+  for (const login of SCHOOL_LOGINS) {
+    const school = await prisma.school.findFirst({
+      where: { name: login.name },
+    });
+
+    if (!school) {
+      continue;
+    }
+
+    await prisma.school.update({
+      where: { id: school.id },
+      data: {
+        email: login.email,
+        password: DEFAULT_PASSWORD,
+      },
+    });
+
+    console.log(`  ${school.name}: ${login.email} / password123`);
+  }
+}
+
 async function main(): Promise<void> {
   const forceReseed = process.env.SEED_FORCE === 'true';
   const existingSchools = await prisma.school.count();
 
   if (existingSchools > 0 && !forceReseed) {
     console.log(
-      'Seed skipped: database already has data. Set SEED_FORCE=true only on a dev/test DB to wipe and re-seed.',
+      'Database already has data — updating school login emails/passwords...',
+    );
+    await syncSchoolLogins();
+    console.log(
+      'Person/parent/student seed skipped. Set SEED_FORCE=true only on a dev/test DB to wipe and re-seed.',
     );
     return;
   }
@@ -258,8 +295,8 @@ async function main(): Promise<void> {
   console.log('Creating schools...');
   const schoolA = await prisma.school.create({
     data: {
-      name: 'Green Valley School',
-      email: 'school@greenvalley.edu',
+      name: SCHOOL_LOGINS[0].name,
+      email: SCHOOL_LOGINS[0].email,
       password: DEFAULT_PASSWORD,
       isActive: true,
     },
@@ -267,8 +304,8 @@ async function main(): Promise<void> {
 
   const schoolB = await prisma.school.create({
     data: {
-      name: 'Blue Horizon Academy',
-      email: 'school@bluehorizon.edu',
+      name: SCHOOL_LOGINS[1].name,
+      email: SCHOOL_LOGINS[1].email,
       password: DEFAULT_PASSWORD,
       isActive: true,
     },
