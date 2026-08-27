@@ -45,7 +45,7 @@ export class SchoolAuthService {
     return this.createSession(school);
   }
 
-  async refresh(refreshToken: string | undefined): Promise<SchoolAuthResult> {
+  async refresh(refreshToken: string | undefined): Promise<SchoolAccessTokenResponseDto> {
     if (!refreshToken) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
@@ -55,8 +55,8 @@ export class SchoolAuthService {
     });
 
     if (
-      !school ||
-      !school.sessionId ||
+      !school?.sessionId ||
+      !school.isActive ||
       !school.refreshExpiresAt ||
       school.refreshExpiresAt <= new Date()
     ) {
@@ -66,30 +66,10 @@ export class SchoolAuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    if (!school.isActive) {
-      await this.clearSession(school.id);
-      throw new UnauthorizedException('Invalid or expired refresh token');
-    }
-
-    const newRefreshToken = this.generateRefreshToken();
-    const refreshExpiresAt = this.getRefreshExpiryDate();
-
-    await this.prisma.school.update({
-      where: { id: school.id },
-      data: {
-        refreshTokenHash: this.hashToken(newRefreshToken),
-        refreshExpiresAt,
-      },
-    });
-
-    return {
-      access: this.buildAccessResponse(
-        { id: school.id, name: school.name, email: school.email },
-        school.sessionId,
-      ),
-      refreshToken: newRefreshToken,
-      refreshTokenExpiresAt: refreshExpiresAt,
-    };
+    return this.buildAccessResponse(
+      { id: school.id, name: school.name, email: school.email },
+      school.sessionId,
+    );
   }
 
   async logout(user: AuthenticatedSchool): Promise<void> {

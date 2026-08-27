@@ -65,19 +65,10 @@ export class SchoolAuthController {
   @ApiUnauthorizedResponse({ description: 'Invalid or expired refresh token' })
   async refresh(
     @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
   ): Promise<SchoolAccessTokenResponseDto> {
-    const result = await this.schoolAuthService.refresh(
+    return this.schoolAuthService.refresh(
       this.schoolRefreshCookieService.read(request),
     );
-
-    this.schoolRefreshCookieService.set(
-      response,
-      result.refreshToken,
-      result.refreshTokenExpiresAt,
-    );
-
-    return result.access;
   }
 
   @Post('logout')
