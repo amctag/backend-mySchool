@@ -8,6 +8,15 @@ export class DashboardParentItemDto {
   @ApiProperty({ example: 'Ahmad Hassan Khalil' })
   fullName!: string;
 
+  @ApiProperty({ example: 'Ahmad' })
+  firstName!: string;
+
+  @ApiProperty({ example: 'Khalil' })
+  lastName!: string;
+
+  @ApiProperty({ example: null, nullable: true })
+  picture!: string | null;
+
   @ApiProperty({ example: 'Hamra Street, Beirut, Lebanon', nullable: true })
   address!: string | null;
 

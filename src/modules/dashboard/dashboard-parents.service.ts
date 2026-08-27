@@ -40,6 +40,7 @@ export class DashboardParentsService {
               firstName: true,
               middleName: true,
               lastName: true,
+              picture: true,
               address: true,
               phoneNumber: true,
             },
@@ -62,6 +63,9 @@ export class DashboardParentsService {
       items: parents.map((parent) => ({
         id: parent.id,
         fullName: this.formatFullName(parent.person),
+        firstName: parent.person.firstName,
+        lastName: parent.person.lastName,
+        picture: parent.person.picture,
         address: parent.person.address,
         phoneNumber: parent.person.phoneNumber,
         childrenCount: parent._count.students,
