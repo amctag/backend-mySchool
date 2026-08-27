@@ -11,7 +11,7 @@ if (!connectionString) {
 const prisma = new SeedPrismaClient(connectionString);
 
 async function main(): Promise<void> {
-  console.log('Seeding nationalities, jobs, Lebanon governorates, and regions...');
+  console.log('Seeding nationalities, jobs, blood types, Lebanon governorates, and regions...');
   await seedLookups(prisma);
   console.log('Lookups seed complete.');
 }

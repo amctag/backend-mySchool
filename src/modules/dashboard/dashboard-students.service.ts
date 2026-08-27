@@ -34,6 +34,7 @@ export class DashboardStudentsService {
     const lastName = parent.person.lastName;
     const location = await this.resolveLocation(dto.governorateId, dto.regionId);
     await this.assertNationality(dto.nationalityId);
+    await this.assertBloodType(dto.bloodTypeId);
 
     const phoneNumber = dto.phoneNumber?.trim() || parent.person.phoneNumber || '';
     const username = await this.uniqueUsername(
@@ -52,7 +53,7 @@ export class DashboardStudentsService {
             username,
             password,
             firstName: dto.firstName,
-            middleName: parent.person.middleName,
+            middleName: parent.person.firstName,
             lastName,
             gender: dto.gender ?? null,
             nationalityId: dto.nationalityId ?? parent.person.nationalityId,
@@ -68,6 +69,7 @@ export class DashboardStudentsService {
             village: dto.village ?? parent.person.village,
             placeOfBirth: dto.placeOfBirth ?? null,
             birthday: this.parseDate(dto.birthday),
+            bloodTypeId: dto.bloodTypeId ?? null,
           },
         });
 
@@ -117,6 +119,9 @@ export class DashboardStudentsService {
     if (dto.nationalityId !== undefined) {
       await this.assertNationality(dto.nationalityId ?? undefined);
     }
+    if (dto.bloodTypeId !== undefined) {
+      await this.assertBloodType(dto.bloodTypeId ?? undefined);
+    }
 
     try {
       const student = await this.prisma.$transaction(async (tx) => {
@@ -124,7 +129,7 @@ export class DashboardStudentsService {
           where: { id: existing.personId },
           data: {
             firstName: dto.firstName ?? existing.person.firstName,
-            middleName: parent.person.middleName,
+            middleName: parent.person.firstName,
             lastName,
             gender:
               dto.gender !== undefined ? dto.gender : existing.person.gender,
@@ -168,6 +173,10 @@ export class DashboardStudentsService {
               dto.birthday !== undefined
                 ? this.parseDate(dto.birthday)
                 : existing.person.birthday,
+            bloodTypeId:
+              dto.bloodTypeId !== undefined
+                ? dto.bloodTypeId
+                : existing.person.bloodTypeId,
           },
         });
 
@@ -263,6 +272,7 @@ export class DashboardStudentsService {
       village: string | null;
       placeOfBirth: string | null;
       birthday: Date | null;
+      bloodTypeId: number | null;
     };
     parent: {
       id: number;
@@ -282,6 +292,7 @@ export class DashboardStudentsService {
       lastName: student.person.lastName,
       gender: student.person.gender,
       nationalityId: student.person.nationalityId,
+      bloodTypeId: student.person.bloodTypeId,
       governorateId: student.person.governorateId,
       registerId: student.person.registerId,
       regionId: student.person.regionId,
@@ -355,6 +366,20 @@ export class DashboardStudentsService {
     });
     if (!nationality) {
       throw new BadRequestException('Nationality not found');
+    }
+  }
+
+  private async assertBloodType(bloodTypeId?: number): Promise<void> {
+    if (!bloodTypeId) {
+      return;
+    }
+
+    const bloodType = await this.prisma.bloodType.findUnique({
+      where: { id: bloodTypeId },
+      select: { id: true },
+    });
+    if (!bloodType) {
+      throw new BadRequestException('Blood type not found');
     }
   }
 

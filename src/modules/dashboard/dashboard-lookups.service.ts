@@ -52,6 +52,13 @@ export class DashboardLookupsService {
     }
   }
 
+  listBloodTypes(): Promise<LookupItemDto[]> {
+    return this.prisma.bloodType.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    });
+  }
+
   listGovernorates(): Promise<LookupItemDto[]> {
     return this.prisma.governorate.findMany({
       orderBy: { name: 'asc' },

@@ -67,6 +67,13 @@ export class DashboardLookupsController {
     return this.dashboardLookupsService.createJob(dto);
   }
 
+  @Get('blood-types')
+  @ApiOperation({ summary: 'List blood types' })
+  @ApiOkResponse({ type: [LookupItemDto] })
+  listBloodTypes(): Promise<LookupItemDto[]> {
+    return this.dashboardLookupsService.listBloodTypes();
+  }
+
   @Get('governorates')
   @ApiOperation({ summary: 'List governorates by name' })
   @ApiOkResponse({ type: [LookupItemDto] })

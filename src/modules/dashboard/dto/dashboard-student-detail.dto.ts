@@ -26,6 +26,9 @@ export class DashboardStudentDetailDto {
   nationalityId!: number | null;
 
   @ApiPropertyOptional({ nullable: true })
+  bloodTypeId!: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
   governorateId!: number | null;
 
   @ApiPropertyOptional({ nullable: true })

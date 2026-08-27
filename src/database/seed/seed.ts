@@ -85,6 +85,7 @@ async function resetDatabase(): Promise<void> {
       regions,
       governorates,
       nationalities,
+      blood_types,
       parent_jobs,
       school
     RESTART IDENTITY CASCADE

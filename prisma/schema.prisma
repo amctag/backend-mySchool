@@ -70,6 +70,7 @@ model Person {
   nationality           Nationality?           @relation(fields: [nationalityId], references: [id], onDelete: SetNull)
   governorate           Governorate?           @relation(fields: [governorateId], references: [id], onDelete: SetNull)
   region                Region?                @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  bloodType             BloodType?             @relation(fields: [bloodTypeId], references: [id], onDelete: SetNull)
   teacher               Teacher?
   parent                Parent?
   student               Student?
@@ -147,6 +148,17 @@ model Nationality {
   persons Person[]
 
   @@map("nationalities")
+}
+
+model BloodType {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  persons Person[]
+
+  @@map("blood_types")
 }
 
 model Governorate {

@@ -15,6 +15,13 @@ type LookupPrisma = {
       update: Record<string, never>;
     }) => Promise<unknown>;
   };
+  bloodType: {
+    upsert: (args: {
+      where: { name: string };
+      create: { name: string };
+      update: Record<string, never>;
+    }) => Promise<unknown>;
+  };
   governorate: {
     upsert: (args: {
       where: { name: string };
@@ -50,6 +57,14 @@ export async function seedLookups(prisma: LookupPrisma): Promise<void> {
 
   for (const name of ['Employee', 'Teacher', 'Engineer', 'Other']) {
     await prisma.parentJob.upsert({
+      where: { name },
+      create: { name },
+      update: {},
+    });
+  }
+
+  for (const name of ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']) {
+    await prisma.bloodType.upsert({
       where: { name },
       create: { name },
       update: {},

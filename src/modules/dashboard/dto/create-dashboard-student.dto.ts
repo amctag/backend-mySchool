@@ -60,6 +60,13 @@ export class CreateDashboardStudentDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  bloodTypeId?: number;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   governorateId?: number;
 
   @ApiPropertyOptional({ example: 2045 })
