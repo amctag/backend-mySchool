@@ -27,7 +27,9 @@ export class SchoolRefreshCookieService {
     return {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      // Lax lets same-site reloads POST /refresh. Cross-site browsers should
+      // call the dashboard /api/v1 proxy instead of the API host directly.
+      sameSite: 'lax',
       path: '/',
       expires: expiresAt,
     };
