@@ -23,6 +23,8 @@ export class DashboardChildrenService {
 
     const where = this.buildWhere(schoolId, query);
 
+    const orderBy = this.buildOrderBy(query.sortBy, query.sortOrder);
+
     const [total, students] = await this.prisma.$transaction([
       this.prisma.student.count({ where }),
       this.prisma.student.findMany({
@@ -30,6 +32,7 @@ export class DashboardChildrenService {
         include: {
           person: {
             select: {
+              username: true,
               firstName: true,
               middleName: true,
               lastName: true,
@@ -64,7 +67,7 @@ export class DashboardChildrenService {
             orderBy: { createdAt: 'desc' },
           },
         },
-        orderBy: { id: 'asc' },
+        orderBy,
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -79,6 +82,9 @@ export class DashboardChildrenService {
         return {
           id: student.id,
           fullName: this.formatFullName(student.person),
+          firstName: student.person.firstName,
+          lastName: student.person.lastName,
+          username: student.person.username,
           parentId: student.parent?.id ?? null,
           parentName: student.parent
             ? this.formatFullName(student.parent.person)
@@ -160,8 +166,45 @@ export class DashboardChildrenService {
       OR: [
         ...(parsedId ? [{ id: parsedId }] : []),
         ...(nameMatch ? [{ person: nameMatch }] : []),
+        { person: { username: { contains: search, mode: 'insensitive' } } },
       ],
     };
+  }
+
+  private buildOrderBy(
+    sortBy?: DashboardChildrenQueryDto['sortBy'],
+    sortOrder?: DashboardChildrenQueryDto['sortOrder'],
+  ): Prisma.StudentOrderByWithRelationInput[] {
+    const direction: Prisma.SortOrder = sortOrder === 'desc' ? 'desc' : 'asc';
+    const idTieBreaker: Prisma.StudentOrderByWithRelationInput = {
+      id: direction,
+    };
+
+    if (sortBy === 'username') {
+      return [{ person: { username: direction } }, idTieBreaker];
+    }
+
+    if (sortBy === 'name') {
+      return [
+        { person: { firstName: direction } },
+        { person: { lastName: direction } },
+        idTieBreaker,
+      ];
+    }
+
+    if (sortBy === 'parent') {
+      return [
+        { parent: { person: { lastName: direction } } },
+        { parent: { person: { firstName: direction } } },
+        idTieBreaker,
+      ];
+    }
+
+    if (sortBy === 'class') {
+      return [{ registrations: { _count: direction } }, idTieBreaker];
+    }
+
+    return [{ id: direction }];
   }
 
   private formatFullName(person: {

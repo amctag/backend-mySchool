@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,6 +15,12 @@ import {
   DashboardParentsResponseDto,
 } from './dto/dashboard-parents-response.dto';
 import { UpdateDashboardParentDto } from './dto/update-dashboard-parent.dto';
+import {
+  assertUniquePersonContacts,
+  emptyToNull,
+  normalizeEmail,
+  rethrowPersonWriteError,
+} from './person-contact-uniqueness';
 
 const DEFAULT_PARENT_PASSWORD = 'password123';
 
@@ -128,11 +133,20 @@ export class DashboardParentsService {
     const location = await this.resolveLocation(dto.governorateId, dto.regionId);
     await this.assertLookups(dto.nationalityId, dto.currentJobId);
 
+    const identityNumber = emptyToNull(dto.identityNumber);
+    const email = normalizeEmail(dto.email);
+    const phoneNumber = dto.phoneNumber.trim();
+    await assertUniquePersonContacts(this.prisma, {
+      identityNumber,
+      email,
+      phoneNumber,
+    });
+
     const username = await this.uniqueUsername(
       user.schoolId,
       dto.firstName,
       dto.lastName,
-      dto.phoneNumber,
+      phoneNumber,
     );
     const password = await bcrypt.hash(DEFAULT_PARENT_PASSWORD, 10);
 
@@ -151,9 +165,9 @@ export class DashboardParentsService {
             governorateId: location.governorateId,
             registerId: dto.registerId ?? null,
             regionId: location.regionId,
-            identityNumber: dto.identityNumber ?? null,
-            email: dto.email ?? null,
-            phoneNumber: dto.phoneNumber,
+            identityNumber,
+            email,
+            phoneNumber,
             urgentNumber: dto.urgentNumber ?? null,
             landline: dto.landline ?? null,
             address: dto.address ?? null,
@@ -205,6 +219,23 @@ export class DashboardParentsService {
       );
     }
 
+    const identityNumber =
+      dto.identityNumber !== undefined
+        ? emptyToNull(dto.identityNumber)
+        : existing.person.identityNumber;
+    const email =
+      dto.email !== undefined
+        ? normalizeEmail(dto.email)
+        : existing.person.email;
+    const phoneNumber = dto.phoneNumber
+      ? dto.phoneNumber.trim()
+      : existing.person.phoneNumber;
+    await assertUniquePersonContacts(
+      this.prisma,
+      { identityNumber, email, phoneNumber },
+      existing.personId,
+    );
+
     try {
       const parent = await this.prisma.$transaction(async (tx) => {
         await tx.person.update({
@@ -228,12 +259,9 @@ export class DashboardParentsService {
                 ? dto.registerId
                 : existing.person.registerId,
             regionId: location.regionId,
-            identityNumber:
-              dto.identityNumber !== undefined
-                ? dto.identityNumber
-                : existing.person.identityNumber,
-            email: dto.email !== undefined ? dto.email : existing.person.email,
-            phoneNumber: dto.phoneNumber ?? existing.person.phoneNumber,
+            identityNumber,
+            email,
+            phoneNumber,
             urgentNumber:
               dto.urgentNumber !== undefined
                 ? dto.urgentNumber
@@ -466,14 +494,10 @@ export class DashboardParentsService {
   }
 
   private rethrowWriteError(error: unknown): never {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
-      throw new ConflictException('A parent with this username already exists');
-    }
-
-    throw error;
+    rethrowPersonWriteError(
+      error,
+      'A parent with this username already exists',
+    );
   }
 
   private buildOrderBy(

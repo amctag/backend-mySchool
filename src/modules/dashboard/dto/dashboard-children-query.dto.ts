@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { Allow, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 function trimString({ value }: { value: unknown }): unknown {
   return typeof value === 'string' ? value.trim() : value;
@@ -69,4 +69,31 @@ export class DashboardChildrenQueryDto {
   @IsString()
   @MaxLength(100)
   search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Column to sort by',
+    enum: ['id', 'username', 'name', 'class', 'parent'],
+    example: 'id',
+    default: 'id',
+  })
+  @IsOptional()
+  @Allow()
+  @IsString()
+  @IsIn(['id', 'username', 'name', 'class', 'parent'])
+  sortBy?: 'id' | 'username' | 'name' | 'class' | 'parent';
+
+  @ApiPropertyOptional({
+    description: 'Sort direction',
+    enum: ['asc', 'desc'],
+    example: 'asc',
+    default: 'asc',
+  })
+  @IsOptional()
+  @Allow()
+  @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
+  @IsIn(['asc', 'desc'])
+  sortOrder?: 'asc' | 'desc';
 }

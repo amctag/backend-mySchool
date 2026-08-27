@@ -8,6 +8,15 @@ export class DashboardChildItemDto {
   @ApiProperty({ example: 'Omar Ahmad Khalil' })
   fullName!: string;
 
+  @ApiProperty({ example: 'Omar' })
+  firstName!: string;
+
+  @ApiProperty({ example: 'Khalil' })
+  lastName!: string;
+
+  @ApiProperty({ example: 'omar.khalil' })
+  username!: string;
+
   @ApiProperty({ example: 1, nullable: true })
   parentId!: number | null;
 

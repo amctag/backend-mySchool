@@ -1,16 +1,16 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { CreateDashboardStudentDto } from './dto/create-dashboard-student.dto';
 import { DashboardStudentDetailDto } from './dto/dashboard-student-detail.dto';
 import { UpdateDashboardStudentDto } from './dto/update-dashboard-student.dto';
+import {
+  assertUniquePersonContacts,
+  emptyToNull,
+  normalizeEmail,
+  rethrowPersonWriteError,
+} from './person-contact-uniqueness';
 
 const DEFAULT_STUDENT_PASSWORD = 'password123';
 
@@ -36,12 +36,20 @@ export class DashboardStudentsService {
     await this.assertNationality(dto.nationalityId);
     await this.assertBloodType(dto.bloodTypeId);
 
-    const phoneNumber = dto.phoneNumber?.trim() || parent.person.phoneNumber || '';
+    const identityNumber = emptyToNull(dto.identityNumber);
+    const email = normalizeEmail(dto.email);
+    const phoneNumber = emptyToNull(dto.phoneNumber);
+    await assertUniquePersonContacts(this.prisma, {
+      identityNumber,
+      email,
+      phoneNumber,
+    });
+
     const username = await this.uniqueUsername(
       user.schoolId,
       dto.firstName,
       lastName,
-      phoneNumber,
+      phoneNumber ?? parent.person.phoneNumber ?? '',
     );
     const password = await bcrypt.hash(DEFAULT_STUDENT_PASSWORD, 10);
 
@@ -60,9 +68,9 @@ export class DashboardStudentsService {
             governorateId: location.governorateId ?? parent.person.governorateId,
             registerId: dto.registerId ?? null,
             regionId: location.regionId ?? parent.person.regionId,
-            identityNumber: dto.identityNumber ?? null,
-            email: dto.email ?? null,
-            phoneNumber: phoneNumber || parent.person.phoneNumber,
+            identityNumber,
+            email,
+            phoneNumber,
             urgentNumber: parent.person.urgentNumber,
             landline: dto.landline ?? parent.person.landline,
             address: dto.address ?? null,
@@ -123,6 +131,24 @@ export class DashboardStudentsService {
       await this.assertBloodType(dto.bloodTypeId ?? undefined);
     }
 
+    const identityNumber =
+      dto.identityNumber !== undefined
+        ? emptyToNull(dto.identityNumber)
+        : existing.person.identityNumber;
+    const email =
+      dto.email !== undefined
+        ? normalizeEmail(dto.email)
+        : existing.person.email;
+    const phoneNumber =
+      dto.phoneNumber !== undefined
+        ? emptyToNull(dto.phoneNumber)
+        : existing.person.phoneNumber;
+    await assertUniquePersonContacts(
+      this.prisma,
+      { identityNumber, email, phoneNumber },
+      existing.personId,
+    );
+
     try {
       const student = await this.prisma.$transaction(async (tx) => {
         await tx.person.update({
@@ -143,15 +169,9 @@ export class DashboardStudentsService {
                 ? dto.registerId
                 : existing.person.registerId,
             regionId: location.regionId,
-            identityNumber:
-              dto.identityNumber !== undefined
-                ? dto.identityNumber
-                : existing.person.identityNumber,
-            email: dto.email !== undefined ? dto.email : existing.person.email,
-            phoneNumber:
-              dto.phoneNumber !== undefined
-                ? dto.phoneNumber
-                : existing.person.phoneNumber,
+            identityNumber,
+            email,
+            phoneNumber,
             urgentNumber: parent.person.urgentNumber,
             landline:
               dto.landline !== undefined
@@ -430,14 +450,10 @@ export class DashboardStudentsService {
   }
 
   private rethrowWriteError(error: unknown): never {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
-      throw new ConflictException('A student with this username already exists');
-    }
-
-    throw error;
+    rethrowPersonWriteError(
+      error,
+      'A student with this username already exists',
+    );
   }
 
   private formatFullName(person: {

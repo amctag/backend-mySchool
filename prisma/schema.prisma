@@ -46,8 +46,8 @@ model Person {
   firstName      String    @map("first_name") @db.VarChar(100)
   middleName     String    @map("middle_name") @db.VarChar(100)
   lastName       String    @map("last_name") @db.VarChar(100)
-  email          String?   @db.VarChar(255)
-  phoneNumber    String?   @map("phone_number") @db.VarChar(50)
+  email          String?   @unique @db.VarChar(255)
+  phoneNumber    String?   @unique @map("phone_number") @db.VarChar(50)
   landline       String?   @db.VarChar(50)
   urgentNumber   String?   @map("urgent_number") @db.VarChar(50)
   address        String?   @db.Text
@@ -55,7 +55,7 @@ model Person {
   gender         Int?      @db.SmallInt
   picture        String?   @db.VarChar(255)
   status         Boolean   @default(true)
-  identityNumber String?   @map("identity_number") @db.VarChar(50)
+  identityNumber String?   @unique @map("identity_number") @db.VarChar(50)
   nationalityId  Int?      @map("nationality_id")
   governorateId  Int?      @map("governorate_id")
   regionId       Int?      @map("region_id")

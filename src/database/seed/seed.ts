@@ -30,7 +30,6 @@ const baseProfile = {
   status: true,
   address: 'Beirut, Lebanon',
   birthday: new Date('1985-03-15'),
-  identityNumber: 'LB-12345678',
 };
 
 async function resetDatabase(): Promise<void> {
@@ -363,6 +362,7 @@ async function main(): Promise<void> {
       lastName: 'Khalil',
       email: 'ahmad.khalil@example.com',
       phoneNumber: '+96170000001',
+      identityNumber: 'LB-10000001',
       gender: 0,
       parent: { create: {} },
     },
@@ -380,6 +380,7 @@ async function main(): Promise<void> {
       lastName: 'Hassan',
       email: 'maya.hassan@example.com',
       phoneNumber: '+96170000004',
+      identityNumber: 'LB-10000002',
       gender: 1,
       parent: { create: {} },
     },
@@ -395,6 +396,7 @@ async function main(): Promise<void> {
       middleName: 'Fadi',
       lastName: 'Admin',
       email: 'admin@greenvalley.edu',
+      identityNumber: 'LB-10000003',
     },
   });
 
@@ -407,6 +409,7 @@ async function main(): Promise<void> {
       middleName: 'Nabil',
       lastName: 'Admin',
       email: 'admin@bluehorizon.edu',
+      identityNumber: 'LB-10000004',
     },
   });
 
@@ -421,6 +424,7 @@ async function main(): Promise<void> {
       middleName: 'Ahmad',
       lastName: 'Khalil',
       email: 'layla.khalil@example.com',
+      identityNumber: 'LB-10000005',
       gender: 1,
       birthday: new Date('2015-09-01'),
       student: {
@@ -445,6 +449,7 @@ async function main(): Promise<void> {
       middleName: 'Ahmad',
       lastName: 'Khalil',
       email: 'omar.khalil@example.com',
+      identityNumber: 'LB-10000006',
       gender: 0,
       birthday: new Date('2014-06-20'),
       student: {
@@ -469,6 +474,7 @@ async function main(): Promise<void> {
       middleName: 'Maya',
       lastName: 'Hassan',
       email: 'rana.hassan@example.com',
+      identityNumber: 'LB-10000007',
       gender: 1,
       birthday: new Date('2016-01-10'),
       student: {
@@ -517,6 +523,7 @@ async function main(): Promise<void> {
       lastName: 'Nasser',
       email: 'sara.nasser@example.com',
       phoneNumber: '+96170000003',
+      identityNumber: 'LB-10000008',
       gender: 1,
       teacher: { create: {} },
     },
