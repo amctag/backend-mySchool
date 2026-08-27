@@ -28,6 +28,7 @@ export class DashboardParentsService {
     const limit = query.limit ?? 10;
     const schoolId = user.schoolId;
     const where = this.buildWhere(schoolId, query);
+    const orderBy = this.buildOrderBy(query.sortBy, query.sortOrder);
 
     const [total, parents] = await this.prisma.$transaction([
       this.prisma.parent.count({ where }),
@@ -51,7 +52,7 @@ export class DashboardParentsService {
             },
           },
         },
-        orderBy: { id: 'asc' },
+        orderBy,
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -436,6 +437,38 @@ export class DashboardParentsService {
     }
 
     throw error;
+  }
+
+  private buildOrderBy(
+    sortBy?: DashboardParentsQueryDto['sortBy'],
+    sortOrder?: DashboardParentsQueryDto['sortOrder'],
+  ): Prisma.ParentOrderByWithRelationInput[] {
+    const direction: Prisma.SortOrder = sortOrder === 'desc' ? 'desc' : 'asc';
+    const idTieBreaker: Prisma.ParentOrderByWithRelationInput = {
+      id: direction,
+    };
+
+    if (sortBy === 'name') {
+      return [
+        { person: { firstName: direction } },
+        { person: { lastName: direction } },
+        idTieBreaker,
+      ];
+    }
+
+    if (sortBy === 'address') {
+      return [{ person: { address: direction } }, idTieBreaker];
+    }
+
+    if (sortBy === 'phone') {
+      return [{ person: { phoneNumber: direction } }, idTieBreaker];
+    }
+
+    if (sortBy === 'childrenCount') {
+      return [{ students: { _count: direction } }, idTieBreaker];
+    }
+
+    return [{ id: direction }];
   }
 
   private buildWhere(
