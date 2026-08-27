@@ -42,6 +42,12 @@ export class DashboardParentOptionDto {
   @ApiProperty({ example: 'Ahmad Hassan Khalil' })
   fullName!: string;
 
+  @ApiProperty({ example: 'Ahmad' })
+  firstName!: string;
+
+  @ApiProperty({ example: 'Hassan' })
+  middleName!: string;
+
   @ApiProperty({ example: 'Khalil' })
   lastName!: string;
 }

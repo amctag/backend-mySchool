@@ -61,6 +61,14 @@ export class PrismaService
     return super.bloodType;
   }
 
+  override get stage(): PrismaClient['stage'] {
+    return super.stage;
+  }
+
+  override get class(): PrismaClient['class'] {
+    return super.class;
+  }
+
   override get registration(): PrismaClient['registration'] {
     return super.registration;
   }

@@ -119,13 +119,25 @@ export class DashboardParentsService {
 
   async listParentOptions(
     user: AuthenticatedSchool,
+    search?: string,
   ): Promise<DashboardParentOptionDto[]> {
+    const term = search?.trim();
+    if (!term) {
+      return [];
+    }
+
     const schoolId = user.schoolId;
+    const nameMatch = this.nameContainsFilter(term);
     const parents = await this.prisma.parent.findMany({
       where: {
-        OR: [
-          { person: { schoolId } },
-          { students: { some: { person: { schoolId } } } },
+        AND: [
+          {
+            OR: [
+              { person: { schoolId } },
+              { students: { some: { person: { schoolId } } } },
+            ],
+          },
+          nameMatch ? { person: nameMatch } : {},
         ],
       },
       include: {
@@ -137,12 +149,18 @@ export class DashboardParentsService {
           },
         },
       },
-      orderBy: { person: { lastName: 'asc' } },
+      orderBy: [
+        { person: { firstName: 'asc' } },
+        { person: { lastName: 'asc' } },
+      ],
+      take: 25,
     });
 
     return parents.map((parent) => ({
       id: parent.id,
       fullName: this.formatFullName(parent.person),
+      firstName: parent.person.firstName,
+      middleName: parent.person.middleName,
       lastName: parent.person.lastName,
     }));
   }

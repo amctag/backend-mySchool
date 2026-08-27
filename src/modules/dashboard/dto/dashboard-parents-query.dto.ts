@@ -87,3 +87,15 @@ export class DashboardParentsQueryDto {
   @IsIn(['asc', 'desc'])
   sortOrder?: 'asc' | 'desc';
 }
+
+export class DashboardParentOptionsQueryDto {
+  @ApiPropertyOptional({
+    description: 'Match first, middle, or last name',
+    example: 'Khalil',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(100)
+  search?: string;
+}
