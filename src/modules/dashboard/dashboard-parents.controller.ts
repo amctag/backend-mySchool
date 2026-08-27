@@ -22,10 +22,13 @@ import type { Request } from 'express';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateDashboardParentDto } from './dto/create-dashboard-parent.dto';
+import { DashboardChildrenQueryDto } from './dto/dashboard-children-query.dto';
+import { DashboardChildrenResponseDto } from './dto/dashboard-children-response.dto';
 import { DashboardParentDetailDto } from './dto/dashboard-parent-detail.dto';
 import { DashboardParentsQueryDto } from './dto/dashboard-parents-query.dto';
 import { DashboardParentsResponseDto } from './dto/dashboard-parents-response.dto';
 import { UpdateDashboardParentDto } from './dto/update-dashboard-parent.dto';
+import { DashboardChildrenService } from './dashboard-children.service';
 import { DashboardParentsService } from './dashboard-parents.service';
 
 @ApiTags('Dashboard Parents v1')
@@ -35,6 +38,7 @@ import { DashboardParentsService } from './dashboard-parents.service';
 export class DashboardParentsController {
   constructor(
     private readonly dashboardParentsService: DashboardParentsService,
+    private readonly dashboardChildrenService: DashboardChildrenService,
   ) {}
 
   @Get()
@@ -59,6 +63,22 @@ export class DashboardParentsController {
     @Body() dto: CreateDashboardParentDto,
   ): Promise<DashboardParentDetailDto> {
     return this.dashboardParentsService.createParent(request.user, dto);
+  }
+
+  @Get(':id/children')
+  @ApiOperation({
+    summary: 'List paginated children of a parent in this school',
+  })
+  @ApiOkResponse({ type: DashboardChildrenResponseDto })
+  getParentChildren(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: DashboardChildrenQueryDto,
+  ): Promise<DashboardChildrenResponseDto> {
+    return this.dashboardChildrenService.listChildren(request.user, {
+      ...query,
+      parentId: id,
+    });
   }
 
   @Get(':id')

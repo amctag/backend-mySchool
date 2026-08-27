@@ -205,6 +205,7 @@ model Student {
   noticeStudents    NoticeStudent[]
 
   @@index([parentId])
+  @@index([parentId, id])
   @@map("students")
 }
 
@@ -226,6 +227,7 @@ model Year {
   gradeForms    GradeForm[]
 
   @@unique([schoolId, title])
+  @@index([schoolId, isCurrent])
   @@map("years")
 }
 
