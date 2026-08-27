@@ -59,6 +59,7 @@ const corsHeaders: CorsOptions['allowedHeaders'] = [
   'Content-Type',
   'Authorization',
   'Accept',
+  'X-Requested-With',
 ];
 
 function buildCorsOptions(origin: string | undefined, allow: boolean): CorsOptions {

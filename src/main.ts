@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { createCorsDelegate } from './config/cors';
 import { createValidationPipe } from './config/validation';
@@ -12,6 +13,7 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
+  app.getHttpAdapter().getInstance().use(cookieParser());
   app.getHttpAdapter().getInstance().use(
     cors(
       createCorsDelegate({
@@ -43,6 +45,7 @@ async function bootstrap() {
     .addTag('Parent Attendance v1', 'Student absence days for parents')
     .addTag('Parent Notices v1', 'Notices for parent children')
     .addTag('Teacher v1', 'Teacher endpoints')
+    .addTag('School Auth v1', 'School admin login, refresh, logout, and profile')
     .addTag('School v1', 'School information and details')
     .build();
 

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import {
-  AuthenticatedParent,
+  AuthenticatedUser,
   JwtPayload,
 } from '../interfaces/jwt-payload.interface';
 
@@ -17,23 +17,31 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload): AuthenticatedParent {
-    if (
-      !payload.sub ||
-      !payload.username ||
-      !payload.sid ||
-      payload.role !== 'parent' ||
-      !payload.parentId
-    ) {
+  validate(payload: JwtPayload): AuthenticatedUser {
+    if (!payload.sub || !payload.username || !payload.sid) {
       throw new UnauthorizedException();
     }
 
-    return {
-      id: Number(payload.sub),
-      username: payload.username,
-      role: 'parent',
-      parentId: payload.parentId,
-      sessionId: payload.sid,
-    };
+    if (payload.role === 'parent' && payload.parentId) {
+      return {
+        id: Number(payload.sub),
+        username: payload.username,
+        role: 'parent',
+        parentId: payload.parentId,
+        sessionId: payload.sid,
+      };
+    }
+
+    if (payload.role === 'school' && payload.schoolId) {
+      return {
+        id: Number(payload.sub),
+        username: payload.username,
+        role: 'school',
+        schoolId: payload.schoolId,
+        sessionId: payload.sid,
+      };
+    }
+
+    throw new UnauthorizedException();
   }
 }

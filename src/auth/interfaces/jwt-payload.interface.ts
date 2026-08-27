@@ -1,10 +1,22 @@
-export interface JwtPayload {
+export type JwtRole = 'parent' | 'school';
+
+export type ParentJwtPayload = {
   sub: string;
   username: string;
   role: 'parent';
   parentId: number;
   sid: string;
-}
+};
+
+export type SchoolJwtPayload = {
+  sub: string;
+  username: string;
+  role: 'school';
+  schoolId: number;
+  sid: string;
+};
+
+export type JwtPayload = ParentJwtPayload | SchoolJwtPayload;
 
 export interface PasswordResetJwtPayload {
   sub: string;
@@ -18,3 +30,13 @@ export interface AuthenticatedParent {
   parentId: number;
   sessionId: string;
 }
+
+export interface AuthenticatedSchool {
+  id: number;
+  username: string;
+  role: 'school';
+  schoolId: number;
+  sessionId: string;
+}
+
+export type AuthenticatedUser = AuthenticatedParent | AuthenticatedSchool;

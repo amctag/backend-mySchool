@@ -6,7 +6,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
-import { AuthenticatedParent } from '../../auth/interfaces/jwt-payload.interface';
+import { AuthenticatedUser } from '../../auth/interfaces/jwt-payload.interface';
 import { SessionService } from '../../auth/services/session.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
@@ -37,7 +37,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
     const request = context
       .switchToHttp()
-      .getRequest<Request & { user: AuthenticatedParent }>();
+      .getRequest<Request & { user: AuthenticatedUser }>();
 
     if (!(await this.sessionService.isSessionActive(request.user.sessionId))) {
       throw new UnauthorizedException('Session is invalid or expired');
