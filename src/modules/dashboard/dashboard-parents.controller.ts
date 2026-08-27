@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   ParseIntPipe,
   Patch,
@@ -112,5 +114,15 @@ export class DashboardParentsController {
     @Body() dto: UpdateDashboardParentDto,
   ): Promise<DashboardParentDetailDto> {
     return this.dashboardParentsService.updateParent(request.user, id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Delete a parent and their children in this school' })
+  deleteParent(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<void> {
+    return this.dashboardParentsService.deleteParent(request.user, id);
   }
 }

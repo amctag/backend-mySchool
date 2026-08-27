@@ -11,6 +11,7 @@ import {
   normalizeEmail,
   rethrowPersonWriteError,
 } from './person-contact-uniqueness';
+import { purgeStudentAndPerson } from './purge-student';
 
 const DEFAULT_STUDENT_PASSWORD = 'password123';
 
@@ -225,6 +226,24 @@ export class DashboardStudentsService {
       });
 
       return this.toDetail(student);
+    } catch (error) {
+      this.rethrowWriteError(error);
+    }
+  }
+
+  async deleteStudent(
+    user: AuthenticatedSchool,
+    studentId: number,
+  ): Promise<void> {
+    const student = await this.findVisibleStudent(user.schoolId, studentId);
+
+    try {
+      await this.prisma.$transaction((tx) =>
+        purgeStudentAndPerson(tx, {
+          id: student.id,
+          personId: student.personId,
+        }),
+      );
     } catch (error) {
       this.rethrowWriteError(error);
     }

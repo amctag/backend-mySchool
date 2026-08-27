@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -21,6 +22,7 @@ import {
   normalizeEmail,
   rethrowPersonWriteError,
 } from './person-contact-uniqueness';
+import { purgeStudentAndPerson } from './purge-student';
 
 const DEFAULT_PARENT_PASSWORD = 'password123';
 
@@ -306,6 +308,53 @@ export class DashboardParentsService {
       });
 
       return this.toDetail(parent);
+    } catch (error) {
+      this.rethrowWriteError(error);
+    }
+  }
+
+  async deleteParent(
+    user: AuthenticatedSchool,
+    parentId: number,
+  ): Promise<void> {
+    const parent = await this.findVisibleParent(user.schoolId, parentId);
+    const schoolStudents = await this.prisma.student.findMany({
+      where: {
+        parentId,
+        person: { schoolId: user.schoolId },
+      },
+      select: { id: true, personId: true },
+    });
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        for (const student of schoolStudents) {
+          await purgeStudentAndPerson(tx, student);
+        }
+
+        const remainingChildren = await tx.student.count({
+          where: { parentId },
+        });
+        if (remainingChildren > 0) {
+          return;
+        }
+
+        await tx.parent.delete({ where: { id: parentId } });
+        try {
+          await tx.person.delete({ where: { id: parent.personId } });
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2003'
+          ) {
+            throw new ConflictException(
+              'This parent is still linked to other school records and cannot be deleted',
+            );
+          }
+
+          throw error;
+        }
+      });
     } catch (error) {
       this.rethrowWriteError(error);
     }
