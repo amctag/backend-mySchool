@@ -26,6 +26,34 @@ import { purgeStudentAndPerson } from './purge-student';
 
 const DEFAULT_PARENT_PASSWORD = 'password123';
 
+const parentDetailInclude = { person: true } as const;
+
+type ParentDetailRecord = {
+  id: number;
+  personId: number;
+  currentJobId: number | null;
+  description: string | null;
+  person: {
+    firstName: string;
+    middleName: string;
+    lastName: string;
+    gender: number | null;
+    nationalityId: number | null;
+    governorateId: number | null;
+    registerId: number | null;
+    regionId: number | null;
+    identityNumber: string | null;
+    email: string | null;
+    phoneNumber: string | null;
+    urgentNumber: string | null;
+    landline: string | null;
+    address: string | null;
+    village: string | null;
+    placeOfBirth: string | null;
+    birthday: Date | null;
+  };
+};
+
 @Injectable()
 export class DashboardParentsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -185,11 +213,11 @@ export class DashboardParentsService {
             currentJobId: dto.currentJobId ?? null,
             description: dto.description ?? null,
           },
-          include: { person: true },
+          include: parentDetailInclude,
         });
       });
 
-      return this.toDetail(parent);
+      return this.toDetail(parent as unknown as ParentDetailRecord);
     } catch (error) {
       this.rethrowWriteError(error);
     }
@@ -303,11 +331,11 @@ export class DashboardParentsService {
                 ? dto.description
                 : existing.description,
           },
-          include: { person: true },
+          include: parentDetailInclude,
         });
       });
 
-      return this.toDetail(parent);
+      return this.toDetail(parent as unknown as ParentDetailRecord);
     } catch (error) {
       this.rethrowWriteError(error);
     }
@@ -360,7 +388,10 @@ export class DashboardParentsService {
     }
   }
 
-  private async findVisibleParent(schoolId: number, parentId: number) {
+  private async findVisibleParent(
+    schoolId: number,
+    parentId: number,
+  ): Promise<ParentDetailRecord> {
     const parent = await this.prisma.parent.findFirst({
       where: {
         id: parentId,
@@ -369,40 +400,17 @@ export class DashboardParentsService {
           { students: { some: { person: { schoolId } } } },
         ],
       },
-      include: { person: true },
+      include: parentDetailInclude,
     });
 
     if (!parent) {
       throw new NotFoundException('Parent not found');
     }
 
-    return parent;
+    return parent as unknown as ParentDetailRecord;
   }
 
-  private toDetail(parent: {
-    id: number;
-    currentJobId: number | null;
-    description: string | null;
-    person: {
-      firstName: string;
-      middleName: string;
-      lastName: string;
-      gender: number | null;
-      nationalityId: number | null;
-      governorateId: number | null;
-      registerId: number | null;
-      regionId: number | null;
-      identityNumber: string | null;
-      email: string | null;
-      phoneNumber: string | null;
-      urgentNumber: string | null;
-      landline: string | null;
-      address: string | null;
-      village: string | null;
-      placeOfBirth: string | null;
-      birthday: Date | null;
-    };
-  }): DashboardParentDetailDto {
+  private toDetail(parent: ParentDetailRecord): DashboardParentDetailDto {
     return {
       id: parent.id,
       firstName: parent.person.firstName,

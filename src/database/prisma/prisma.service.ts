@@ -17,6 +17,42 @@ export class PrismaService
     return super.parent;
   }
 
+  override get person(): PrismaClient['person'] {
+    return super.person;
+  }
+
+  override get student(): PrismaClient['student'] {
+    return super.student;
+  }
+
+  override get region(): PrismaClient['region'] {
+    return super.region;
+  }
+
+  override get governorate(): PrismaClient['governorate'] {
+    return super.governorate;
+  }
+
+  override get nationality(): PrismaClient['nationality'] {
+    return super.nationality;
+  }
+
+  override get parentJob(): PrismaClient['parentJob'] {
+    return super.parentJob;
+  }
+
+  override get bloodType(): PrismaClient['bloodType'] {
+    return super.bloodType;
+  }
+
+  override get registration(): PrismaClient['registration'] {
+    return super.registration;
+  }
+
+  override get gradeDetail(): PrismaClient['gradeDetail'] {
+    return super.gradeDetail;
+  }
+
   override get passwordChangeOtp(): PrismaClient['passwordChangeOtp'] {
     return super.passwordChangeOtp;
   }

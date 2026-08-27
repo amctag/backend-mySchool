@@ -72,15 +72,15 @@ export class DashboardChildrenQueryDto {
 
   @ApiPropertyOptional({
     description: 'Column to sort by',
-    enum: ['id', 'username', 'name', 'class', 'parent'],
+    enum: ['id', 'username', 'name', 'class', 'parent', 'birthday', 'address', 'phone'],
     example: 'id',
     default: 'id',
   })
   @IsOptional()
   @Allow()
   @IsString()
-  @IsIn(['id', 'username', 'name', 'class', 'parent'])
-  sortBy?: 'id' | 'username' | 'name' | 'class' | 'parent';
+  @IsIn(['id', 'username', 'name', 'class', 'parent', 'birthday', 'address', 'phone'])
+  sortBy?: 'id' | 'username' | 'name' | 'class' | 'parent' | 'birthday' | 'address' | 'phone';
 
   @ApiPropertyOptional({
     description: 'Sort direction',

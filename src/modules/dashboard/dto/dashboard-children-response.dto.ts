@@ -31,6 +31,15 @@ export class DashboardChildItemDto {
 
   @ApiProperty({ example: '2025-2026', nullable: true })
   yearTitle!: string | null;
+
+  @ApiProperty({ example: '2015-09-01', nullable: true })
+  birthday!: string | null;
+
+  @ApiProperty({ example: 'Hamra Street, Beirut', nullable: true })
+  address!: string | null;
+
+  @ApiProperty({ example: '+961 70 000 001', nullable: true })
+  phoneNumber!: string | null;
 }
 
 export class DashboardChildrenResponseDto {

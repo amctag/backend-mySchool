@@ -36,6 +36,9 @@ export class DashboardChildrenService {
               firstName: true,
               middleName: true,
               lastName: true,
+              birthday: true,
+              address: true,
+              phoneNumber: true,
             },
           },
           parent: {
@@ -92,6 +95,11 @@ export class DashboardChildrenService {
           className: registration?.section.class.className ?? null,
           sectionName: registration?.section.sectionTitle.title ?? null,
           yearTitle: registration?.section.year.title ?? null,
+          birthday: student.person.birthday
+            ? student.person.birthday.toISOString().slice(0, 10)
+            : null,
+          address: student.person.address,
+          phoneNumber: student.person.phoneNumber,
         };
       }),
       pagination: {
@@ -167,6 +175,8 @@ export class DashboardChildrenService {
         ...(parsedId ? [{ id: parsedId }] : []),
         ...(nameMatch ? [{ person: nameMatch }] : []),
         { person: { username: { contains: search, mode: 'insensitive' } } },
+        { person: { address: { contains: search, mode: 'insensitive' } } },
+        { person: { phoneNumber: { contains: search, mode: 'insensitive' } } },
       ],
     };
   }
@@ -202,6 +212,18 @@ export class DashboardChildrenService {
 
     if (sortBy === 'class') {
       return [{ registrations: { _count: direction } }, idTieBreaker];
+    }
+
+    if (sortBy === 'birthday') {
+      return [{ person: { birthday: direction } }, idTieBreaker];
+    }
+
+    if (sortBy === 'address') {
+      return [{ person: { address: direction } }, idTieBreaker];
+    }
+
+    if (sortBy === 'phone') {
+      return [{ person: { phoneNumber: direction } }, idTieBreaker];
     }
 
     return [{ id: direction }];
