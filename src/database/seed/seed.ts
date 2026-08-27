@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import * as bcrypt from 'bcrypt';
-import { LEBANON_GOVERNORATES } from './lebanon-geography';
+import { seedLookups } from './seed-lookups';
 import { SeedPrismaClient } from './seed-prisma.client';
 
 const connectionString = process.env.DATABASE_URL;
@@ -279,9 +279,10 @@ async function main(): Promise<void> {
 
   if (existingSchools > 0 && !forceReseed) {
     console.log(
-      'Database already has data — updating school login emails/passwords...',
+      'Database already has data — updating school logins and lookup tables...',
     );
     await syncSchoolLogins();
+    await seedLookups(prisma);
     console.log(
       'Person/parent/student seed skipped. Set SEED_FORCE=true only on a dev/test DB to wipe and re-seed.',
     );
@@ -345,32 +346,7 @@ async function main(): Promise<void> {
   });
 
   console.log('Creating lookup tables...');
-  await prisma.nationality.createMany({
-    data: [
-      { name: 'Lebanese', isDefault: true },
-      { name: 'Syrian', isDefault: false },
-      { name: 'Jordanian', isDefault: false },
-    ],
-  });
-  await prisma.parentJob.createMany({
-    data: [
-      { name: 'Employee' },
-      { name: 'Teacher' },
-      { name: 'Engineer' },
-      { name: 'Other' },
-    ],
-  });
-
-  for (const governorate of LEBANON_GOVERNORATES) {
-    await prisma.governorate.create({
-      data: {
-        name: governorate.name,
-        regions: {
-          create: governorate.regions.map((name) => ({ name })),
-        },
-      },
-    });
-  }
+  await seedLookups(prisma);
 
   const academicA = await seedSchoolAcademic(schoolA.id, 'a');
   const academicB = await seedSchoolAcademic(schoolB.id, 'b');
