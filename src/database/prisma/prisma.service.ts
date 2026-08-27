@@ -17,6 +17,22 @@ export class PrismaService
     return super.parent;
   }
 
+  override get teacher(): PrismaClient['teacher'] {
+    return super.teacher;
+  }
+
+  override get teacherSchool(): PrismaClient['teacherSchool'] {
+    return super.teacherSchool;
+  }
+
+  override get teach(): PrismaClient['teach'] {
+    return super.teach;
+  }
+
+  override get weeklyScheduleDetail(): PrismaClient['weeklyScheduleDetail'] {
+    return super.weeklyScheduleDetail;
+  }
+
   override get person(): PrismaClient['person'] {
     return super.person;
   }

@@ -7,6 +7,8 @@ import { DashboardChildrenController } from './dashboard-children.controller';
 import { DashboardChildrenService } from './dashboard-children.service';
 import { DashboardStudentsController } from './dashboard-students.controller';
 import { DashboardStudentsService } from './dashboard-students.service';
+import { DashboardTeachersController } from './dashboard-teachers.controller';
+import { DashboardTeachersService } from './dashboard-teachers.service';
 import { DashboardParentsController } from './dashboard-parents.controller';
 import { DashboardParentsService } from './dashboard-parents.service';
 
@@ -16,12 +18,14 @@ import { DashboardParentsService } from './dashboard-parents.service';
     DashboardParentsController,
     DashboardChildrenController,
     DashboardStudentsController,
+    DashboardTeachersController,
     DashboardLookupsController,
   ],
   providers: [
     DashboardParentsService,
     DashboardChildrenService,
     DashboardStudentsService,
+    DashboardTeachersService,
     DashboardLookupsService,
   ],
 })
