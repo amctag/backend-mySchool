@@ -5,6 +5,8 @@ import { DashboardLookupsController } from './dashboard-lookups.controller';
 import { DashboardLookupsService } from './dashboard-lookups.service';
 import { DashboardChildrenController } from './dashboard-children.controller';
 import { DashboardChildrenService } from './dashboard-children.service';
+import { DashboardStudentsController } from './dashboard-students.controller';
+import { DashboardStudentsService } from './dashboard-students.service';
 import { DashboardParentsController } from './dashboard-parents.controller';
 import { DashboardParentsService } from './dashboard-parents.service';
 
@@ -13,11 +15,13 @@ import { DashboardParentsService } from './dashboard-parents.service';
   controllers: [
     DashboardParentsController,
     DashboardChildrenController,
+    DashboardStudentsController,
     DashboardLookupsController,
   ],
   providers: [
     DashboardParentsService,
     DashboardChildrenService,
+    DashboardStudentsService,
     DashboardLookupsService,
   ],
 })

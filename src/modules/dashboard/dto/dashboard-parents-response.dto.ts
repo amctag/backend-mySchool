@@ -34,3 +34,14 @@ export class DashboardParentsResponseDto {
   @ApiProperty({ type: PaginationMetaDto })
   pagination!: PaginationMetaDto;
 }
+
+export class DashboardParentOptionDto {
+  @ApiProperty({ example: 1 })
+  id!: number;
+
+  @ApiProperty({ example: 'Ahmad Hassan Khalil' })
+  fullName!: string;
+
+  @ApiProperty({ example: 'Khalil' })
+  lastName!: string;
+}

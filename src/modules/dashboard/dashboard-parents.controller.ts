@@ -26,7 +26,10 @@ import { DashboardChildrenQueryDto } from './dto/dashboard-children-query.dto';
 import { DashboardChildrenResponseDto } from './dto/dashboard-children-response.dto';
 import { DashboardParentDetailDto } from './dto/dashboard-parent-detail.dto';
 import { DashboardParentsQueryDto } from './dto/dashboard-parents-query.dto';
-import { DashboardParentsResponseDto } from './dto/dashboard-parents-response.dto';
+import {
+  DashboardParentOptionDto,
+  DashboardParentsResponseDto,
+} from './dto/dashboard-parents-response.dto';
 import { UpdateDashboardParentDto } from './dto/update-dashboard-parent.dto';
 import { DashboardChildrenService } from './dashboard-children.service';
 import { DashboardParentsService } from './dashboard-parents.service';
@@ -53,6 +56,15 @@ export class DashboardParentsController {
     @Query() query: DashboardParentsQueryDto,
   ): Promise<DashboardParentsResponseDto> {
     return this.dashboardParentsService.listParents(request.user, query);
+  }
+
+  @Get('options')
+  @ApiOperation({ summary: 'List parents for student parent picker' })
+  @ApiOkResponse({ type: [DashboardParentOptionDto] })
+  listParentOptions(
+    @Req() request: Request & { user: AuthenticatedSchool },
+  ): Promise<DashboardParentOptionDto[]> {
+    return this.dashboardParentsService.listParentOptions(request.user);
   }
 
   @Post()

@@ -11,7 +11,10 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 import { CreateDashboardParentDto } from './dto/create-dashboard-parent.dto';
 import { DashboardParentDetailDto } from './dto/dashboard-parent-detail.dto';
 import { DashboardParentsQueryDto } from './dto/dashboard-parents-query.dto';
-import { DashboardParentsResponseDto } from './dto/dashboard-parents-response.dto';
+import {
+  DashboardParentOptionDto,
+  DashboardParentsResponseDto,
+} from './dto/dashboard-parents-response.dto';
 import { UpdateDashboardParentDto } from './dto/update-dashboard-parent.dto';
 
 const DEFAULT_PARENT_PASSWORD = 'password123';
@@ -77,6 +80,36 @@ export class DashboardParentsService {
         totalPages: total === 0 ? 0 : Math.ceil(total / limit),
       },
     };
+  }
+
+  async listParentOptions(
+    user: AuthenticatedSchool,
+  ): Promise<DashboardParentOptionDto[]> {
+    const schoolId = user.schoolId;
+    const parents = await this.prisma.parent.findMany({
+      where: {
+        OR: [
+          { person: { schoolId } },
+          { students: { some: { person: { schoolId } } } },
+        ],
+      },
+      include: {
+        person: {
+          select: {
+            firstName: true,
+            middleName: true,
+            lastName: true,
+          },
+        },
+      },
+      orderBy: { person: { lastName: 'asc' } },
+    });
+
+    return parents.map((parent) => ({
+      id: parent.id,
+      fullName: this.formatFullName(parent.person),
+      lastName: parent.person.lastName,
+    }));
   }
 
   async getParent(
