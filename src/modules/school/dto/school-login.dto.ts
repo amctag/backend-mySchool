@@ -4,8 +4,8 @@ import { IsEmail, IsString, MinLength } from 'class-validator';
 
 export class SchoolLoginDto {
   @ApiProperty({
-    example: 'admin@greenvalley.edu',
-    description: 'School admin email from persons.email',
+    example: 'school@greenvalley.edu',
+    description: 'School login email from school.email',
   })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,

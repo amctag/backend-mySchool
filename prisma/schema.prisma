@@ -9,7 +9,12 @@ datasource db {
 model School {
   id        Int      @id @default(autoincrement())
   name      String   @db.VarChar(255)
+  email     String   @unique @db.VarChar(255)
+  password  String   @db.VarChar(255)
   isActive  Boolean  @default(true) @map("is_active")
+  sessionId String?  @unique @map("session_id") @db.Uuid
+  refreshTokenHash String? @unique @map("refresh_token_hash") @db.VarChar(64)
+  refreshExpiresAt DateTime? @map("refresh_expires_at") @db.Timestamptz(6)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

@@ -257,11 +257,21 @@ async function main(): Promise<void> {
 
   console.log('Creating schools...');
   const schoolA = await prisma.school.create({
-    data: { name: 'Green Valley School', isActive: true },
+    data: {
+      name: 'Green Valley School',
+      email: 'school@greenvalley.edu',
+      password: DEFAULT_PASSWORD,
+      isActive: true,
+    },
   });
 
   const schoolB = await prisma.school.create({
-    data: { name: 'Blue Horizon Academy', isActive: true },
+    data: {
+      name: 'Blue Horizon Academy',
+      email: 'school@bluehorizon.edu',
+      password: DEFAULT_PASSWORD,
+      isActive: true,
+    },
   });
 
   console.log('Creating school details...');
@@ -1154,6 +1164,10 @@ async function main(): Promise<void> {
   console.log(`  - ${schoolB.name} (id: ${schoolB.id})`);
   console.log('');
   console.log('Test accounts (password: password123):');
+  console.log('');
+  console.log('School dashboard login (school.email):');
+  console.log('  Green Valley:  school@greenvalley.edu');
+  console.log('  Blue Horizon:  school@bluehorizon.edu');
   console.log('');
   console.log('Person logic:');
   console.log('  persons     = login + profile (name, email, password)');

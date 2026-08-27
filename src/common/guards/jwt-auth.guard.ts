@@ -39,7 +39,12 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       .switchToHttp()
       .getRequest<Request & { user: AuthenticatedUser }>();
 
-    if (!(await this.sessionService.isSessionActive(request.user.sessionId))) {
+    if (
+      !(await this.sessionService.isSessionActive(
+        request.user.sessionId,
+        request.user.role,
+      ))
+    ) {
       throw new UnauthorizedException('Session is invalid or expired');
     }
 

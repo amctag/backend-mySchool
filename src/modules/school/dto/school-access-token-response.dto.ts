@@ -7,7 +7,7 @@ export class SchoolAccessTokenResponseDto {
   @ApiProperty({ example: '2026-08-26T12:00:00.000Z' })
   accessTokenExpiresAt!: string;
 
-  @ApiProperty({ example: 'Rania Fadi Admin' })
+  @ApiProperty({ example: 'Green Valley School' })
   name!: string;
 
   @ApiProperty({ example: 1 })

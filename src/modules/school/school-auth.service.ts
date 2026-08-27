@@ -6,7 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import ms from 'ms';
 import type { StringValue } from 'ms';
 import {
@@ -19,15 +19,10 @@ import { SchoolAccessTokenResponseDto } from './dto/school-access-token-response
 import { SchoolLoginDto } from './dto/school-login.dto';
 import { SchoolMeResponseDto } from './dto/school-me-response.dto';
 
-type SchoolAdminPerson = {
+type SchoolAccount = {
   id: number;
-  username: string;
-  firstName: string;
-  middleName: string;
-  lastName: string;
-  email: string | null;
-  schoolId: number;
-  school: { id: number; name: string };
+  name: string;
+  email: string;
 };
 
 type SchoolAuthResult = {
@@ -46,8 +41,8 @@ export class SchoolAuthService {
   ) {}
 
   async login(loginDto: SchoolLoginDto): Promise<SchoolAuthResult> {
-    const person = await this.validateCredentials(loginDto);
-    return this.createSession(person);
+    const school = await this.validateCredentials(loginDto);
+    return this.createSession(school);
   }
 
   async refresh(refreshToken: string | undefined): Promise<SchoolAuthResult> {
@@ -55,29 +50,32 @@ export class SchoolAuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    const session = await this.prisma.parentSession.findUnique({
+    const school = await this.prisma.school.findUnique({
       where: { refreshTokenHash: this.hashToken(refreshToken) },
     });
 
-    if (!session || session.refreshExpiresAt <= new Date()) {
-      if (session) {
-        await this.prisma.parentSession.delete({ where: { id: session.id } });
+    if (
+      !school ||
+      !school.sessionId ||
+      !school.refreshExpiresAt ||
+      school.refreshExpiresAt <= new Date()
+    ) {
+      if (school) {
+        await this.clearSession(school.id);
       }
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    const person = await this.findSchoolAdminPerson(session.personId);
-
-    if (!person) {
-      await this.prisma.parentSession.delete({ where: { id: session.id } });
+    if (!school.isActive) {
+      await this.clearSession(school.id);
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
     const newRefreshToken = this.generateRefreshToken();
     const refreshExpiresAt = this.getRefreshExpiryDate();
 
-    await this.prisma.parentSession.update({
-      where: { id: session.id },
+    await this.prisma.school.update({
+      where: { id: school.id },
       data: {
         refreshTokenHash: this.hashToken(newRefreshToken),
         refreshExpiresAt,
@@ -85,106 +83,80 @@ export class SchoolAuthService {
     });
 
     return {
-      access: this.buildAccessResponse(person, session.id),
+      access: this.buildAccessResponse(
+        { id: school.id, name: school.name, email: school.email },
+        school.sessionId,
+      ),
       refreshToken: newRefreshToken,
       refreshTokenExpiresAt: refreshExpiresAt,
     };
   }
 
   async logout(user: AuthenticatedSchool): Promise<void> {
-    await this.prisma.parentSession.deleteMany({
-      where: { personId: user.id },
-    });
+    await this.clearSession(user.schoolId);
     await this.sessionService.cleanupExpiredSessions();
   }
 
   async getProfile(user: AuthenticatedSchool): Promise<SchoolMeResponseDto> {
-    const person = await this.findSchoolAdminPerson(user.id);
+    const school = await this.prisma.school.findFirst({
+      where: { id: user.schoolId, isActive: true },
+    });
 
-    if (!person) {
-      throw new NotFoundException('School admin not found');
+    if (!school) {
+      throw new NotFoundException('School not found');
     }
 
     return {
-      personId: person.id,
-      username: person.username,
-      firstName: person.firstName,
-      middleName: person.middleName,
-      lastName: person.lastName,
-      name: this.formatFullName(person),
-      email: person.email,
-      schoolId: person.school.id,
-      schoolName: person.school.name,
+      schoolId: school.id,
+      name: school.name,
+      email: school.email,
       role: 'school',
     };
   }
 
   private async validateCredentials(
     loginDto: SchoolLoginDto,
-  ): Promise<SchoolAdminPerson> {
+  ): Promise<SchoolAccount> {
     const email = loginDto.email.trim().toLowerCase();
-    const candidates = await this.prisma.person.findMany({
+    const school = await this.prisma.school.findFirst({
       where: {
         email: { equals: email, mode: 'insensitive' },
-        status: true,
-        schoolId: { not: null },
-        parent: { is: null },
-        teacher: { is: null },
-        student: { is: null },
-      },
-      include: {
-        school: {
-          select: { id: true, name: true, isActive: true },
-        },
+        isActive: true,
       },
     });
 
-    for (const candidate of candidates) {
-      let passwordMatches = false;
-
-      try {
-        passwordMatches = await bcrypt.compare(
-          loginDto.password,
-          candidate.password,
-        );
-      } catch {
-        continue;
-      }
-
-      if (
-        passwordMatches &&
-        candidate.schoolId &&
-        candidate.school?.isActive
-      ) {
-        return {
-          id: candidate.id,
-          username: candidate.username,
-          firstName: candidate.firstName,
-          middleName: candidate.middleName,
-          lastName: candidate.lastName,
-          email: candidate.email,
-          schoolId: candidate.schoolId,
-          school: { id: candidate.school.id, name: candidate.school.name },
-        };
-      }
+    if (!school) {
+      throw new UnauthorizedException('Invalid email or password');
     }
 
-    throw new UnauthorizedException('Invalid email or password');
+    let passwordMatches = false;
+
+    try {
+      passwordMatches = await bcrypt.compare(loginDto.password, school.password);
+    } catch {
+      passwordMatches = false;
+    }
+
+    if (!passwordMatches) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    return {
+      id: school.id,
+      name: school.name,
+      email: school.email,
+    };
   }
 
-  private async createSession(
-    person: SchoolAdminPerson,
-  ): Promise<SchoolAuthResult> {
+  private async createSession(school: SchoolAccount): Promise<SchoolAuthResult> {
     const refreshToken = this.generateRefreshToken();
     const refreshExpiresAt = this.getRefreshExpiryDate();
+    const sessionId = randomUUID();
 
-    await this.prisma.parentSession.deleteMany({
-      where: { personId: person.id },
-    });
-
-    const session = await this.prisma.parentSession.create({
+    await this.prisma.school.update({
+      where: { id: school.id },
       data: {
-        personId: person.id,
+        sessionId,
         refreshTokenHash: this.hashToken(refreshToken),
         refreshExpiresAt,
       },
@@ -193,21 +165,32 @@ export class SchoolAuthService {
     await this.sessionService.cleanupExpiredSessions();
 
     return {
-      access: this.buildAccessResponse(person, session.id),
+      access: this.buildAccessResponse(school, sessionId),
       refreshToken,
       refreshTokenExpiresAt: refreshExpiresAt,
     };
   }
 
+  private async clearSession(schoolId: number): Promise<void> {
+    await this.prisma.school.updateMany({
+      where: { id: schoolId },
+      data: {
+        sessionId: null,
+        refreshTokenHash: null,
+        refreshExpiresAt: null,
+      },
+    });
+  }
+
   private buildAccessResponse(
-    person: SchoolAdminPerson,
+    school: SchoolAccount,
     sessionId: string,
   ): SchoolAccessTokenResponseDto {
     const payload: SchoolJwtPayload = {
-      sub: person.id.toString(),
-      username: person.username,
+      sub: school.id.toString(),
+      username: school.email,
       role: 'school',
-      schoolId: person.schoolId,
+      schoolId: school.id,
       sid: sessionId,
     };
 
@@ -228,55 +211,10 @@ export class SchoolAuthService {
     return {
       accessToken,
       accessTokenExpiresAt: new Date(decoded.exp * 1000).toISOString(),
-      name: this.formatFullName(person),
-      schoolId: person.schoolId,
-      schoolName: person.school.name,
+      name: school.name,
+      schoolId: school.id,
+      schoolName: school.name,
     };
-  }
-
-  private async findSchoolAdminPerson(
-    personId: number,
-  ): Promise<SchoolAdminPerson | null> {
-    const person = await this.prisma.person.findFirst({
-      where: {
-        id: personId,
-        status: true,
-        schoolId: { not: null },
-        parent: { is: null },
-        teacher: { is: null },
-        student: { is: null },
-      },
-      include: {
-        school: {
-          select: { id: true, name: true, isActive: true },
-        },
-      },
-    });
-
-    if (!person?.schoolId || !person.school?.isActive) {
-      return null;
-    }
-
-    return {
-      id: person.id,
-      username: person.username,
-      firstName: person.firstName,
-      middleName: person.middleName,
-      lastName: person.lastName,
-      email: person.email,
-      schoolId: person.schoolId,
-      school: { id: person.school.id, name: person.school.name },
-    };
-  }
-
-  private formatFullName(person: {
-    firstName: string;
-    middleName: string;
-    lastName: string;
-  }): string {
-    return [person.firstName, person.middleName, person.lastName]
-      .filter(Boolean)
-      .join(' ');
   }
 
   private generateRefreshToken(): string {
