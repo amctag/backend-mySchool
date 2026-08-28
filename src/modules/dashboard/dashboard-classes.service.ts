@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { ensureStandardClassesForSchool } from '../../database/standard-classes';
 import { DashboardClassItemDto } from './dto/dashboard-class-item.dto';
 import { DashboardClassesQueryDto } from './dto/dashboard-classes-query.dto';
 
@@ -23,6 +24,7 @@ export class DashboardClassesService {
   ): Promise<DashboardClassItemDto[]> {
     const search = query.search?.trim();
     const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc';
+    await ensureStandardClassesForSchool(this.prisma, user.schoolId);
     const classes = await this.prisma.class.findMany({
       where: {
         stage: { schoolId: user.schoolId },
