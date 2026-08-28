@@ -40,16 +40,6 @@ export async function assertUniquePersonContacts(
     }
   }
 
-  if (values.phoneNumber) {
-    const clash = await prisma.person.findFirst({
-      where: { ...exclude, phoneNumber: values.phoneNumber },
-      select: { id: true },
-    });
-    if (clash) {
-      throw new ConflictException('This phone number is already used');
-    }
-  }
-
   if (values.identityNumber) {
     const clash = await prisma.person.findFirst({
       where: { ...exclude, identityNumber: values.identityNumber },
@@ -69,9 +59,6 @@ export function rethrowPersonWriteError(error: unknown, fallback: string): never
     const target = JSON.stringify(error.meta?.target ?? '');
     if (target.includes('email')) {
       throw new ConflictException('This email is already used');
-    }
-    if (target.includes('phone')) {
-      throw new ConflictException('This phone number is already used');
     }
     if (target.includes('identity')) {
       throw new ConflictException('This identity number is already used');
