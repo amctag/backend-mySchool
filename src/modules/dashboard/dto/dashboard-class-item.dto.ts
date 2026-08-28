@@ -18,7 +18,4 @@ export class DashboardClassItemDto {
 
   @ApiProperty({ example: 'Primary' })
   stageTitle!: string;
-
-  @ApiProperty({ example: 24, description: 'Active students in this class at this school' })
-  studentCount!: number;
 }
