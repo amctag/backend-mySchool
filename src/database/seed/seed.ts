@@ -91,6 +91,35 @@ async function resetDatabase(): Promise<void> {
   `);
 }
 
+const STANDARD_CLASSES: Array<{
+  className: string;
+  classLevel: number;
+  stage: 'kindergarten' | 'primary' | 'intermediate' | 'secondary';
+}> = [
+  { className: 'Kindergarten 1', classLevel: 1, stage: 'kindergarten' },
+  { className: 'Kindergarten 2', classLevel: 2, stage: 'kindergarten' },
+  { className: 'Grade 1', classLevel: 1, stage: 'primary' },
+  { className: 'Grade 2', classLevel: 2, stage: 'primary' },
+  { className: 'Grade 3', classLevel: 3, stage: 'primary' },
+  { className: 'Grade 4', classLevel: 4, stage: 'primary' },
+  { className: 'Grade 5', classLevel: 5, stage: 'primary' },
+  { className: 'Grade 6', classLevel: 6, stage: 'primary' },
+  { className: 'Grade 7', classLevel: 7, stage: 'intermediate' },
+  { className: 'Grade 8', classLevel: 8, stage: 'intermediate' },
+  { className: 'Grade 9', classLevel: 9, stage: 'intermediate' },
+  { className: 'Grade 10', classLevel: 10, stage: 'secondary' },
+  { className: 'Grade 11 - Sciences', classLevel: 11, stage: 'secondary' },
+  { className: 'Grade 11 - Humanities', classLevel: 11, stage: 'secondary' },
+  { className: 'Grade 12 - General Sciences', classLevel: 12, stage: 'secondary' },
+  { className: 'Grade 12 - Life Sciences', classLevel: 12, stage: 'secondary' },
+  {
+    className: 'Grade 12 - Sociology and Economics',
+    classLevel: 12,
+    stage: 'secondary',
+  },
+  { className: 'Grade 12 - Humanities', classLevel: 12, stage: 'secondary' },
+];
+
 async function seedSchoolAcademic(schoolId: number, schoolKey: 'a' | 'b') {
   const year = await prisma.year.create({
     data: {
@@ -100,31 +129,48 @@ async function seedSchoolAcademic(schoolId: number, schoolKey: 'a' | 'b') {
     },
   });
 
+  const kindergartenStage = await prisma.stage.create({
+    data: { schoolId, title: 'Kindergarten', position: 1 },
+  });
   const primaryStage = await prisma.stage.create({
-    data: { schoolId, title: 'Primary', position: 1 },
+    data: { schoolId, title: 'Primary', position: 2 },
+  });
+  const intermediateStage = await prisma.stage.create({
+    data: { schoolId, title: 'Intermediate', position: 3 },
+  });
+  const secondaryStage = await prisma.stage.create({
+    data: { schoolId, title: 'Secondary', position: 4 },
   });
 
-  const middleStage = await prisma.stage.create({
-    data: { schoolId, title: 'Middle', position: 2 },
-  });
+  const stageIds = {
+    kindergarten: kindergartenStage.id,
+    primary: primaryStage.id,
+    intermediate: intermediateStage.id,
+    secondary: secondaryStage.id,
+  };
 
-  const class4 = await prisma.class.create({
-    data: {
-      className: schoolKey === 'a' ? '4A' : '4B',
-      stageId: primaryStage.id,
-      classLevel: 4,
-      position: 1,
-    },
-  });
+  const createdClasses = await Promise.all(
+    STANDARD_CLASSES.map((item, index) =>
+      prisma.class.create({
+        data: {
+          className: item.className,
+          stageId: stageIds[item.stage],
+          classLevel: item.classLevel,
+          position: index + 1,
+        },
+      }),
+    ),
+  );
 
-  const class5 = await prisma.class.create({
-    data: {
-      className: schoolKey === 'a' ? '5A' : '5B',
-      stageId: middleStage.id,
-      classLevel: 5,
-      position: 2,
-    },
-  });
+  const classByName = Object.fromEntries(
+    createdClasses.map((item) => [item.className, item]),
+  );
+  const class4 = classByName['Grade 4'];
+  const class5 = classByName['Grade 5'];
+
+  if (!class4 || !class5) {
+    throw new Error('Standard Grade 4 / Grade 5 classes were not seeded');
+  }
 
   const sectionTitleA = await prisma.sectionTitle.create({
     data: { schoolId, title: 'Section A', status: 1 },
