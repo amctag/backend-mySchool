@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   ParseIntPipe,
   Patch,
@@ -22,7 +24,9 @@ import type { Request } from 'express';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateDashboardSectionDto } from './dto/create-dashboard-section.dto';
+import { CreateDashboardSectionTitleDto } from './dto/create-dashboard-section-title.dto';
 import { DashboardSectionsQueryDto } from './dto/dashboard-sections-query.dto';
+import { UpdateDashboardSectionTitleDto } from './dto/update-dashboard-section-title.dto';
 import {
   DashboardSectionItemDto,
   DashboardSectionTitleItemDto,
@@ -51,12 +55,61 @@ export class DashboardSectionsController {
   }
 
   @Get('section-titles')
-  @ApiOperation({ summary: 'List section titles for this school' })
+  @ApiOperation({
+    summary: 'List shared section titles for this school (A, B, C…)',
+  })
   @ApiOkResponse({ type: [DashboardSectionTitleItemDto] })
   listSectionTitles(
     @Req() request: Request & { user: AuthenticatedSchool },
   ): Promise<DashboardSectionTitleItemDto[]> {
     return this.dashboardSectionsService.listSectionTitles(request.user);
+  }
+
+  @Post('section-titles')
+  @ApiOperation({ summary: 'Create a shared section title for this school' })
+  @ApiCreatedResponse({ type: DashboardSectionTitleItemDto })
+  createSectionTitle(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Body() dto: CreateDashboardSectionTitleDto,
+  ): Promise<DashboardSectionTitleItemDto> {
+    return this.dashboardSectionsService.createSectionTitle(request.user, dto);
+  }
+
+  @Get('section-titles/:id')
+  @ApiOperation({ summary: 'Get a section title' })
+  @ApiOkResponse({ type: DashboardSectionTitleItemDto })
+  getSectionTitle(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<DashboardSectionTitleItemDto> {
+    return this.dashboardSectionsService.getSectionTitle(request.user, id);
+  }
+
+  @Patch('section-titles/:id')
+  @ApiOperation({ summary: 'Update a section title' })
+  @ApiOkResponse({ type: DashboardSectionTitleItemDto })
+  updateSectionTitle(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateDashboardSectionTitleDto,
+  ): Promise<DashboardSectionTitleItemDto> {
+    return this.dashboardSectionsService.updateSectionTitle(
+      request.user,
+      id,
+      dto,
+    );
+  }
+
+  @Delete('section-titles/:id')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Delete a section title if no class sections use it',
+  })
+  deleteSectionTitle(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<void> {
+    return this.dashboardSectionsService.deleteSectionTitle(request.user, id);
   }
 
   @Get('sections')

@@ -56,6 +56,15 @@ export class DashboardSectionTitleItemDto {
   @ApiProperty({ example: 1 })
   id!: number;
 
-  @ApiProperty({ example: 'Section A' })
+  @ApiProperty({ example: 'A' })
   title!: string;
+
+  @ApiProperty({ example: 1 })
+  status!: number;
+
+  @ApiProperty({
+    example: 3,
+    description: 'How many class sections reuse this title',
+  })
+  sectionCount!: number;
 }

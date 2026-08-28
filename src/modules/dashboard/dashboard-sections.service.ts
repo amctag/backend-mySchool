@@ -8,7 +8,9 @@ import { Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { CreateDashboardSectionDto } from './dto/create-dashboard-section.dto';
+import { CreateDashboardSectionTitleDto } from './dto/create-dashboard-section-title.dto';
 import { DashboardSectionsQueryDto } from './dto/dashboard-sections-query.dto';
+import { UpdateDashboardSectionTitleDto } from './dto/update-dashboard-section-title.dto';
 import {
   DashboardSectionItemDto,
   DashboardSectionTitleItemDto,
@@ -88,7 +90,7 @@ export class DashboardSectionsService {
   ): Promise<DashboardSectionItemDto> {
     const yearId = dto.yearId ?? (await this.requireCurrentYearId(user.schoolId));
     await this.assertClass(user.schoolId, dto.classId);
-    await this.assertSectionTitle(user.schoolId, dto.sectionTitleId);
+    await this.assertSectionTitle(user.schoolId, dto.sectionTitleId, true);
     await this.assertYear(user.schoolId, yearId);
     await this.assertUnique(
       user.schoolId,
@@ -125,7 +127,7 @@ export class DashboardSectionsService {
       await this.assertClass(user.schoolId, classId);
     }
     if (dto.sectionTitleId !== undefined) {
-      await this.assertSectionTitle(user.schoolId, sectionTitleId);
+      await this.assertSectionTitle(user.schoolId, sectionTitleId, true);
     }
     if (dto.yearId !== undefined) {
       await this.assertYear(user.schoolId, yearId);
@@ -161,14 +163,93 @@ export class DashboardSectionsService {
     });
   }
 
-  listSectionTitles(
+  async listSectionTitles(
     user: AuthenticatedSchool,
   ): Promise<DashboardSectionTitleItemDto[]> {
-    return this.prisma.sectionTitle.findMany({
-      where: { schoolId: user.schoolId, status: 1 },
-      select: { id: true, title: true },
+    const items = await this.prisma.sectionTitle.findMany({
+      where: { schoolId: user.schoolId },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        _count: { select: { sections: true } },
+      },
       orderBy: { title: 'asc' },
     });
+
+    return items.map((item) => this.toTitleItem(item));
+  }
+
+  async getSectionTitle(
+    user: AuthenticatedSchool,
+    id: number,
+  ): Promise<DashboardSectionTitleItemDto> {
+    return this.toTitleItem(await this.findSectionTitle(user.schoolId, id));
+  }
+
+  async createSectionTitle(
+    user: AuthenticatedSchool,
+    dto: CreateDashboardSectionTitleDto,
+  ): Promise<DashboardSectionTitleItemDto> {
+    try {
+      const created = await this.prisma.sectionTitle.create({
+        data: {
+          schoolId: user.schoolId,
+          title: dto.title,
+          status: dto.status ?? 1,
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          _count: { select: { sections: true } },
+        },
+      });
+      return this.toTitleItem(created);
+    } catch (error) {
+      this.throwTitleConflict(error);
+    }
+  }
+
+  async updateSectionTitle(
+    user: AuthenticatedSchool,
+    id: number,
+    dto: UpdateDashboardSectionTitleDto,
+  ): Promise<DashboardSectionTitleItemDto> {
+    await this.findSectionTitle(user.schoolId, id);
+
+    try {
+      const updated = await this.prisma.sectionTitle.update({
+        where: { id },
+        data: {
+          ...(dto.title !== undefined ? { title: dto.title } : {}),
+          ...(dto.status !== undefined ? { status: dto.status } : {}),
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          _count: { select: { sections: true } },
+        },
+      });
+      return this.toTitleItem(updated);
+    } catch (error) {
+      this.throwTitleConflict(error);
+    }
+  }
+
+  async deleteSectionTitle(
+    user: AuthenticatedSchool,
+    id: number,
+  ): Promise<void> {
+    const item = await this.findSectionTitle(user.schoolId, id);
+    if (item._count.sections > 0) {
+      throw new ConflictException(
+        `This title is used by ${item._count.sections} section${item._count.sections === 1 ? '' : 's'}`,
+      );
+    }
+
+    await this.prisma.sectionTitle.delete({ where: { id } });
   }
 
   private async findVisible(
@@ -208,16 +289,62 @@ export class DashboardSectionsService {
     }
   }
 
+  private async findSectionTitle(schoolId: number, id: number) {
+    const item = await this.prisma.sectionTitle.findFirst({
+      where: { id, schoolId },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        _count: { select: { sections: true } },
+      },
+    });
+    if (!item) {
+      throw new NotFoundException('Section title not found');
+    }
+    return item;
+  }
+
+  private toTitleItem(item: {
+    id: number;
+    title: string;
+    status: number;
+    _count: { sections: number };
+  }): DashboardSectionTitleItemDto {
+    return {
+      id: item.id,
+      title: item.title,
+      status: item.status,
+      sectionCount: item._count.sections,
+    };
+  }
+
+  private throwTitleConflict(error: unknown): never {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new ConflictException(
+        'This school already has that section title',
+      );
+    }
+    throw error;
+  }
+
   private async assertSectionTitle(
     schoolId: number,
     sectionTitleId: number,
+    requireActive = false,
   ): Promise<void> {
     const item = await this.prisma.sectionTitle.findFirst({
       where: { id: sectionTitleId, schoolId },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (!item) {
       throw new BadRequestException('Section title not found');
+    }
+    if (requireActive && item.status !== 1) {
+      throw new BadRequestException('Section title is inactive');
     }
   }
 
