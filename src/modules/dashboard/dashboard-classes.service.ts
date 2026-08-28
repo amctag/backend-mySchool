@@ -33,7 +33,7 @@ export class DashboardClassesService {
           : {}),
       },
       select: this.classSelect,
-      orderBy: [{ classLevel: sortOrder }, { className: 'asc' }],
+      orderBy: [{ position: sortOrder }, { className: 'asc' }],
     });
 
     return classes.map((item) => this.toItem(item));

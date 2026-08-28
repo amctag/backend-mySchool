@@ -14,7 +14,11 @@ export class DashboardClassesQueryDto {
   @MaxLength(100)
   search?: string;
 
-  @ApiPropertyOptional({ enum: ['asc', 'desc'], example: 'asc' })
+  @ApiPropertyOptional({
+    enum: ['asc', 'desc'],
+    example: 'asc',
+    description: 'Sort by class position',
+  })
   @IsOptional()
   @IsIn(['asc', 'desc'])
   sortOrder?: 'asc' | 'desc';
