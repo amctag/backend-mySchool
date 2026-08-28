@@ -120,6 +120,80 @@ const STANDARD_CLASSES: Array<{
   { className: 'Grade 12 - Humanities', classLevel: 12, stage: 'secondary' },
 ];
 
+const STANDARD_STAGES: Array<{
+  key: (typeof STANDARD_CLASSES)[number]['stage'];
+  title: string;
+  position: number;
+}> = [
+  { key: 'kindergarten', title: 'Kindergarten', position: 1 },
+  { key: 'primary', title: 'Primary', position: 2 },
+  { key: 'intermediate', title: 'Intermediate', position: 3 },
+  { key: 'secondary', title: 'Secondary', position: 4 },
+];
+
+async function ensureStandardClasses(): Promise<void> {
+  const schools = await prisma.school.findMany({
+    select: { id: true, name: true },
+    orderBy: { id: 'asc' },
+  });
+
+  console.log('Seeding standard classes (missing names only)...');
+
+  for (const school of schools) {
+    const stageIds: Record<(typeof STANDARD_STAGES)[number]['key'], number> =
+      {
+        kindergarten: 0,
+        primary: 0,
+        intermediate: 0,
+        secondary: 0,
+      };
+
+    for (const stage of STANDARD_STAGES) {
+      const existing = await prisma.stage.findFirst({
+        where: { schoolId: school.id, title: stage.title },
+        select: { id: true },
+      });
+      const row =
+        existing ??
+        (await prisma.stage.create({
+          data: {
+            schoolId: school.id,
+            title: stage.title,
+            position: stage.position,
+          },
+          select: { id: true },
+        }));
+      stageIds[stage.key] = row.id;
+    }
+
+    let created = 0;
+    for (const [index, item] of STANDARD_CLASSES.entries()) {
+      const exists = await prisma.class.findFirst({
+        where: {
+          className: item.className,
+          stage: { schoolId: school.id },
+        },
+        select: { id: true },
+      });
+      if (exists) {
+        continue;
+      }
+
+      await prisma.class.create({
+        data: {
+          className: item.className,
+          stageId: stageIds[item.stage],
+          classLevel: item.classLevel,
+          position: index + 1,
+        },
+      });
+      created += 1;
+    }
+
+    console.log(`  ${school.name}: ${created} class(es) added`);
+  }
+}
+
 async function seedSchoolAcademic(schoolId: number, schoolKey: 'a' | 'b') {
   const year = await prisma.year.create({
     data: {
@@ -329,6 +403,7 @@ async function main(): Promise<void> {
     );
     await syncSchoolLogins();
     await seedLookups(prisma);
+    await ensureStandardClasses();
     console.log(
       'Person/parent/student seed skipped. Set SEED_FORCE=true only on a dev/test DB to wipe and re-seed.',
     );
