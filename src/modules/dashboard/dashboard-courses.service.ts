@@ -395,6 +395,8 @@ export class DashboardCoursesService {
       ...(query.classId ? { classId: query.classId } : {}),
       ...(query.courseId ? { courseId: query.courseId } : {}),
       ...(query.yearId ? { yearId: query.yearId } : {}),
+      ...(query.status === 'active' ? { status: true } : {}),
+      ...(query.status === 'inactive' ? { status: false } : {}),
       ...(search
         ? {
             OR: [

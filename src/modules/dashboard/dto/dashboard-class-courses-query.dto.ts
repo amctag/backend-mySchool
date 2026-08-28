@@ -69,4 +69,17 @@ export class DashboardClassCoursesQueryDto {
   )
   @IsIn(['asc', 'desc'])
   sortOrder?: 'asc' | 'desc';
+
+  @ApiPropertyOptional({
+    enum: ['active', 'inactive'],
+    description: 'Filter by class-course status. Omit for all.',
+  })
+  @IsOptional()
+  @Allow()
+  @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
+  @IsIn(['active', 'inactive'])
+  status?: 'active' | 'inactive';
 }
