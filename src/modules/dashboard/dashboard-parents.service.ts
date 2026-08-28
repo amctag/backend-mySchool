@@ -643,6 +643,8 @@ export class DashboardParentsService {
           ],
         },
         query.id ? { id: query.id } : {},
+        query.status === 'active' ? { person: { status: true } } : {},
+        query.status === 'closed' ? { person: { status: false } } : {},
         nameContains ? { person: nameContains } : {},
         searchContains,
       ],

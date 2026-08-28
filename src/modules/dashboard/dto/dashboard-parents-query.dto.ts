@@ -86,6 +86,20 @@ export class DashboardParentsQueryDto {
   )
   @IsIn(['asc', 'desc'])
   sortOrder?: 'asc' | 'desc';
+
+  @ApiPropertyOptional({
+    description: 'Filter by person status. Omit for all.',
+    enum: ['active', 'closed'],
+    example: 'active',
+  })
+  @IsOptional()
+  @Allow()
+  @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
+  @IsIn(['active', 'closed'])
+  status?: 'active' | 'closed';
 }
 
 export class DashboardParentOptionsQueryDto {

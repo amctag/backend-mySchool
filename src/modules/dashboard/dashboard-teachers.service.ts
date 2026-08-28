@@ -546,6 +546,8 @@ export class DashboardTeachersService {
       AND: [
         { schools: { some: { schoolId, isActive: true } } },
         query.id ? { id: query.id } : {},
+        query.status === 'active' ? { person: { status: true } } : {},
+        query.status === 'closed' ? { person: { status: false } } : {},
         nameContains ? { person: nameContains } : {},
         searchContains,
       ],
