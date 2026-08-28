@@ -51,6 +51,7 @@ type ParentDetailRecord = {
     village: string | null;
     placeOfBirth: string | null;
     birthday: Date | null;
+    status: boolean;
   };
 };
 
@@ -81,6 +82,7 @@ export class DashboardParentsService {
               picture: true,
               address: true,
               phoneNumber: true,
+              status: true,
             },
           },
           _count: {
@@ -107,6 +109,7 @@ export class DashboardParentsService {
         address: parent.person.address,
         phoneNumber: parent.person.phoneNumber,
         childrenCount: parent._count.students,
+        status: parent.person.status,
       })),
       pagination: {
         page,
@@ -222,6 +225,7 @@ export class DashboardParentsService {
             village: dto.village ?? null,
             placeOfBirth: dto.placeOfBirth ?? null,
             birthday: this.parseDate(dto.birthday),
+            status: dto.status ?? true,
           },
         });
 
@@ -239,6 +243,19 @@ export class DashboardParentsService {
     } catch (error) {
       this.rethrowWriteError(error);
     }
+  }
+
+  async updateParentStatus(
+    user: AuthenticatedSchool,
+    parentId: number,
+    status: boolean,
+  ): Promise<{ id: number; status: boolean }> {
+    const existing = await this.findVisibleParent(user.schoolId, parentId);
+    await this.prisma.person.update({
+      where: { id: existing.personId },
+      data: { status },
+    });
+    return { id: existing.id, status };
   }
 
   async updateParent(
@@ -334,6 +351,10 @@ export class DashboardParentsService {
               dto.birthday !== undefined
                 ? this.parseDate(dto.birthday)
                 : existing.person.birthday,
+            status:
+              dto.status !== undefined
+                ? dto.status
+                : existing.person.status,
           },
         });
 
@@ -452,6 +473,7 @@ export class DashboardParentsService {
       birthday: parent.person.birthday
         ? parent.person.birthday.toISOString().slice(0, 10)
         : null,
+      status: parent.person.status,
     };
   }
 

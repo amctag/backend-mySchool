@@ -25,6 +25,9 @@ export class DashboardParentItemDto {
 
   @ApiProperty({ example: 2 })
   childrenCount!: number;
+
+  @ApiProperty({ example: true })
+  status!: boolean;
 }
 
 export class DashboardParentsResponseDto {

@@ -36,6 +36,10 @@ import {
   DashboardParentsResponseDto,
 } from './dto/dashboard-parents-response.dto';
 import { UpdateDashboardParentDto } from './dto/update-dashboard-parent.dto';
+import {
+  DashboardParentStatusDto,
+  UpdateDashboardParentStatusDto,
+} from './dto/update-dashboard-parent-status.dto';
 import { DashboardChildrenService } from './dashboard-children.service';
 import { DashboardParentsService } from './dashboard-parents.service';
 
@@ -112,6 +116,23 @@ export class DashboardParentsController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DashboardParentDetailDto> {
     return this.dashboardParentsService.getParent(request.user, id);
+  }
+
+  @Patch(':id/status')
+  @ApiOperation({
+    summary: 'Set parent active/closed status (person.status)',
+  })
+  @ApiOkResponse({ type: DashboardParentStatusDto })
+  updateParentStatus(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateDashboardParentStatusDto,
+  ): Promise<DashboardParentStatusDto> {
+    return this.dashboardParentsService.updateParentStatus(
+      request.user,
+      id,
+      dto.status,
+    );
   }
 
   @Patch(':id')

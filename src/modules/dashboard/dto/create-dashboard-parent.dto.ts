@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEmail,
   IsInt,
   IsOptional,
@@ -161,4 +162,21 @@ export class CreateDashboardParentDto {
   @Transform(emptyToUndefined)
   @IsString()
   birthday?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Person active status. Defaults to true.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => {
+    if (value === true || value === 1 || value === '1' || value === 'true') {
+      return true;
+    }
+    if (value === false || value === 0 || value === '0' || value === 'false') {
+      return false;
+    }
+    return value;
+  })
+  @IsBoolean()
+  status?: boolean;
 }
