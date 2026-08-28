@@ -25,6 +25,7 @@ import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateDashboardSectionDto } from './dto/create-dashboard-section.dto';
 import { CreateDashboardSectionTitleDto } from './dto/create-dashboard-section-title.dto';
+import { DashboardYearFilterQueryDto } from './dto/dashboard-year-filter-query.dto';
 import { DashboardSectionsQueryDto } from './dto/dashboard-sections-query.dto';
 import { UpdateDashboardSectionTitleDto } from './dto/update-dashboard-section-title.dto';
 import {
@@ -61,8 +62,12 @@ export class DashboardSectionsController {
   @ApiOkResponse({ type: [DashboardSectionTitleItemDto] })
   listSectionTitles(
     @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardYearFilterQueryDto,
   ): Promise<DashboardSectionTitleItemDto[]> {
-    return this.dashboardSectionsService.listSectionTitles(request.user);
+    return this.dashboardSectionsService.listSectionTitles(
+      request.user,
+      query.yearId,
+    );
   }
 
   @Post('section-titles')

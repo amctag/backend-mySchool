@@ -50,7 +50,9 @@ export class DashboardSectionsService {
   ): Promise<DashboardSectionsResponseDto> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
-    const where = this.buildWhere(user.schoolId, query);
+    const yearId =
+      query.yearId ?? (await this.currentYearId(user.schoolId));
+    const where = this.buildWhere(user.schoolId, { ...query, yearId });
     const orderBy = this.buildOrderBy(query.sortBy, query.sortOrder);
 
     const [total, sections] = await this.prisma.$transaction([
@@ -165,14 +167,23 @@ export class DashboardSectionsService {
 
   async listSectionTitles(
     user: AuthenticatedSchool,
+    yearId?: number,
   ): Promise<DashboardSectionTitleItemDto[]> {
+    const resolvedYearId =
+      yearId ?? (await this.currentYearId(user.schoolId));
     const items = await this.prisma.sectionTitle.findMany({
       where: { schoolId: user.schoolId },
       select: {
         id: true,
         title: true,
         status: true,
-        _count: { select: { sections: true } },
+        _count: {
+          select: {
+            sections: {
+              where: resolvedYearId ? { yearId: resolvedYearId } : {},
+            },
+          },
+        },
       },
       orderBy: { title: 'asc' },
     });
@@ -266,6 +277,14 @@ export class DashboardSectionsService {
     }
 
     return section as unknown as SectionRecord;
+  }
+
+  private async currentYearId(schoolId: number): Promise<number | undefined> {
+    const year = await this.prisma.year.findFirst({
+      where: { schoolId, isCurrent: true },
+      select: { id: true },
+    });
+    return year?.id;
   }
 
   private async requireCurrentYearId(schoolId: number): Promise<number> {
@@ -405,6 +424,7 @@ export class DashboardSectionsService {
     return {
       schoolId,
       ...(query.classId ? { classId: query.classId } : {}),
+      ...(query.yearId ? { yearId: query.yearId } : {}),
       ...(search
         ? {
             OR: [

@@ -29,6 +29,13 @@ export class DashboardSectionsQueryDto {
   @Min(1)
   classId?: number;
 
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  yearId?: number;
+
   @ApiPropertyOptional({ example: 'A' })
   @IsOptional()
   @Transform(trimString)

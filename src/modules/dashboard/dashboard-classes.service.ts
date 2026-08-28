@@ -19,11 +19,12 @@ export class DashboardClassesService {
 
   async listClasses(
     user: AuthenticatedSchool,
+    yearId?: number,
   ): Promise<DashboardClassItemDto[]> {
-    const yearId = await this.currentYearId(user.schoolId);
+    const resolvedYearId = yearId ?? (await this.currentYearId(user.schoolId));
     const classes = await this.prisma.class.findMany({
       where: { stage: { schoolId: user.schoolId } },
-      select: this.classSelect(user.schoolId, yearId),
+      select: this.classSelect(user.schoolId, resolvedYearId),
       orderBy: [
         { stage: { position: 'asc' } },
         { position: 'asc' },

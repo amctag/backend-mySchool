@@ -1,4 +1,11 @@
-import { Controller, Get, Param, ParseIntPipe, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Query,
+  Req,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -11,6 +18,7 @@ import type { Request } from 'express';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { DashboardClassItemDto } from './dto/dashboard-class-item.dto';
+import { DashboardYearFilterQueryDto } from './dto/dashboard-year-filter-query.dto';
 import { DashboardClassesService } from './dashboard-classes.service';
 
 @ApiTags('Dashboard Classes v1')
@@ -31,8 +39,9 @@ export class DashboardClassesController {
   @ApiForbiddenResponse({ description: 'Not a school admin' })
   listClasses(
     @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardYearFilterQueryDto,
   ): Promise<DashboardClassItemDto[]> {
-    return this.dashboardClassesService.listClasses(request.user);
+    return this.dashboardClassesService.listClasses(request.user, query.yearId);
   }
 
   @Get(':id')
