@@ -54,4 +54,7 @@ export class DashboardTeacherDetailDto {
 
   @ApiPropertyOptional({ nullable: true, example: '1988-04-12' })
   birthday!: string | null;
+
+  @ApiProperty({ example: true })
+  status!: boolean;
 }

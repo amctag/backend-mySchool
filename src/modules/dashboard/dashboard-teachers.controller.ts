@@ -28,6 +28,10 @@ import { DashboardTeacherDetailDto } from './dto/dashboard-teacher-detail.dto';
 import { DashboardTeachersQueryDto } from './dto/dashboard-teachers-query.dto';
 import { DashboardTeachersResponseDto } from './dto/dashboard-teachers-response.dto';
 import { UpdateDashboardTeacherDto } from './dto/update-dashboard-teacher.dto';
+import {
+  DashboardTeacherStatusDto,
+  UpdateDashboardTeacherStatusDto,
+} from './dto/update-dashboard-teacher-status.dto';
 import { DashboardTeachersService } from './dashboard-teachers.service';
 
 @ApiTags('Dashboard Teachers v1')
@@ -71,6 +75,23 @@ export class DashboardTeachersController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DashboardTeacherDetailDto> {
     return this.dashboardTeachersService.getTeacher(request.user, id);
+  }
+
+  @Patch(':id/status')
+  @ApiOperation({
+    summary: 'Set teacher active/closed status (person.status)',
+  })
+  @ApiOkResponse({ type: DashboardTeacherStatusDto })
+  updateTeacherStatus(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateDashboardTeacherStatusDto,
+  ): Promise<DashboardTeacherStatusDto> {
+    return this.dashboardTeachersService.updateTeacherStatus(
+      request.user,
+      id,
+      dto.status,
+    );
   }
 
   @Patch(':id')

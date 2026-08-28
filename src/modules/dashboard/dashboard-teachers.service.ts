@@ -45,6 +45,7 @@ type TeacherDetailRecord = {
     village: string | null;
     placeOfBirth: string | null;
     birthday: Date | null;
+    status: boolean;
   };
 };
 
@@ -75,6 +76,7 @@ export class DashboardTeachersService {
               address: true,
               phoneNumber: true,
               birthday: true,
+              status: true,
             },
           },
         },
@@ -93,6 +95,7 @@ export class DashboardTeachersService {
         phoneNumber: teacher.person.phoneNumber,
         address: teacher.person.address,
         birthday: this.formatDate(teacher.person.birthday),
+        status: teacher.person.status,
       })),
       pagination: {
         page,
@@ -182,6 +185,19 @@ export class DashboardTeachersService {
     } catch (error) {
       this.rethrowWriteError(error);
     }
+  }
+
+  async updateTeacherStatus(
+    user: AuthenticatedSchool,
+    teacherId: number,
+    status: boolean,
+  ): Promise<{ id: number; status: boolean }> {
+    const existing = await this.findVisibleTeacher(user.schoolId, teacherId);
+    await this.prisma.person.update({
+      where: { id: existing.personId },
+      data: { status },
+    });
+    return { id: existing.id, status };
   }
 
   async updateTeacher(
@@ -370,6 +386,7 @@ export class DashboardTeachersService {
       village: teacher.person.village,
       placeOfBirth: teacher.person.placeOfBirth,
       birthday: this.formatDate(teacher.person.birthday),
+      status: teacher.person.status,
     };
   }
 
