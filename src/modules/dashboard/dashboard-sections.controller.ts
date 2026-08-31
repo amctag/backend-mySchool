@@ -25,12 +25,13 @@ import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateDashboardSectionDto } from './dto/create-dashboard-section.dto';
 import { CreateDashboardSectionTitleDto } from './dto/create-dashboard-section-title.dto';
-import { DashboardYearFilterQueryDto } from './dto/dashboard-year-filter-query.dto';
+import { DashboardSectionTitlesQueryDto } from './dto/dashboard-section-titles-query.dto';
 import { DashboardSectionsQueryDto } from './dto/dashboard-sections-query.dto';
 import { UpdateDashboardSectionTitleDto } from './dto/update-dashboard-section-title.dto';
 import {
   DashboardSectionItemDto,
   DashboardSectionTitleItemDto,
+  DashboardSectionTitlesResponseDto,
   DashboardSectionsResponseDto,
   DashboardYearItemDto,
 } from './dto/dashboard-sections-response.dto';
@@ -59,15 +60,12 @@ export class DashboardSectionsController {
   @ApiOperation({
     summary: 'List shared section titles for this school (A, B, C…)',
   })
-  @ApiOkResponse({ type: [DashboardSectionTitleItemDto] })
+  @ApiOkResponse({ type: DashboardSectionTitlesResponseDto })
   listSectionTitles(
     @Req() request: Request & { user: AuthenticatedSchool },
-    @Query() query: DashboardYearFilterQueryDto,
-  ): Promise<DashboardSectionTitleItemDto[]> {
-    return this.dashboardSectionsService.listSectionTitles(
-      request.user,
-      query.yearId,
-    );
+    @Query() query: DashboardSectionTitlesQueryDto,
+  ): Promise<DashboardSectionTitlesResponseDto> {
+    return this.dashboardSectionsService.listSectionTitles(request.user, query);
   }
 
   @Post('section-titles')

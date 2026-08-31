@@ -68,3 +68,11 @@ export class DashboardSectionTitleItemDto {
   })
   sectionCount!: number;
 }
+
+export class DashboardSectionTitlesResponseDto {
+  @ApiProperty({ type: [DashboardSectionTitleItemDto] })
+  items!: DashboardSectionTitleItemDto[];
+
+  @ApiProperty({ type: PaginationMetaDto })
+  pagination!: PaginationMetaDto;
+}
