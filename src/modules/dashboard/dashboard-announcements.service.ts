@@ -60,12 +60,9 @@ export class DashboardAnnouncementsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listAnnouncements(
-    user: AuthenticatedSchool,
+    _user: AuthenticatedSchool,
   ): Promise<DashboardAnnouncementItemDto[]> {
-    await this.assertPersonInSchool(
-      DASHBOARD_CREATOR_PERSON_ID,
-      user.schoolId,
-    );
+    await this.assertCreatorPersonExists();
 
     const announcements = await this.prisma.announcement.findMany({
       where: {
@@ -84,13 +81,10 @@ export class DashboardAnnouncementsService {
   }
 
   async getAnnouncement(
-    user: AuthenticatedSchool,
+    _user: AuthenticatedSchool,
     id: number,
   ): Promise<DashboardAnnouncementItemDto> {
-    await this.assertPersonInSchool(
-      DASHBOARD_CREATOR_PERSON_ID,
-      user.schoolId,
-    );
+    await this.assertCreatorPersonExists();
 
     const announcement = await this.prisma.announcement.findFirst({
       where: {
@@ -113,7 +107,7 @@ export class DashboardAnnouncementsService {
     dto: CreateDashboardAnnouncementDto,
   ): Promise<DashboardAnnouncementItemDto> {
     const personId = DASHBOARD_CREATOR_PERSON_ID;
-    await this.assertPersonInSchool(personId, user.schoolId);
+    await this.assertCreatorPersonExists();
 
     let sectionLink: { sectionId: number; classId: number } | undefined;
     if (dto.sectionId) {
@@ -135,6 +129,8 @@ export class DashboardAnnouncementsService {
       };
     }
 
+    const uniqueTargets = [...new Set(dto.audienceTargets)];
+
     const now = new Date();
     const announcement = await this.prisma.announcement.create({
       data: {
@@ -144,7 +140,7 @@ export class DashboardAnnouncementsService {
         publishDate: now,
         publishTime: now,
         targets: {
-          create: { audienceTarget: dto.audienceTarget },
+          create: uniqueTargets.map((audienceTarget) => ({ audienceTarget })),
         },
         ...(sectionLink
           ? {
@@ -160,26 +156,29 @@ export class DashboardAnnouncementsService {
     return this.toItem(announcement);
   }
 
-  private async assertPersonInSchool(
-    personId: number,
-    schoolId: number,
-  ): Promise<void> {
+  private async assertCreatorPersonExists(): Promise<void> {
     const person = await this.prisma.person.findFirst({
-      where: { id: personId, schoolId },
+      where: { id: DASHBOARD_CREATOR_PERSON_ID },
       select: { id: true },
     });
 
     if (!person) {
-      throw new NotFoundException('Person not found for this school');
+      throw new NotFoundException('Creator person not found');
     }
   }
 
   private toItem(announcement: AnnouncementRecord): DashboardAnnouncementItemDto {
+    const audienceTargets = announcement.targets.map(
+      (target) => target.audienceTarget,
+    );
+
     return {
       id: announcement.id,
       title: announcement.title,
       content: announcement.content,
-      audience: this.formatAudience(announcement),
+      scope: this.formatScope(announcement),
+      audienceTargets,
+      audienceLabel: this.formatAudienceLabel(audienceTargets),
       publishedAt: this.combinePublishDateTime(
         announcement.publishDate,
         announcement.publishTime,
@@ -201,7 +200,19 @@ export class DashboardAnnouncementsService {
       .join(' ');
   }
 
-  private formatAudience(announcement: AnnouncementRecord): string {
+  private formatAudienceLabel(targets: string[]): string {
+    const labels: Record<string, string> = {
+      parent: 'Parents',
+      student: 'Students',
+      teacher: 'Teachers',
+    };
+
+    return targets
+      .map((target) => labels[target] ?? target)
+      .join(', ');
+  }
+
+  private formatScope(announcement: AnnouncementRecord): string {
     if (announcement.sections.length === 0) {
       return 'All school';
     }

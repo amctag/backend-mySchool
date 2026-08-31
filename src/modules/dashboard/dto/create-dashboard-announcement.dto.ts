@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMinSize,
+  IsArray,
   IsIn,
   IsInt,
   IsOptional,
@@ -12,6 +14,9 @@ import {
 function trimString({ value }: { value: unknown }): unknown {
   return typeof value === 'string' ? value.trim() : value;
 }
+
+const ANNOUNCEMENT_AUDIENCES = ['parent', 'student', 'teacher'] as const;
+export type AnnouncementAudienceValue = (typeof ANNOUNCEMENT_AUDIENCES)[number];
 
 export class CreateDashboardAnnouncementDto {
   @ApiPropertyOptional({ example: 'School Holiday' })
@@ -28,12 +33,15 @@ export class CreateDashboardAnnouncementDto {
   content!: string;
 
   @ApiProperty({
-    enum: ['parent', 'student', 'teacher'],
-    example: 'parent',
+    enum: ANNOUNCEMENT_AUDIENCES,
+    isArray: true,
+    example: ['parent', 'teacher'],
+    description: 'One or more audiences for the same announcement',
   })
-  @IsString()
-  @IsIn(['parent', 'student', 'teacher'])
-  audienceTarget!: 'parent' | 'student' | 'teacher';
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsIn(ANNOUNCEMENT_AUDIENCES, { each: true })
+  audienceTargets!: AnnouncementAudienceValue[];
 
   @ApiPropertyOptional({
     example: 5,

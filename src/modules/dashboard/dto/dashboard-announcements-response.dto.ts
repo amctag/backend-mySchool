@@ -11,7 +11,17 @@ export class DashboardAnnouncementItemDto {
   content!: string;
 
   @ApiProperty({ example: 'All school' })
-  audience!: string;
+  scope!: string;
+
+  @ApiProperty({
+    enum: ['parent', 'student', 'teacher'],
+    isArray: true,
+    example: ['parent', 'teacher'],
+  })
+  audienceTargets!: string[];
+
+  @ApiProperty({ example: 'Parents, Teachers' })
+  audienceLabel!: string;
 
   @ApiProperty({ example: '2026-08-20T08:00:00.000Z' })
   publishedAt!: string;
