@@ -3,7 +3,6 @@ import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { CreateDashboardAnnouncementDto } from './dto/create-dashboard-announcement.dto';
 import { DashboardAnnouncementItemDto } from './dto/dashboard-announcements-response.dto';
-import { DashboardAnnouncementsQueryDto } from './dto/dashboard-announcements-query.dto';
 
 const DEFAULT_PERSON_ID = 1;
 
@@ -62,14 +61,11 @@ export class DashboardAnnouncementsService {
 
   async listAnnouncements(
     user: AuthenticatedSchool,
-    query: DashboardAnnouncementsQueryDto,
   ): Promise<DashboardAnnouncementItemDto[]> {
-    const personId = query.personId ?? DEFAULT_PERSON_ID;
-
     const announcements = await this.prisma.announcement.findMany({
       where: {
         deletedAt: null,
-        personId,
+        personId: DEFAULT_PERSON_ID,
         person: { schoolId: user.schoolId },
       },
       include: announcementInclude,
@@ -91,6 +87,7 @@ export class DashboardAnnouncementsService {
       where: {
         id,
         deletedAt: null,
+        personId: DEFAULT_PERSON_ID,
         person: { schoolId: user.schoolId },
       },
       include: announcementInclude,
@@ -107,7 +104,7 @@ export class DashboardAnnouncementsService {
     user: AuthenticatedSchool,
     dto: CreateDashboardAnnouncementDto,
   ): Promise<DashboardAnnouncementItemDto> {
-    const personId = dto.personId ?? DEFAULT_PERSON_ID;
+    const personId = DEFAULT_PERSON_ID;
     await this.assertPersonInSchool(personId, user.schoolId);
 
     let sectionLink: { sectionId: number; classId: number } | undefined;

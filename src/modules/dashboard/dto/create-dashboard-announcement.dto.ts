@@ -36,16 +36,6 @@ export class CreateDashboardAnnouncementDto {
   audienceTarget!: 'parent' | 'student' | 'teacher';
 
   @ApiPropertyOptional({
-    example: 1,
-    description: 'Creator person id (defaults to 1 for now)',
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  personId?: number;
-
-  @ApiPropertyOptional({
     example: 5,
     description: 'Limit to one section; omit for all school',
   })
