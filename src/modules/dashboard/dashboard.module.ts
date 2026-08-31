@@ -19,6 +19,8 @@ import { DashboardTeachesController } from './dashboard-teaches.controller';
 import { DashboardTeachesService } from './dashboard-teaches.service';
 import { DashboardAnnouncementsController } from './dashboard-announcements.controller';
 import { DashboardAnnouncementsService } from './dashboard-announcements.service';
+import { DashboardWeeklySchedulesController } from './dashboard-weekly-schedules.controller';
+import { DashboardWeeklySchedulesService } from './dashboard-weekly-schedules.service';
 import { DashboardParentsController } from './dashboard-parents.controller';
 import { DashboardParentsService } from './dashboard-parents.service';
 
@@ -34,6 +36,7 @@ import { DashboardParentsService } from './dashboard-parents.service';
     DashboardSectionsController,
     DashboardTeachesController,
     DashboardAnnouncementsController,
+    DashboardWeeklySchedulesController,
     DashboardLookupsController,
   ],
   providers: [
@@ -46,6 +49,7 @@ import { DashboardParentsService } from './dashboard-parents.service';
     DashboardSectionsService,
     DashboardTeachesService,
     DashboardAnnouncementsService,
+    DashboardWeeklySchedulesService,
     DashboardLookupsService,
   ],
 })
