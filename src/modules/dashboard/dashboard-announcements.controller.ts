@@ -1,6 +1,7 @@
-import { Controller, Get, Param, ParseIntPipe, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, Req } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -8,6 +9,7 @@ import {
 import type { Request } from 'express';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CreateDashboardAnnouncementDto } from './dto/create-dashboard-announcement.dto';
 import {
   DashboardAnnouncementItemDto,
   DashboardAnnouncementsResponseDto,
@@ -34,6 +36,19 @@ export class DashboardAnnouncementsController {
     return this.dashboardAnnouncementsService
       .listAnnouncements(request.user, query)
       .then((items) => ({ items }));
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Create an announcement' })
+  @ApiCreatedResponse({ type: DashboardAnnouncementItemDto })
+  createAnnouncement(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Body() dto: CreateDashboardAnnouncementDto,
+  ): Promise<DashboardAnnouncementItemDto> {
+    return this.dashboardAnnouncementsService.createAnnouncement(
+      request.user,
+      dto,
+    );
   }
 
   @Get(':id')
