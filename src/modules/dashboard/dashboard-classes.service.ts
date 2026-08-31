@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { ensureStandardClassesForSchool } from '../../database/standard-classes';
-import { DashboardClassItemDto } from './dto/dashboard-class-item.dto';
+import { DashboardClassItemDto, DashboardStageItemDto } from './dto/dashboard-class-item.dto';
 import { DashboardClassesQueryDto } from './dto/dashboard-classes-query.dto';
+import { DashboardClassesResponseDto } from './dto/dashboard-classes-response.dto';
 
 type ClassRecord = {
   id: number;
@@ -21,22 +23,53 @@ export class DashboardClassesService {
   async listClasses(
     user: AuthenticatedSchool,
     query: DashboardClassesQueryDto,
-  ): Promise<DashboardClassItemDto[]> {
+  ): Promise<DashboardClassesResponseDto> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
     const search = query.search?.trim();
     const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc';
     await ensureStandardClassesForSchool(this.prisma, user.schoolId);
-    const classes = await this.prisma.class.findMany({
-      where: {
-        stage: { schoolId: user.schoolId },
-        ...(search
-          ? { className: { contains: search, mode: 'insensitive' } }
-          : {}),
+    const where: Prisma.ClassWhereInput = {
+      stage: {
+        schoolId: user.schoolId,
+        ...(query.stageId ? { id: query.stageId } : {}),
       },
-      select: this.classSelect,
-      orderBy: [{ position: sortOrder }, { className: 'asc' }],
-    });
+      ...(search
+        ? { className: { contains: search, mode: 'insensitive' } }
+        : {}),
+    };
 
-    return classes.map((item) => this.toItem(item));
+    const [total, classes] = await this.prisma.$transaction([
+      this.prisma.class.count({ where }),
+      this.prisma.class.findMany({
+        where,
+        select: this.classSelect,
+        orderBy: [{ position: sortOrder }, { className: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      items: classes.map((item) => this.toItem(item as ClassRecord)),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async listStages(
+    user: AuthenticatedSchool,
+  ): Promise<DashboardStageItemDto[]> {
+    await ensureStandardClassesForSchool(this.prisma, user.schoolId);
+    return this.prisma.stage.findMany({
+      where: { schoolId: user.schoolId },
+      select: { id: true, title: true, position: true },
+      orderBy: { position: 'asc' },
+    });
   }
 
   async getClass(

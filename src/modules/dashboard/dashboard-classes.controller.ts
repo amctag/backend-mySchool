@@ -17,8 +17,9 @@ import {
 import type { Request } from 'express';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { DashboardClassItemDto } from './dto/dashboard-class-item.dto';
+import { DashboardClassItemDto, DashboardStageItemDto } from './dto/dashboard-class-item.dto';
 import { DashboardClassesQueryDto } from './dto/dashboard-classes-query.dto';
+import { DashboardClassesResponseDto } from './dto/dashboard-classes-response.dto';
 import { DashboardClassesService } from './dashboard-classes.service';
 
 @ApiTags('Dashboard Classes v1')
@@ -34,14 +35,23 @@ export class DashboardClassesController {
   @ApiOperation({
     summary: 'List classes for this school (read-only catalog)',
   })
-  @ApiOkResponse({ type: [DashboardClassItemDto] })
+  @ApiOkResponse({ type: DashboardClassesResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid school session' })
   @ApiForbiddenResponse({ description: 'Not a school admin' })
   listClasses(
     @Req() request: Request & { user: AuthenticatedSchool },
     @Query() query: DashboardClassesQueryDto,
-  ): Promise<DashboardClassItemDto[]> {
+  ): Promise<DashboardClassesResponseDto> {
     return this.dashboardClassesService.listClasses(request.user, query);
+  }
+
+  @Get('stages')
+  @ApiOperation({ summary: 'List stages for this school' })
+  @ApiOkResponse({ type: [DashboardStageItemDto] })
+  listStages(
+    @Req() request: Request & { user: AuthenticatedSchool },
+  ): Promise<DashboardStageItemDto[]> {
+    return this.dashboardClassesService.listStages(request.user);
   }
 
   @Get(':id')

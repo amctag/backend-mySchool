@@ -19,3 +19,14 @@ export class DashboardClassItemDto {
   @ApiProperty({ example: 'Primary' })
   stageTitle!: string;
 }
+
+export class DashboardStageItemDto {
+  @ApiProperty({ example: 1 })
+  id!: number;
+
+  @ApiProperty({ example: 'Primary' })
+  title!: string;
+
+  @ApiProperty({ example: 2 })
+  position!: number;
+}
