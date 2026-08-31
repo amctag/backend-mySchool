@@ -9,13 +9,11 @@ import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { CreateDashboardSectionDto } from './dto/create-dashboard-section.dto';
 import { CreateDashboardSectionTitleDto } from './dto/create-dashboard-section-title.dto';
-import { DashboardSectionTitlesQueryDto } from './dto/dashboard-section-titles-query.dto';
 import { DashboardSectionsQueryDto } from './dto/dashboard-sections-query.dto';
 import { UpdateDashboardSectionTitleDto } from './dto/update-dashboard-section-title.dto';
 import {
   DashboardSectionItemDto,
   DashboardSectionTitleItemDto,
-  DashboardSectionTitlesResponseDto,
   DashboardSectionsResponseDto,
   DashboardYearItemDto,
 } from './dto/dashboard-sections-response.dto';
@@ -169,51 +167,27 @@ export class DashboardSectionsService {
 
   async listSectionTitles(
     user: AuthenticatedSchool,
-    query: DashboardSectionTitlesQueryDto,
-  ): Promise<DashboardSectionTitlesResponseDto> {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
-    const search = query.search?.trim();
-    const resolvedYearId =
-      query.yearId ?? (await this.currentYearId(user.schoolId));
-    const where: Prisma.SectionTitleWhereInput = {
-      schoolId: user.schoolId,
-      ...(search
-        ? { title: { contains: search, mode: 'insensitive' } }
-        : {}),
-    };
-
-    const [total, items] = await this.prisma.$transaction([
-      this.prisma.sectionTitle.count({ where }),
-      this.prisma.sectionTitle.findMany({
-        where,
-        select: {
-          id: true,
-          title: true,
-          status: true,
-          _count: {
-            select: {
-              sections: {
-                where: resolvedYearId ? { yearId: resolvedYearId } : {},
-              },
+    yearId?: number,
+  ): Promise<DashboardSectionTitleItemDto[]> {
+    const resolvedYearId = yearId;
+    const items = await this.prisma.sectionTitle.findMany({
+      where: { schoolId: user.schoolId },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        _count: {
+          select: {
+            sections: {
+              where: resolvedYearId ? { yearId: resolvedYearId } : {},
             },
           },
         },
-        orderBy: { title: 'asc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-    ]);
-
-    return {
-      items: items.map((item) => this.toTitleItem(item)),
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
       },
-    };
+      orderBy: { title: 'asc' },
+    });
+
+    return items.map((item) => this.toTitleItem(item));
   }
 
   async getSectionTitle(
