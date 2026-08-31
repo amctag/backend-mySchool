@@ -1,6 +1,7 @@
-import { Controller, Get, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Req } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -12,6 +13,7 @@ import { DashboardWeeklyScheduleGridQueryDto } from './dto/dashboard-weekly-sche
 import { DashboardWeeklyScheduleGridResponseDto } from './dto/dashboard-weekly-schedules-grid-response.dto';
 import { DashboardWeeklySchedulesQueryDto } from './dto/dashboard-weekly-schedules-query.dto';
 import { DashboardWeeklySchedulesResponseDto } from './dto/dashboard-weekly-schedules-response.dto';
+import { SaveDashboardWeeklyScheduleDto } from './dto/save-dashboard-weekly-schedule.dto';
 import { DashboardWeeklySchedulesService } from './dashboard-weekly-schedules.service';
 
 @ApiTags('Dashboard Weekly Schedules v1')
@@ -46,6 +48,19 @@ export class DashboardWeeklySchedulesController {
     return this.dashboardWeeklySchedulesService.getWeeklyScheduleGrid(
       request.user,
       query,
+    );
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Create or update weekly schedule for one section' })
+  @ApiCreatedResponse({ type: DashboardWeeklyScheduleGridResponseDto })
+  saveWeeklySchedule(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Body() body: SaveDashboardWeeklyScheduleDto,
+  ): Promise<DashboardWeeklyScheduleGridResponseDto> {
+    return this.dashboardWeeklySchedulesService.saveWeeklySchedule(
+      request.user,
+      body,
     );
   }
 }

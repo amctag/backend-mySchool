@@ -7,6 +7,7 @@ import {
   DashboardWeeklyScheduleGridCellDto,
   DashboardWeeklyScheduleGridResponseDto,
 } from './dto/dashboard-weekly-schedules-grid-response.dto';
+import { SaveDashboardWeeklyScheduleDto } from './dto/save-dashboard-weekly-schedule.dto';
 import { DashboardWeeklySchedulesQueryDto } from './dto/dashboard-weekly-schedules-query.dto';
 import {
   DashboardWeeklyScheduleItemDto,
@@ -203,6 +204,120 @@ export class DashboardWeeklySchedulesService {
       sessions,
       cells,
     };
+  }
+
+  async saveWeeklySchedule(
+    user: AuthenticatedSchool,
+    body: SaveDashboardWeeklyScheduleDto,
+  ): Promise<DashboardWeeklyScheduleGridResponseDto> {
+    const yearId =
+      body.yearId ?? (await this.currentYearId(user.schoolId));
+    if (!yearId) {
+      throw new BadRequestException('Year is required');
+    }
+
+    const section = await this.prisma.section.findFirst({
+      where: {
+        id: body.sectionId,
+        schoolId: user.schoolId,
+        yearId,
+        ...(body.classId ? { classId: body.classId } : {}),
+      },
+      select: { id: true, classId: true },
+    });
+
+    if (!section) {
+      throw new NotFoundException('Section not found for this year and class');
+    }
+
+    const slotKeys = new Set<string>();
+    for (const entry of body.entries) {
+      const key = `${entry.dayId}:${entry.sessionId}`;
+      if (slotKeys.has(key)) {
+        throw new BadRequestException(
+          'Each day and session can only appear once in the schedule',
+        );
+      }
+      slotKeys.add(key);
+    }
+
+    const [days, sessions, courses, classCourses] = await Promise.all([
+      this.prisma.day.findMany({
+        where: { schoolId: user.schoolId },
+        select: { id: true },
+      }),
+      this.prisma.session.findMany({
+        where: { schoolId: user.schoolId, status: true },
+        select: { id: true },
+      }),
+      this.prisma.course.findMany({
+        where: { schoolId: user.schoolId },
+        select: { id: true },
+      }),
+      this.prisma.classCourse.findMany({
+        where: {
+          classId: section.classId,
+          yearId,
+          status: true,
+        },
+        select: { courseId: true },
+      }),
+    ]);
+
+    const dayIds = new Set(days.map((day) => day.id));
+    const sessionIds = new Set(sessions.map((session) => session.id));
+    const courseIds = new Set(courses.map((course) => course.id));
+    const classCourseIds = new Set(classCourses.map((item) => item.courseId));
+
+    for (const entry of body.entries) {
+      if (!dayIds.has(entry.dayId)) {
+        throw new BadRequestException(`Invalid day id ${entry.dayId}`);
+      }
+      if (!sessionIds.has(entry.sessionId)) {
+        throw new BadRequestException(`Invalid session id ${entry.sessionId}`);
+      }
+      if (!courseIds.has(entry.courseId)) {
+        throw new BadRequestException(`Invalid course id ${entry.courseId}`);
+      }
+      if (!classCourseIds.has(entry.courseId)) {
+        throw new BadRequestException(
+          `Course ${entry.courseId} is not assigned to this class`,
+        );
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      let schedule = await tx.weeklySchedule.findFirst({
+        where: { sectionId: section.id },
+      });
+
+      if (!schedule) {
+        schedule = await tx.weeklySchedule.create({
+          data: { sectionId: section.id },
+        });
+      } else {
+        await tx.weeklyScheduleDetail.deleteMany({
+          where: { scheduleId: schedule.id },
+        });
+      }
+
+      if (body.entries.length > 0) {
+        await tx.weeklyScheduleDetail.createMany({
+          data: body.entries.map((entry) => ({
+            scheduleId: schedule!.id,
+            dayId: entry.dayId,
+            sessionId: entry.sessionId,
+            courseId: entry.courseId,
+          })),
+        });
+      }
+    });
+
+    return this.getWeeklyScheduleGrid(user, {
+      sectionId: body.sectionId,
+      yearId,
+      classId: body.classId ?? section.classId,
+    });
   }
 
   private toItem(row: ScheduleDetailRecord): DashboardWeeklyScheduleItemDto {
