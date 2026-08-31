@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { PaginationMetaDto } from '../../../common/dto/pagination-meta.dto';
 
 export class DashboardAnnouncementItemDto {
   @ApiProperty({ example: 1 })
@@ -39,4 +40,7 @@ export class DashboardAnnouncementItemDto {
 export class DashboardAnnouncementsResponseDto {
   @ApiProperty({ type: [DashboardAnnouncementItemDto] })
   items!: DashboardAnnouncementItemDto[];
+
+  @ApiProperty({ type: PaginationMetaDto })
+  pagination!: PaginationMetaDto;
 }

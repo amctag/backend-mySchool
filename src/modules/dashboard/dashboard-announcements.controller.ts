@@ -37,9 +37,10 @@ export class DashboardAnnouncementsController {
     @Req() request: Request & { user: AuthenticatedSchool },
     @Query() query: DashboardAnnouncementsQueryDto,
   ): Promise<DashboardAnnouncementsResponseDto> {
-    return this.dashboardAnnouncementsService
-      .listAnnouncements(request.user, query)
-      .then((items) => ({ items }));
+    return this.dashboardAnnouncementsService.listAnnouncements(
+      request.user,
+      query,
+    );
   }
 
   @Post()

@@ -3,7 +3,10 @@ import { Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { CreateDashboardAnnouncementDto } from './dto/create-dashboard-announcement.dto';
-import { DashboardAnnouncementItemDto } from './dto/dashboard-announcements-response.dto';
+import {
+  DashboardAnnouncementItemDto,
+  DashboardAnnouncementsResponseDto,
+} from './dto/dashboard-announcements-response.dto';
 import { DashboardAnnouncementsQueryDto } from './dto/dashboard-announcements-query.dto';
 
 const DASHBOARD_CREATOR_PERSON_ID = 1;
@@ -64,20 +67,37 @@ export class DashboardAnnouncementsService {
   async listAnnouncements(
     _user: AuthenticatedSchool,
     query: DashboardAnnouncementsQueryDto,
-  ): Promise<DashboardAnnouncementItemDto[]> {
+  ): Promise<DashboardAnnouncementsResponseDto> {
     await this.assertCreatorPersonExists();
 
-    const announcements = await this.prisma.announcement.findMany({
-      where: this.buildWhere(query),
-      include: announcementInclude,
-      orderBy: [
-        { publishDate: 'desc' },
-        { publishTime: 'desc' },
-        { id: 'desc' },
-      ],
-    });
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const where = this.buildWhere(query);
 
-    return announcements.map((announcement) => this.toItem(announcement));
+    const [total, announcements] = await this.prisma.$transaction([
+      this.prisma.announcement.count({ where }),
+      this.prisma.announcement.findMany({
+        where,
+        include: announcementInclude,
+        orderBy: [
+          { publishDate: 'desc' },
+          { publishTime: 'desc' },
+          { id: 'desc' },
+        ],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      items: announcements.map((announcement) => this.toItem(announcement)),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
+    };
   }
 
   async getAnnouncement(
