@@ -26,7 +26,11 @@ export class DashboardAnnouncementsController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'List announcements for this school' })
+  @ApiOperation({
+    summary: 'List dashboard announcements',
+    description:
+      'Returns all announcements created by person id 1 for this school admin.',
+  })
   @ApiOkResponse({ type: DashboardAnnouncementsResponseDto })
   listAnnouncements(
     @Req() request: Request & { user: AuthenticatedSchool },
@@ -37,7 +41,11 @@ export class DashboardAnnouncementsController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create an announcement' })
+  @ApiOperation({
+    summary: 'Create a dashboard announcement',
+    description:
+      'Creates an announcement as person id 1 (created by). School admin only.',
+  })
   @ApiCreatedResponse({ type: DashboardAnnouncementItemDto })
   createAnnouncement(
     @Req() request: Request & { user: AuthenticatedSchool },

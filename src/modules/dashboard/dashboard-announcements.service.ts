@@ -4,7 +4,7 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 import { CreateDashboardAnnouncementDto } from './dto/create-dashboard-announcement.dto';
 import { DashboardAnnouncementItemDto } from './dto/dashboard-announcements-response.dto';
 
-const DEFAULT_PERSON_ID = 1;
+const DASHBOARD_CREATOR_PERSON_ID = 1;
 
 const announcementInclude = {
   person: {
@@ -62,11 +62,15 @@ export class DashboardAnnouncementsService {
   async listAnnouncements(
     user: AuthenticatedSchool,
   ): Promise<DashboardAnnouncementItemDto[]> {
+    await this.assertPersonInSchool(
+      DASHBOARD_CREATOR_PERSON_ID,
+      user.schoolId,
+    );
+
     const announcements = await this.prisma.announcement.findMany({
       where: {
         deletedAt: null,
-        personId: DEFAULT_PERSON_ID,
-        person: { schoolId: user.schoolId },
+        personId: DASHBOARD_CREATOR_PERSON_ID,
       },
       include: announcementInclude,
       orderBy: [
@@ -83,12 +87,16 @@ export class DashboardAnnouncementsService {
     user: AuthenticatedSchool,
     id: number,
   ): Promise<DashboardAnnouncementItemDto> {
+    await this.assertPersonInSchool(
+      DASHBOARD_CREATOR_PERSON_ID,
+      user.schoolId,
+    );
+
     const announcement = await this.prisma.announcement.findFirst({
       where: {
         id,
         deletedAt: null,
-        personId: DEFAULT_PERSON_ID,
-        person: { schoolId: user.schoolId },
+        personId: DASHBOARD_CREATOR_PERSON_ID,
       },
       include: announcementInclude,
     });
@@ -104,7 +112,7 @@ export class DashboardAnnouncementsService {
     user: AuthenticatedSchool,
     dto: CreateDashboardAnnouncementDto,
   ): Promise<DashboardAnnouncementItemDto> {
-    const personId = DEFAULT_PERSON_ID;
+    const personId = DASHBOARD_CREATOR_PERSON_ID;
     await this.assertPersonInSchool(personId, user.schoolId);
 
     let sectionLink: { sectionId: number; classId: number } | undefined;
