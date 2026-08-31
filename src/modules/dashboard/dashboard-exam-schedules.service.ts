@@ -130,7 +130,7 @@ export class DashboardExamSchedulesService {
 
     await this.validateSaveBody(user.schoolId, body, yearId);
 
-    const schedule = await this.prisma.$transaction(async (tx) => {
+    const scheduleId = await this.prisma.$transaction(async (tx) => {
       const created = await tx.examSchedule.create({
         data: {
           title: body.title,
@@ -146,7 +146,7 @@ export class DashboardExamSchedulesService {
       return created.id;
     });
 
-    return this.getExamSchedule(user, schedule);
+    return this.getExamSchedule(user, scheduleId);
   }
 
   async updateExamSchedule(
@@ -156,7 +156,7 @@ export class DashboardExamSchedulesService {
   ): Promise<DashboardExamScheduleDetailResponseDto> {
     const existing = await this.findScheduleForSchool(user.schoolId, id);
     const yearId = body.yearId ?? existing.year.id;
-    await this.validateSaveBody(user.schoolId, body, yearId);
+    await this.validateSaveBody(user.schoolId, body, yearId, id);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.examDate.deleteMany({ where: { examScheduleId: id } });
@@ -205,6 +205,7 @@ export class DashboardExamSchedulesService {
     schoolId: number,
     body: SaveDashboardExamScheduleDto,
     yearId: number,
+    excludeScheduleId?: number,
   ): Promise<void> {
     const section = await this.prisma.section.findFirst({
       where: {
@@ -252,6 +253,52 @@ export class DashboardExamSchedulesService {
             `Course ${exam.courseId} is not assigned to this class`,
           );
         }
+      }
+    }
+
+    await this.assertNoDuplicateClassDates(
+      schoolId,
+      body.classId,
+      yearId,
+      body.dates,
+      excludeScheduleId,
+    );
+  }
+
+  private async assertNoDuplicateClassDates(
+    schoolId: number,
+    classId: number,
+    yearId: number,
+    dates: SaveDashboardExamScheduleDto['dates'],
+    excludeScheduleId?: number,
+  ): Promise<void> {
+    for (const examDate of dates) {
+      const conflict = await this.prisma.examDate.findFirst({
+        where: {
+          date: new Date(`${examDate.date}T00:00:00.000Z`),
+          status: true,
+          examSchedule: {
+            status: true,
+            classId,
+            yearId,
+            year: { schoolId },
+            ...(excludeScheduleId ? { id: { not: excludeScheduleId } } : {}),
+          },
+        },
+        include: {
+          examSchedule: {
+            select: {
+              title: true,
+              class: { select: { className: true } },
+            },
+          },
+        },
+      });
+
+      if (conflict) {
+        throw new BadRequestException(
+          `${conflict.examSchedule.class.className} already has an exam schedule on ${examDate.date}. Choose a different date or edit the existing schedule.`,
+        );
       }
     }
   }
