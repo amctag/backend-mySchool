@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { DashboardWeeklyScheduleGridQueryDto } from './dto/dashboard-weekly-schedules-grid-query.dto';
 import { DashboardWeeklySchedulesGridsQueryDto } from './dto/dashboard-weekly-schedules-grids-query.dto';
 import { DashboardWeeklySchedulesGridsResponseDto } from './dto/dashboard-weekly-schedules-grids-response.dto';
 import {
@@ -127,9 +128,6 @@ export class DashboardWeeklySchedulesService {
         ...(query.classId ? { classId: query.classId } : {}),
       },
       include: {
-        id: true,
-        classId: true,
-        yearId: true,
         class: { select: { className: true } },
         sectionTitle: { select: { title: true } },
         year: { select: { title: true } },
