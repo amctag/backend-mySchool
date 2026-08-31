@@ -426,14 +426,9 @@ export class DashboardSectionsService {
       ...(query.yearId ? { yearId: query.yearId } : {}),
       ...(search
         ? {
-            OR: [
-              { class: { className: { contains: search, mode: 'insensitive' } } },
-              {
-                sectionTitle: {
-                  title: { contains: search, mode: 'insensitive' },
-                },
-              },
-            ],
+            sectionTitle: {
+              title: { contains: search, mode: 'insensitive' },
+            },
           }
         : {}),
     };

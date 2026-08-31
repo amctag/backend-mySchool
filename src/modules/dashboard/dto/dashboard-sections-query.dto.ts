@@ -38,7 +38,7 @@ export class DashboardSectionsQueryDto {
 
   @ApiPropertyOptional({
     example: 'A',
-    description: 'Matches class name or section name only',
+    description: 'Matches section name only (for example A or B)',
   })
   @IsOptional()
   @Transform(trimString)
