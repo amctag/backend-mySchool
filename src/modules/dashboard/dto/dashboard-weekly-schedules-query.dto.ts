@@ -43,14 +43,7 @@ export class DashboardWeeklySchedulesQueryDto {
   @Min(1)
   sectionId?: number;
 
-  @ApiPropertyOptional({ example: 1 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  courseId?: number;
-
-  @ApiPropertyOptional({ example: 'Math' })
+  @ApiPropertyOptional({ example: 'Grade 2' })
   @IsOptional()
   @Transform(trimString)
   @IsString()
@@ -58,14 +51,14 @@ export class DashboardWeeklySchedulesQueryDto {
   search?: string;
 
   @ApiPropertyOptional({
-    enum: ['id', 'year', 'class', 'section', 'day', 'session', 'course', 'createdBy'],
+    enum: ['id', 'year', 'class', 'section', 'person', 'date'],
     example: 'id',
   })
   @IsOptional()
   @Allow()
   @IsString()
-  @IsIn(['id', 'year', 'class', 'section', 'day', 'session', 'course', 'createdBy'])
-  sortBy?: 'id' | 'year' | 'class' | 'section' | 'day' | 'session' | 'course' | 'createdBy';
+  @IsIn(['id', 'year', 'class', 'section', 'person', 'date'])
+  sortBy?: 'id' | 'year' | 'class' | 'section' | 'person' | 'date';
 
   @ApiPropertyOptional({ enum: ['asc', 'desc'], example: 'asc' })
   @IsOptional()

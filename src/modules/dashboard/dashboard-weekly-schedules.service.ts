@@ -16,52 +16,25 @@ import {
   DashboardWeeklySchedulesResponseDto,
 } from './dto/dashboard-weekly-schedules-response.dto';
 
-const detailInclude = {
-  day: { select: { dayName: true, position: true } },
-  session: { select: { sessionName: true, position: true } },
-  course: { select: { id: true, title: true } },
-  person: {
-    select: { id: true, firstName: true, middleName: true, lastName: true },
-  },
-  schedule: {
-    select: {
-      section: {
-        select: {
-          id: true,
-          classId: true,
-          yearId: true,
-          class: { select: { className: true } },
-          sectionTitle: { select: { title: true } },
-          year: { select: { id: true, title: true } },
-        },
-      },
-    },
-  },
-} as const;
-
-type ScheduleDetailRecord = {
+type ScheduleListRecord = {
   id: number;
-  courseId: number;
-  personId: number | null;
-  day: { dayName: string; position: number };
-  session: { sessionName: string; position: number };
-  course: { id: number; title: string };
-  person: {
+  createdAt: Date;
+  updatedAt: Date;
+  section: {
     id: number;
-    firstName: string;
-    middleName: string;
-    lastName: string;
-  } | null;
-  schedule: {
-    section: {
-      id: number;
-      classId: number;
-      yearId: number;
-      class: { className: string };
-      sectionTitle: { title: string };
-      year: { id: number; title: string };
-    };
+    classId: number;
+    yearId: number;
+    class: { className: string };
+    sectionTitle: { title: string };
+    year: { id: number; title: string };
   };
+  details: Array<{
+    person: {
+      firstName: string;
+      middleName: string;
+      lastName: string;
+    } | null;
+  }>;
 };
 
 @Injectable()
@@ -76,17 +49,38 @@ export class DashboardWeeklySchedulesService {
     const limit = query.limit ?? 10;
     const yearId =
       query.yearId ?? (await this.currentYearId(user.schoolId));
-    const where = this.buildWhere(user.schoolId, {
+    const where = this.buildScheduleWhere(user.schoolId, {
       ...query,
       yearId: yearId ?? undefined,
     });
-    const orderBy = this.buildOrderBy(query.sortBy, query.sortOrder);
+    const orderBy = this.buildScheduleOrderBy(query.sortBy, query.sortOrder);
 
     const [total, rows] = await this.prisma.$transaction([
-      this.prisma.weeklyScheduleDetail.count({ where }),
-      this.prisma.weeklyScheduleDetail.findMany({
+      this.prisma.weeklySchedule.count({ where }),
+      this.prisma.weeklySchedule.findMany({
         where,
-        include: detailInclude,
+        include: {
+          section: {
+            include: {
+              class: { select: { className: true } },
+              sectionTitle: { select: { title: true } },
+              year: { select: { id: true, title: true } },
+            },
+          },
+          details: {
+            take: 1,
+            orderBy: { id: 'asc' },
+            select: {
+              person: {
+                select: {
+                  firstName: true,
+                  middleName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
+        },
         orderBy,
         skip: (page - 1) * limit,
         take: limit,
@@ -95,7 +89,7 @@ export class DashboardWeeklySchedulesService {
 
     return {
       items: rows.map((row) =>
-        this.toItem(row as unknown as ScheduleDetailRecord),
+        this.toScheduleItem(row as unknown as ScheduleListRecord),
       ),
       pagination: {
         page,
@@ -444,24 +438,108 @@ export class DashboardWeeklySchedulesService {
     });
   }
 
-  private toItem(row: ScheduleDetailRecord): DashboardWeeklyScheduleItemDto {
-    const section = row.schedule.section;
+  async deleteWeeklySchedule(
+    user: AuthenticatedSchool,
+    scheduleId: number,
+  ): Promise<void> {
+    const schedule = await this.prisma.weeklySchedule.findFirst({
+      where: {
+        id: scheduleId,
+        section: { schoolId: user.schoolId },
+      },
+      select: { id: true },
+    });
+
+    if (!schedule) {
+      throw new NotFoundException('Weekly schedule not found');
+    }
+
+    await this.prisma.weeklySchedule.delete({
+      where: { id: scheduleId },
+    });
+  }
+
+  private toScheduleItem(
+    row: ScheduleListRecord,
+  ): DashboardWeeklyScheduleItemDto {
+    const section = row.section;
+    const person = row.details[0]?.person ?? null;
 
     return {
       id: row.id,
-      yearId: section.yearId,
-      yearTitle: section.year.title,
-      classId: section.classId,
-      className: section.class.className,
       sectionId: section.id,
+      classId: section.classId,
+      yearId: section.yearId,
+      className: section.class.className,
       sectionTitle: section.sectionTitle.title,
-      dayName: row.day.dayName,
-      sessionName: row.session.sessionName,
-      courseId: row.courseId,
-      courseTitle: row.course.title,
-      personId: row.personId,
-      createdByName: row.person ? this.formatPersonName(row.person) : null,
+      yearTitle: section.year.title,
+      createdAt: row.updatedAt.toISOString(),
+      createdByName: person ? this.formatPersonName(person) : null,
     };
+  }
+
+  private buildScheduleWhere(
+    schoolId: number,
+    query: DashboardWeeklySchedulesQueryDto,
+  ): Prisma.WeeklyScheduleWhereInput {
+    const search = query.search?.trim();
+
+    return {
+      details: { some: {} },
+      section: {
+        schoolId,
+        ...(query.yearId ? { yearId: query.yearId } : {}),
+        ...(query.classId ? { classId: query.classId } : {}),
+        ...(query.sectionId ? { id: query.sectionId } : {}),
+        ...(search
+          ? {
+              OR: [
+                {
+                  class: {
+                    className: { contains: search, mode: 'insensitive' },
+                  },
+                },
+                {
+                  sectionTitle: {
+                    title: { contains: search, mode: 'insensitive' },
+                  },
+                },
+              ],
+            }
+          : {}),
+      },
+    };
+  }
+
+  private buildScheduleOrderBy(
+    sortBy?: DashboardWeeklySchedulesQueryDto['sortBy'],
+    sortOrder?: DashboardWeeklySchedulesQueryDto['sortOrder'],
+  ): Prisma.WeeklyScheduleOrderByWithRelationInput[] {
+    const direction: Prisma.SortOrder = sortOrder === 'desc' ? 'desc' : 'asc';
+    const idTieBreaker: Prisma.WeeklyScheduleOrderByWithRelationInput = {
+      id: direction,
+    };
+
+    switch (sortBy) {
+      case 'year':
+        return [{ section: { year: { title: direction } } }, idTieBreaker];
+      case 'class':
+        return [
+          { section: { class: { className: direction } } },
+          idTieBreaker,
+        ];
+      case 'section':
+        return [
+          { section: { sectionTitle: { title: direction } } },
+          idTieBreaker,
+        ];
+      case 'date':
+        return [{ updatedAt: direction }];
+      case 'person':
+      case 'id':
+      default:
+        return [{ id: direction }];
+    }
   }
 
   private formatPersonName(person: {
@@ -481,86 +559,5 @@ export class DashboardWeeklySchedulesService {
       select: { id: true },
     });
     return year?.id ?? null;
-  }
-
-  private buildWhere(
-    schoolId: number,
-    query: DashboardWeeklySchedulesQueryDto,
-  ): Prisma.WeeklyScheduleDetailWhereInput {
-    const search = query.search?.trim();
-
-    return {
-      course: { schoolId },
-      schedule: {
-        section: {
-          schoolId,
-          ...(query.yearId ? { yearId: query.yearId } : {}),
-          ...(query.classId ? { classId: query.classId } : {}),
-          ...(query.sectionId ? { id: query.sectionId } : {}),
-        },
-      },
-      ...(query.courseId ? { courseId: query.courseId } : {}),
-      ...(search
-        ? {
-            OR: [
-              { course: { title: { contains: search, mode: 'insensitive' } } },
-              {
-                schedule: {
-                  section: {
-                    class: {
-                      className: { contains: search, mode: 'insensitive' },
-                    },
-                  },
-                },
-              },
-              {
-                person: {
-                  OR: [
-                    { firstName: { contains: search, mode: 'insensitive' } },
-                    { middleName: { contains: search, mode: 'insensitive' } },
-                    { lastName: { contains: search, mode: 'insensitive' } },
-                  ],
-                },
-              },
-            ],
-          }
-        : {}),
-    };
-  }
-
-  private buildOrderBy(
-    sortBy?: DashboardWeeklySchedulesQueryDto['sortBy'],
-    sortOrder?: DashboardWeeklySchedulesQueryDto['sortOrder'],
-  ): Prisma.WeeklyScheduleDetailOrderByWithRelationInput[] {
-    const direction: Prisma.SortOrder = sortOrder === 'desc' ? 'desc' : 'asc';
-    const idTieBreaker: Prisma.WeeklyScheduleDetailOrderByWithRelationInput = {
-      id: direction,
-    };
-
-    switch (sortBy) {
-      case 'year':
-        return [{ schedule: { section: { year: { title: direction } } } }, idTieBreaker];
-      case 'class':
-        return [
-          { schedule: { section: { class: { className: direction } } } },
-          idTieBreaker,
-        ];
-      case 'section':
-        return [
-          { schedule: { section: { sectionTitle: { title: direction } } } },
-          idTieBreaker,
-        ];
-      case 'day':
-        return [{ day: { position: direction } }, idTieBreaker];
-      case 'session':
-        return [{ session: { position: direction } }, idTieBreaker];
-      case 'course':
-        return [{ course: { title: direction } }, idTieBreaker];
-      case 'createdBy':
-        return [{ person: { firstName: direction } }, idTieBreaker];
-      case 'id':
-      default:
-        return [{ id: direction }];
-    }
   }
 }

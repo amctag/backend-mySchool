@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, Req } from '@nestjs/common';
+import { Controller, Delete, Get, Post, Body, Param, ParseIntPipe, Query, Req } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -28,7 +28,7 @@ export class DashboardWeeklySchedulesController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'List weekly schedule entries for this school' })
+  @ApiOperation({ summary: 'List weekly schedules for this school' })
   @ApiOkResponse({ type: DashboardWeeklySchedulesResponseDto })
   listWeeklySchedules(
     @Req() request: Request & { user: AuthenticatedSchool },
@@ -76,6 +76,18 @@ export class DashboardWeeklySchedulesController {
     return this.dashboardWeeklySchedulesService.saveWeeklySchedule(
       request.user,
       body,
+    );
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a weekly schedule' })
+  deleteWeeklySchedule(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<void> {
+    return this.dashboardWeeklySchedulesService.deleteWeeklySchedule(
+      request.user,
+      id,
     );
   }
 }
