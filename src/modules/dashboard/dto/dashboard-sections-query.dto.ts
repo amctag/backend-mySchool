@@ -36,7 +36,10 @@ export class DashboardSectionsQueryDto {
   @Min(1)
   yearId?: number;
 
-  @ApiPropertyOptional({ example: 'A' })
+  @ApiPropertyOptional({
+    example: 'A',
+    description: 'Matches class name or section name only',
+  })
   @IsOptional()
   @Transform(trimString)
   @IsString()

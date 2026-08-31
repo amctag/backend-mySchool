@@ -433,7 +433,6 @@ export class DashboardSectionsService {
                   title: { contains: search, mode: 'insensitive' },
                 },
               },
-              { year: { title: { contains: search, mode: 'insensitive' } } },
             ],
           }
         : {}),
