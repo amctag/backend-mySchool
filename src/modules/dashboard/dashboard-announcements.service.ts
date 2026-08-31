@@ -2,6 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { DashboardAnnouncementItemDto } from './dto/dashboard-announcements-response.dto';
+import { DashboardAnnouncementsQueryDto } from './dto/dashboard-announcements-query.dto';
+
+const DEFAULT_PERSON_ID = 1;
 
 const announcementInclude = {
   person: {
@@ -58,10 +61,14 @@ export class DashboardAnnouncementsService {
 
   async listAnnouncements(
     user: AuthenticatedSchool,
+    query: DashboardAnnouncementsQueryDto,
   ): Promise<DashboardAnnouncementItemDto[]> {
+    const personId = query.personId ?? DEFAULT_PERSON_ID;
+
     const announcements = await this.prisma.announcement.findMany({
       where: {
         deletedAt: null,
+        personId,
         person: { schoolId: user.schoolId },
       },
       include: announcementInclude,

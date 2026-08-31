@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe, Req } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Query, Req } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -13,6 +13,7 @@ import {
   DashboardAnnouncementsResponseDto,
 } from './dto/dashboard-announcements-response.dto';
 import { DashboardAnnouncementsService } from './dashboard-announcements.service';
+import { DashboardAnnouncementsQueryDto } from './dto/dashboard-announcements-query.dto';
 
 @ApiTags('Dashboard Announcements v1')
 @ApiBearerAuth()
@@ -28,9 +29,10 @@ export class DashboardAnnouncementsController {
   @ApiOkResponse({ type: DashboardAnnouncementsResponseDto })
   listAnnouncements(
     @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardAnnouncementsQueryDto,
   ): Promise<DashboardAnnouncementsResponseDto> {
     return this.dashboardAnnouncementsService
-      .listAnnouncements(request.user)
+      .listAnnouncements(request.user, query)
       .then((items) => ({ items }));
   }
 
