@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { CreateDashboardAnnouncementDto } from './dto/create-dashboard-announcement.dto';
 import { DashboardAnnouncementItemDto } from './dto/dashboard-announcements-response.dto';
+import { DashboardAnnouncementsQueryDto } from './dto/dashboard-announcements-query.dto';
 
 const DASHBOARD_CREATOR_PERSON_ID = 1;
 
@@ -61,14 +63,12 @@ export class DashboardAnnouncementsService {
 
   async listAnnouncements(
     _user: AuthenticatedSchool,
+    query: DashboardAnnouncementsQueryDto,
   ): Promise<DashboardAnnouncementItemDto[]> {
     await this.assertCreatorPersonExists();
 
     const announcements = await this.prisma.announcement.findMany({
-      where: {
-        deletedAt: null,
-        personId: DASHBOARD_CREATOR_PERSON_ID,
-      },
+      where: this.buildWhere(query),
       include: announcementInclude,
       orderBy: [
         { publishDate: 'desc' },
@@ -165,6 +165,59 @@ export class DashboardAnnouncementsService {
     if (!person) {
       throw new NotFoundException('Creator person not found');
     }
+  }
+
+  private buildWhere(
+    query: DashboardAnnouncementsQueryDto,
+  ): Prisma.AnnouncementWhereInput {
+    const search = query.search?.trim();
+    const where: Prisma.AnnouncementWhereInput = {
+      deletedAt: null,
+      personId: DASHBOARD_CREATOR_PERSON_ID,
+    };
+
+    if (search) {
+      where.title = { contains: search, mode: 'insensitive' };
+    }
+
+    if (query.sectionId) {
+      where.sections = {
+        some: {
+          deletedAt: null,
+          sectionId: query.sectionId,
+        },
+      };
+      return where;
+    }
+
+    if (query.classId) {
+      where.sections = {
+        some: {
+          deletedAt: null,
+          classId: query.classId,
+          ...(query.yearId
+            ? { section: { yearId: query.yearId } }
+            : {}),
+        },
+      };
+      return where;
+    }
+
+    if (query.yearId) {
+      where.OR = [
+        { sections: { none: { deletedAt: null } } },
+        {
+          sections: {
+            some: {
+              deletedAt: null,
+              section: { yearId: query.yearId },
+            },
+          },
+        },
+      ];
+    }
+
+    return where;
   }
 
   private toItem(announcement: AnnouncementRecord): DashboardAnnouncementItemDto {
