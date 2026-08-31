@@ -2,7 +2,8 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
-import { DashboardWeeklyScheduleGridQueryDto } from './dto/dashboard-weekly-schedules-grid-query.dto';
+import { DashboardWeeklySchedulesGridsQueryDto } from './dto/dashboard-weekly-schedules-grids-query.dto';
+import { DashboardWeeklySchedulesGridsResponseDto } from './dto/dashboard-weekly-schedules-grids-response.dto';
 import {
   DashboardWeeklyScheduleGridCellDto,
   DashboardWeeklyScheduleGridResponseDto,
@@ -126,6 +127,9 @@ export class DashboardWeeklySchedulesService {
         ...(query.classId ? { classId: query.classId } : {}),
       },
       include: {
+        id: true,
+        classId: true,
+        yearId: true,
         class: { select: { className: true } },
         sectionTitle: { select: { title: true } },
         year: { select: { title: true } },
@@ -169,9 +173,128 @@ export class DashboardWeeklySchedulesService {
       }),
     ]);
 
+    return this.buildGridResponse({
+      section,
+      schedule,
+      days,
+      sessions,
+    });
+  }
+
+  async listWeeklyScheduleGrids(
+    user: AuthenticatedSchool,
+    query: DashboardWeeklySchedulesGridsQueryDto,
+  ): Promise<DashboardWeeklySchedulesGridsResponseDto> {
+    const yearId =
+      query.yearId ?? (await this.currentYearId(user.schoolId));
+    if (!yearId) {
+      throw new BadRequestException('Year is required');
+    }
+
+    const sections = await this.prisma.section.findMany({
+      where: {
+        schoolId: user.schoolId,
+        yearId,
+        ...(query.classId ? { classId: query.classId } : {}),
+        ...(query.sectionId ? { id: query.sectionId } : {}),
+        weeklySchedules: {
+          some: {
+            details: { some: {} },
+          },
+        },
+      },
+      include: {
+        class: { select: { className: true } },
+        sectionTitle: { select: { title: true } },
+        year: { select: { title: true } },
+        weeklySchedules: {
+          include: {
+            details: {
+              include: {
+                day: { select: { id: true } },
+                session: { select: { id: true } },
+                course: { select: { id: true, title: true } },
+                person: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    middleName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: [
+        { class: { className: 'asc' } },
+        { sectionTitle: { title: 'asc' } },
+      ],
+    });
+
+    const [days, sessions] = await Promise.all([
+      this.prisma.day.findMany({
+        where: { schoolId: user.schoolId },
+        orderBy: { position: 'asc' },
+        select: { id: true, dayName: true, position: true },
+      }),
+      this.prisma.session.findMany({
+        where: { schoolId: user.schoolId, status: true },
+        orderBy: { position: 'asc' },
+        select: { id: true, sessionName: true, position: true },
+      }),
+    ]);
+
+    return {
+      items: sections.map((section) =>
+        this.buildGridResponse({
+          section,
+          schedule: section.weeklySchedules[0] ?? null,
+          days,
+          sessions,
+        }),
+      ),
+    };
+  }
+
+  private buildGridResponse({
+    section,
+    schedule,
+    days,
+    sessions,
+  }: {
+    section: {
+      id: number;
+      classId: number;
+      yearId: number;
+      class: { className: string };
+      sectionTitle: { title: string };
+      year: { title: string };
+    };
+    schedule: {
+      id: number;
+      details: Array<{
+        id: number;
+        dayId: number;
+        sessionId: number;
+        courseId: number;
+        personId: number | null;
+        course: { id: number; title: string };
+        person: {
+          id: number;
+          firstName: string;
+          middleName: string;
+          lastName: string;
+        } | null;
+      }>;
+    } | null;
+    days: Array<{ id: number; dayName: string; position: number }>;
+    sessions: Array<{ id: number; sessionName: string; position: number }>;
+  }): DashboardWeeklyScheduleGridResponseDto {
     const detailByKey = new Map<
       string,
-      NonNullable<typeof schedule>["details"][number]
+      NonNullable<typeof schedule>['details'][number]
     >();
     for (const detail of schedule?.details ?? []) {
       detailByKey.set(`${detail.dayId}:${detail.sessionId}`, detail);
@@ -197,6 +320,9 @@ export class DashboardWeeklySchedulesService {
 
     return {
       scheduleId: schedule?.id ?? null,
+      sectionId: section.id,
+      classId: section.classId,
+      yearId: section.yearId,
       yearTitle: section.year.title,
       className: section.class.className,
       sectionTitle: section.sectionTitle.title,

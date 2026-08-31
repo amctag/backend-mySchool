@@ -9,6 +9,8 @@ import {
 import type { Request } from 'express';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { DashboardWeeklySchedulesGridsQueryDto } from './dto/dashboard-weekly-schedules-grids-query.dto';
+import { DashboardWeeklySchedulesGridsResponseDto } from './dto/dashboard-weekly-schedules-grids-response.dto';
 import { DashboardWeeklyScheduleGridQueryDto } from './dto/dashboard-weekly-schedules-grid-query.dto';
 import { DashboardWeeklyScheduleGridResponseDto } from './dto/dashboard-weekly-schedules-grid-response.dto';
 import { DashboardWeeklySchedulesQueryDto } from './dto/dashboard-weekly-schedules-query.dto';
@@ -33,6 +35,19 @@ export class DashboardWeeklySchedulesController {
     @Query() query: DashboardWeeklySchedulesQueryDto,
   ): Promise<DashboardWeeklySchedulesResponseDto> {
     return this.dashboardWeeklySchedulesService.listWeeklySchedules(
+      request.user,
+      query,
+    );
+  }
+
+  @Get('grids')
+  @ApiOperation({ summary: 'List weekly schedule grids for this school' })
+  @ApiOkResponse({ type: DashboardWeeklySchedulesGridsResponseDto })
+  listWeeklyScheduleGrids(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardWeeklySchedulesGridsQueryDto,
+  ): Promise<DashboardWeeklySchedulesGridsResponseDto> {
+    return this.dashboardWeeklySchedulesService.listWeeklyScheduleGrids(
       request.user,
       query,
     );

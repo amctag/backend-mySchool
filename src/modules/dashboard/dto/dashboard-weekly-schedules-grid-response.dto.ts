@@ -49,6 +49,15 @@ export class DashboardWeeklyScheduleGridResponseDto {
   @ApiProperty({ example: 1, nullable: true })
   scheduleId!: number | null;
 
+  @ApiProperty({ example: 1 })
+  sectionId!: number;
+
+  @ApiProperty({ example: 1 })
+  classId!: number;
+
+  @ApiProperty({ example: 1 })
+  yearId!: number;
+
   @ApiProperty({ example: '2026-2027' })
   yearTitle!: string;
 
