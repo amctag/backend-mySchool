@@ -91,6 +91,12 @@ export class DashboardExamSchedulesService {
               lastName: true,
             },
           },
+          dates: {
+            where: { status: true },
+            orderBy: { date: 'asc' },
+            take: 1,
+            select: { date: true },
+          },
         },
         orderBy,
         skip: (page - 1) * limit,
@@ -142,7 +148,7 @@ export class DashboardExamSchedulesService {
         },
       });
 
-      await this.createDates(tx, created.id, body.dates);
+      await this.createDates(tx, created.id, body.dates ?? []);
       return created.id;
     });
 
@@ -170,7 +176,7 @@ export class DashboardExamSchedulesService {
           note: body.note?.trim() || null,
         },
       });
-      await this.createDates(tx, id, body.dates);
+      await this.createDates(tx, id, body.dates ?? []);
     });
 
     return this.getExamSchedule(user, id);
@@ -246,7 +252,9 @@ export class DashboardExamSchedulesService {
       ).map((item) => item.courseId),
     );
 
-    for (const examDate of body.dates) {
+    const dates = body.dates ?? [];
+
+    for (const examDate of dates) {
       for (const exam of examDate.exams) {
         if (!allowedCourseIds.has(exam.courseId)) {
           throw new BadRequestException(
@@ -256,20 +264,22 @@ export class DashboardExamSchedulesService {
       }
     }
 
-    await this.assertNoDuplicateClassDates(
-      schoolId,
-      body.classId,
-      yearId,
-      body.dates,
-      excludeScheduleId,
-    );
+    if (dates.length > 0) {
+      await this.assertNoDuplicateClassDates(
+        schoolId,
+        body.classId,
+        yearId,
+        dates,
+        excludeScheduleId,
+      );
+    }
   }
 
   private async assertNoDuplicateClassDates(
     schoolId: number,
     classId: number,
     yearId: number,
-    dates: SaveDashboardExamScheduleDto['dates'],
+    dates: NonNullable<SaveDashboardExamScheduleDto['dates']>,
     excludeScheduleId?: number,
   ): Promise<void> {
     for (const examDate of dates) {
@@ -308,6 +318,10 @@ export class DashboardExamSchedulesService {
     examScheduleId: number,
     dates: SaveDashboardExamScheduleDto['dates'],
   ): Promise<void> {
+    if (!dates || dates.length === 0) {
+      return;
+    }
+
     for (const examDate of dates) {
       const createdDate = await tx.examDate.create({
         data: {
@@ -346,6 +360,7 @@ export class DashboardExamSchedulesService {
       middleName: string;
       lastName: string;
     };
+    dates: Array<{ date: Date }>;
   }): DashboardExamScheduleItemDto {
     return {
       id: schedule.id,
@@ -356,6 +371,9 @@ export class DashboardExamSchedulesService {
       yearTitle: schedule.year.title,
       gradeTypeId: schedule.gradeTypeId,
       gradeTypeTitle: schedule.gradeType.title,
+      examDate: schedule.dates[0]
+        ? this.formatDateOnly(schedule.dates[0].date)
+        : null,
       createdAt: schedule.createdAt.toISOString(),
       createdByName: this.formatPersonName(schedule.person),
     };

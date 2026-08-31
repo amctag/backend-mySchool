@@ -96,10 +96,10 @@ export class SaveDashboardExamScheduleDto {
   @MaxLength(2000)
   note?: string;
 
-  @ApiProperty({ type: [SaveDashboardExamScheduleDateDto] })
+  @ApiPropertyOptional({ type: [SaveDashboardExamScheduleDateDto] })
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => SaveDashboardExamScheduleDateDto)
-  dates!: SaveDashboardExamScheduleDateDto[];
+  dates?: SaveDashboardExamScheduleDateDto[];
 }
