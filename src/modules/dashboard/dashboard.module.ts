@@ -25,6 +25,8 @@ import { DashboardExamSchedulesController } from './dashboard-exam-schedules.con
 import { DashboardExamSchedulesService } from './dashboard-exam-schedules.service';
 import { DashboardRegistrationsController } from './dashboard-registrations.controller';
 import { DashboardRegistrationsService } from './dashboard-registrations.service';
+import { DashboardGradesController } from './dashboard-grades.controller';
+import { DashboardGradesService } from './dashboard-grades.service';
 import { DashboardParentsController } from './dashboard-parents.controller';
 import { DashboardParentsService } from './dashboard-parents.service';
 
@@ -43,6 +45,7 @@ import { DashboardParentsService } from './dashboard-parents.service';
     DashboardWeeklySchedulesController,
     DashboardExamSchedulesController,
     DashboardRegistrationsController,
+    DashboardGradesController,
     DashboardLookupsController,
   ],
   providers: [
@@ -58,6 +61,7 @@ import { DashboardParentsService } from './dashboard-parents.service';
     DashboardWeeklySchedulesService,
     DashboardExamSchedulesService,
     DashboardRegistrationsService,
+    DashboardGradesService,
     DashboardLookupsService,
   ],
 })
