@@ -51,7 +51,7 @@ const gradeSheetInclude = {
     },
     orderBy: [{ id: 'asc' as const }],
   },
-} as const;
+};
 
 type GradeSheetRecord = {
   id: number;
