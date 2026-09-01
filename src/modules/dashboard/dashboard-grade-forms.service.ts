@@ -15,6 +15,7 @@ import {
   DashboardGradeFormsResponseDto,
 } from './dto/dashboard-grade-forms-response.dto';
 import { DashboardGradeFormDetailsListResponseDto } from './dto/dashboard-grade-form-details-response.dto';
+import { DashboardGradeFormByClassResponseDto } from './dto/dashboard-grade-form-by-class-response.dto';
 import { SaveDashboardGradeFormDetailDto } from './dto/save-dashboard-grade-form-detail.dto';
 import { UpdateDashboardGradeFormClassesDto } from './dto/update-dashboard-grade-form-classes.dto';
 import { UpdateDashboardGradeFormDto } from './dto/update-dashboard-grade-form.dto';
@@ -82,6 +83,47 @@ export class DashboardGradeFormsService {
       where: { gradeFormId: id },
     });
     return this.toFormDetail(row, detailCount);
+  }
+
+  async getGradeFormByClass(
+    user: AuthenticatedSchool,
+    classId: number,
+    yearId: number,
+  ): Promise<DashboardGradeFormByClassResponseDto> {
+    await this.assertClassesForSchool(user.schoolId, [classId]);
+    await this.assertYearForSchool(user.schoolId, yearId);
+
+    const row = await this.prisma.gradeForm.findFirst({
+      where: {
+        schoolId: user.schoolId,
+        yearId,
+        status: true,
+        classes: { some: { classId } },
+      },
+      include: gradeFormInclude,
+      orderBy: [{ id: 'desc' }],
+    });
+
+    if (!row) {
+      return { gradeForm: null, details: [] };
+    }
+
+    const details = await this.prisma.gradeFormDetail.findMany({
+      where: {
+        gradeFormId: row.id,
+        status: true,
+        isVisible: true,
+      },
+      include: { gradeType: { select: { title: true } } },
+      orderBy: [{ position: 'asc' }, { id: 'asc' }],
+    });
+
+    const detailCount = details.length;
+
+    return {
+      gradeForm: this.toFormDetail(row, detailCount),
+      details: details.map((item) => this.toDetailRow(item)),
+    };
   }
 
   async createGradeForm(

@@ -25,6 +25,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateDashboardGradeFormDto } from './dto/create-dashboard-grade-form.dto';
 import { DashboardGradeFormClassesCoursesResponseDto } from './dto/dashboard-grade-form-classes-courses-response.dto';
 import { DashboardGradeFormDetailsListResponseDto } from './dto/dashboard-grade-form-details-response.dto';
+import { DashboardGradeFormByClassResponseDto } from './dto/dashboard-grade-form-by-class-response.dto';
 import { DashboardGradeFormsQueryDto } from './dto/dashboard-grade-forms-query.dto';
 import {
   DashboardGradeFormDetailDto,
@@ -52,6 +53,21 @@ export class DashboardGradeFormsController {
     @Query() query: DashboardGradeFormsQueryDto,
   ): Promise<DashboardGradeFormsResponseDto> {
     return this.dashboardGradeFormsService.listGradeForms(request.user, query);
+  }
+
+  @Get('by-class')
+  @ApiOperation({ summary: 'Get grade form and details for a class' })
+  @ApiOkResponse({ type: DashboardGradeFormByClassResponseDto })
+  getGradeFormByClass(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Query('classId', ParseIntPipe) classId: number,
+    @Query('yearId', ParseIntPipe) yearId: number,
+  ): Promise<DashboardGradeFormByClassResponseDto> {
+    return this.dashboardGradeFormsService.getGradeFormByClass(
+      request.user,
+      classId,
+      yearId,
+    );
   }
 
   @Get(':id/classes-courses')
