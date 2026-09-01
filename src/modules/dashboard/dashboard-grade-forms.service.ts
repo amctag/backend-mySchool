@@ -14,6 +14,8 @@ import {
   DashboardGradeFormItemDto,
   DashboardGradeFormsResponseDto,
 } from './dto/dashboard-grade-forms-response.dto';
+import { DashboardGradeFormDetailsListResponseDto } from './dto/dashboard-grade-form-details-response.dto';
+import { SaveDashboardGradeFormDetailDto } from './dto/save-dashboard-grade-form-detail.dto';
 import { UpdateDashboardGradeFormClassesDto } from './dto/update-dashboard-grade-form-classes.dto';
 
 const gradeFormInclude = {
@@ -49,7 +51,10 @@ export class DashboardGradeFormsService {
       this.prisma.gradeForm.count({ where }),
       this.prisma.gradeForm.findMany({
         where,
-        include: gradeFormInclude,
+        include: {
+          ...gradeFormInclude,
+          _count: { select: { details: true } },
+        },
         orderBy,
         skip: (page - 1) * limit,
         take: limit,
@@ -72,7 +77,10 @@ export class DashboardGradeFormsService {
     id: number,
   ): Promise<DashboardGradeFormDetailDto> {
     const row = await this.findGradeFormForSchool(user.schoolId, id);
-    return this.toDetail(row);
+    const detailCount = await this.prisma.gradeFormDetail.count({
+      where: { gradeFormId: id },
+    });
+    return this.toFormDetail(row, detailCount);
   }
 
   async createGradeForm(
@@ -104,7 +112,7 @@ export class DashboardGradeFormsService {
       include: gradeFormInclude,
     });
 
-    return this.toDetail(created);
+    return this.toFormDetail(created, 0);
   }
 
   async getGradeFormClassesCourses(
@@ -193,6 +201,90 @@ export class DashboardGradeFormsService {
     return this.getGradeFormClassesCourses(user, id);
   }
 
+  async listGradeFormDetails(
+    user: AuthenticatedSchool,
+    gradeFormId: number,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    const form = await this.findGradeFormForSchool(user.schoolId, gradeFormId);
+
+    const items = await this.prisma.gradeFormDetail.findMany({
+      where: { gradeFormId },
+      include: {
+        gradeType: { select: { id: true, title: true } },
+      },
+      orderBy: [{ position: 'asc' }, { id: 'asc' }],
+    });
+
+    return {
+      gradeFormId: form.id,
+      title: form.title,
+      items: items.map((item) => this.toDetailRow(item)),
+    };
+  }
+
+  async createGradeFormDetail(
+    user: AuthenticatedSchool,
+    gradeFormId: number,
+    body: SaveDashboardGradeFormDetailDto,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    await this.findGradeFormForSchool(user.schoolId, gradeFormId);
+    await this.assertGradeTypeForSchool(user.schoolId, body.gradeTypeId);
+
+    await this.prisma.gradeFormDetail.create({
+      data: {
+        gradeFormId,
+        gradeTypeId: body.gradeTypeId,
+        position: body.position ?? 0,
+        status: body.status ?? true,
+        isVisible: body.isVisible ?? true,
+      },
+    });
+
+    return this.listGradeFormDetails(user, gradeFormId);
+  }
+
+  async updateGradeFormDetail(
+    user: AuthenticatedSchool,
+    gradeFormId: number,
+    detailId: number,
+    body: SaveDashboardGradeFormDetailDto,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    await this.findGradeFormDetailForSchool(
+      user.schoolId,
+      gradeFormId,
+      detailId,
+    );
+    await this.assertGradeTypeForSchool(user.schoolId, body.gradeTypeId);
+
+    await this.prisma.gradeFormDetail.update({
+      where: { id: detailId },
+      data: {
+        gradeTypeId: body.gradeTypeId,
+        position: body.position ?? 0,
+        status: body.status ?? true,
+        isVisible: body.isVisible ?? true,
+      },
+    });
+
+    return this.listGradeFormDetails(user, gradeFormId);
+  }
+
+  async deleteGradeFormDetail(
+    user: AuthenticatedSchool,
+    gradeFormId: number,
+    detailId: number,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    await this.findGradeFormDetailForSchool(
+      user.schoolId,
+      gradeFormId,
+      detailId,
+    );
+
+    await this.prisma.gradeFormDetail.delete({ where: { id: detailId } });
+
+    return this.listGradeFormDetails(user, gradeFormId);
+  }
+
   private async findGradeFormForSchool(
     schoolId: number,
     id: number,
@@ -207,6 +299,47 @@ export class DashboardGradeFormsService {
     }
 
     return row;
+  }
+
+  private async findGradeFormDetailForSchool(
+    schoolId: number,
+    gradeFormId: number,
+    detailId: number,
+  ) {
+    const row = await this.prisma.gradeFormDetail.findFirst({
+      where: {
+        id: detailId,
+        gradeFormId,
+        gradeForm: { schoolId },
+      },
+      include: {
+        gradeType: { select: { id: true, title: true } },
+      },
+    });
+
+    if (!row) {
+      throw new NotFoundException('Grade form detail not found');
+    }
+
+    return row;
+  }
+
+  private async assertGradeTypeForSchool(
+    schoolId: number,
+    gradeTypeId: number,
+  ): Promise<void> {
+    const gradeType = await this.prisma.gradeType.findFirst({
+      where: {
+        id: gradeTypeId,
+        status: true,
+        OR: [{ schoolId }, { schoolId: null }],
+      },
+      select: { id: true },
+    });
+
+    if (!gradeType) {
+      throw new BadRequestException('Grade type not found');
+    }
   }
 
   private async assertYearForSchool(
@@ -291,7 +424,9 @@ export class DashboardGradeFormsService {
     }
   }
 
-  private toListItem(row: GradeFormRecord): DashboardGradeFormItemDto {
+  private toListItem(
+    row: GradeFormRecord & { _count: { details: number } },
+  ): DashboardGradeFormItemDto {
     return {
       id: row.id,
       title: row.title,
@@ -304,14 +439,42 @@ export class DashboardGradeFormsService {
       gradeFormatId: row.gradeFormatId,
       status: row.status,
       classNames: row.classes.map((item) => item.class.className),
+      detailCount: row._count.details,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
   }
 
-  private toDetail(row: GradeFormRecord): DashboardGradeFormDetailDto {
+  private toDetailRow(row: {
+    id: number;
+    gradeFormId: number;
+    gradeTypeId: number;
+    position: number;
+    status: boolean;
+    isVisible: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    gradeType: { id: number; title: string };
+  }): DashboardGradeFormDetailsListResponseDto['items'][number] {
     return {
-      ...this.toListItem(row),
+      id: row.id,
+      gradeFormId: row.gradeFormId,
+      gradeTypeId: row.gradeTypeId,
+      gradeTypeTitle: row.gradeType.title,
+      position: row.position,
+      status: row.status,
+      isVisible: row.isVisible,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  private toFormDetail(
+    row: GradeFormRecord,
+    detailCount: number,
+  ): DashboardGradeFormDetailDto {
+    return {
+      ...this.toListItem({ ...row, _count: { details: detailCount } }),
       classIds: row.classes.map((item) => item.classId),
     };
   }

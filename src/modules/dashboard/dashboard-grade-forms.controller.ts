@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseArrayPipe,
@@ -22,11 +23,13 @@ import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateDashboardGradeFormDto } from './dto/create-dashboard-grade-form.dto';
 import { DashboardGradeFormClassesCoursesResponseDto } from './dto/dashboard-grade-form-classes-courses-response.dto';
+import { DashboardGradeFormDetailsListResponseDto } from './dto/dashboard-grade-form-details-response.dto';
 import { DashboardGradeFormsQueryDto } from './dto/dashboard-grade-forms-query.dto';
 import {
   DashboardGradeFormDetailDto,
   DashboardGradeFormsResponseDto,
 } from './dto/dashboard-grade-forms-response.dto';
+import { SaveDashboardGradeFormDetailDto } from './dto/save-dashboard-grade-form-detail.dto';
 import { UpdateDashboardGradeFormClassesDto } from './dto/update-dashboard-grade-form-classes.dto';
 import { DashboardGradeFormsService } from './dashboard-grade-forms.service';
 
@@ -80,6 +83,66 @@ export class DashboardGradeFormsController {
       request.user,
       id,
       body,
+    );
+  }
+
+  @Get(':id/details')
+  @ApiOperation({ summary: 'List grade form details' })
+  @ApiOkResponse({ type: DashboardGradeFormDetailsListResponseDto })
+  listGradeFormDetails(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    return this.dashboardGradeFormsService.listGradeFormDetails(
+      request.user,
+      id,
+    );
+  }
+
+  @Post(':id/details')
+  @ApiOperation({ summary: 'Create a grade form detail' })
+  @ApiOkResponse({ type: DashboardGradeFormDetailsListResponseDto })
+  createGradeFormDetail(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: SaveDashboardGradeFormDetailDto,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    return this.dashboardGradeFormsService.createGradeFormDetail(
+      request.user,
+      id,
+      body,
+    );
+  }
+
+  @Patch(':id/details/:detailId')
+  @ApiOperation({ summary: 'Update a grade form detail' })
+  @ApiOkResponse({ type: DashboardGradeFormDetailsListResponseDto })
+  updateGradeFormDetail(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Param('detailId', ParseIntPipe) detailId: number,
+    @Body() body: SaveDashboardGradeFormDetailDto,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    return this.dashboardGradeFormsService.updateGradeFormDetail(
+      request.user,
+      id,
+      detailId,
+      body,
+    );
+  }
+
+  @Delete(':id/details/:detailId')
+  @ApiOperation({ summary: 'Delete a grade form detail' })
+  @ApiOkResponse({ type: DashboardGradeFormDetailsListResponseDto })
+  deleteGradeFormDetail(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Param('detailId', ParseIntPipe) detailId: number,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    return this.dashboardGradeFormsService.deleteGradeFormDetail(
+      request.user,
+      id,
+      detailId,
     );
   }
 
