@@ -515,18 +515,21 @@ async function main(): Promise<void> {
   await prisma.registration.createMany({
     data: [
       {
+        schoolId: schoolA.id,
         sectionId: academicA.section4A.id,
         studentId: studentLaylaPerson.student!.id,
         personId: adminA.id,
         status: true,
       },
       {
+        schoolId: schoolB.id,
         sectionId: academicB.section4A.id,
         studentId: studentOmarPerson.student!.id,
         personId: adminB.id,
         status: true,
       },
       {
+        schoolId: schoolA.id,
         sectionId: academicA.section5B.id,
         studentId: studentRanaPerson.student!.id,
         personId: adminA.id,
