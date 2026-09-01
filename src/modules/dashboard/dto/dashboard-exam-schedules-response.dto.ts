@@ -29,6 +29,12 @@ export class DashboardExamScheduleItemDto {
   @ApiProperty({ example: '2026-08-24', nullable: true })
   examDate!: string | null;
 
+  @ApiProperty({ example: '2026-08-26', nullable: true })
+  examDateEnd!: string | null;
+
+  @ApiProperty({ example: 3 })
+  examDatesCount!: number;
+
   @ApiProperty({ example: '2026-08-31T10:00:00.000Z' })
   createdAt!: string;
 

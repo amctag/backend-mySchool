@@ -94,7 +94,6 @@ export class DashboardExamSchedulesService {
           dates: {
             where: { status: true },
             orderBy: { date: 'asc' },
-            take: 1,
             select: { date: true },
           },
         },
@@ -292,6 +291,16 @@ export class DashboardExamSchedulesService {
     }
 
     if (dates.length > 0) {
+      const seenDates = new Set<string>();
+      for (const examDate of dates) {
+        if (seenDates.has(examDate.date)) {
+          throw new BadRequestException(
+            `Duplicate exam date ${examDate.date} in this schedule. Each date can only appear once.`,
+          );
+        }
+        seenDates.add(examDate.date);
+      }
+
       await this.assertNoDuplicateClassDates(
         schoolId,
         body.classId,
@@ -401,6 +410,11 @@ export class DashboardExamSchedulesService {
       examDate: schedule.dates[0]
         ? this.formatDateOnly(schedule.dates[0].date)
         : null,
+      examDateEnd:
+        schedule.dates.length > 1
+          ? this.formatDateOnly(schedule.dates[schedule.dates.length - 1].date)
+          : null,
+      examDatesCount: schedule.dates.length,
       createdAt: schedule.createdAt.toISOString(),
       createdByName: this.formatPersonName(schedule.person),
     };
