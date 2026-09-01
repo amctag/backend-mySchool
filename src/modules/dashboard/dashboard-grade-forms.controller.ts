@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   ParseArrayPipe,
   ParseIntPipe,
@@ -31,6 +32,7 @@ import {
 } from './dto/dashboard-grade-forms-response.dto';
 import { SaveDashboardGradeFormDetailDto } from './dto/save-dashboard-grade-form-detail.dto';
 import { UpdateDashboardGradeFormClassesDto } from './dto/update-dashboard-grade-form-classes.dto';
+import { UpdateDashboardGradeFormDto } from './dto/update-dashboard-grade-form.dto';
 import { DashboardGradeFormsService } from './dashboard-grade-forms.service';
 
 @ApiTags('Dashboard Grade Forms v1')
@@ -164,5 +166,30 @@ export class DashboardGradeFormsController {
     @Body() body: CreateDashboardGradeFormDto,
   ): Promise<DashboardGradeFormDetailDto> {
     return this.dashboardGradeFormsService.createGradeForm(request.user, body);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update a grade form' })
+  @ApiOkResponse({ type: DashboardGradeFormDetailDto })
+  updateGradeForm(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateDashboardGradeFormDto,
+  ): Promise<DashboardGradeFormDetailDto> {
+    return this.dashboardGradeFormsService.updateGradeForm(
+      request.user,
+      id,
+      body,
+    );
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Delete a grade form' })
+  deleteGradeForm(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<void> {
+    return this.dashboardGradeFormsService.deleteGradeForm(request.user, id);
   }
 }

@@ -17,6 +17,7 @@ import {
 import { DashboardGradeFormDetailsListResponseDto } from './dto/dashboard-grade-form-details-response.dto';
 import { SaveDashboardGradeFormDetailDto } from './dto/save-dashboard-grade-form-detail.dto';
 import { UpdateDashboardGradeFormClassesDto } from './dto/update-dashboard-grade-form-classes.dto';
+import { UpdateDashboardGradeFormDto } from './dto/update-dashboard-grade-form.dto';
 
 const gradeFormInclude = {
   year: { select: { id: true, title: true } },
@@ -113,6 +114,69 @@ export class DashboardGradeFormsService {
     });
 
     return this.toFormDetail(created, 0);
+  }
+
+  async updateGradeForm(
+    user: AuthenticatedSchool,
+    id: number,
+    body: UpdateDashboardGradeFormDto,
+  ): Promise<DashboardGradeFormDetailDto> {
+    await this.findGradeFormForSchool(user.schoolId, id);
+
+    if (body.yearId !== undefined) {
+      await this.assertYearForSchool(user.schoolId, body.yearId);
+    }
+    if (body.classIds !== undefined) {
+      await this.assertClassesForSchool(user.schoolId, body.classIds);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.gradeForm.update({
+        where: { id },
+        data: {
+          ...(body.title !== undefined ? { title: body.title.trim() } : {}),
+          ...(body.yearId !== undefined ? { yearId: body.yearId } : {}),
+          ...(body.gradeBackground !== undefined
+            ? { gradeBackground: body.gradeBackground.trim() || null }
+            : {}),
+          ...(body.average !== undefined ? { average: body.average } : {}),
+          ...(body.direction !== undefined ? { direction: body.direction } : {}),
+          ...(body.tableFormat !== undefined
+            ? { tableFormat: body.tableFormat }
+            : {}),
+          ...(body.gradeFormatId !== undefined
+            ? { gradeFormatId: body.gradeFormatId }
+            : {}),
+          ...(body.status !== undefined ? { status: body.status } : {}),
+        },
+      });
+
+      if (body.classIds !== undefined) {
+        await tx.gradeFormClass.deleteMany({ where: { gradeFormId: id } });
+        if (body.classIds.length > 0) {
+          await tx.gradeFormClass.createMany({
+            data: body.classIds.map((classId) => ({
+              gradeFormId: id,
+              classId,
+            })),
+          });
+        }
+      }
+    });
+
+    const detailCount = await this.prisma.gradeFormDetail.count({
+      where: { gradeFormId: id },
+    });
+    const row = await this.findGradeFormForSchool(user.schoolId, id);
+    return this.toFormDetail(row, detailCount);
+  }
+
+  async deleteGradeForm(
+    user: AuthenticatedSchool,
+    id: number,
+  ): Promise<void> {
+    await this.findGradeFormForSchool(user.schoolId, id);
+    await this.prisma.gradeForm.delete({ where: { id } });
   }
 
   async getGradeFormClassesCourses(
