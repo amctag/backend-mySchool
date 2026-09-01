@@ -212,20 +212,6 @@ export class DashboardExamSchedulesService {
     yearId: number,
     excludeScheduleId?: number,
   ): Promise<void> {
-    const section = await this.prisma.section.findFirst({
-      where: {
-        classId: body.classId,
-        schoolId,
-        yearId,
-      },
-      select: { id: true },
-    });
-    if (!section) {
-      throw new BadRequestException(
-        'Class not found for this school and year',
-      );
-    }
-
     const gradeType = await this.prisma.gradeType.findFirst({
       where: {
         id: body.gradeTypeId,
