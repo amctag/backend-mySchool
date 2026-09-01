@@ -256,7 +256,11 @@ export class DashboardExamSchedulesService {
     for (const examDate of dates) {
       const exams = examDate.exams ?? [];
       const seenCourseIds = new Set<number>();
-      const seenCourseTimes = new Set<string>();
+      const scheduled: Array<{
+        courseId: number;
+        startTime: string;
+        duration: number;
+      }> = [];
 
       for (const exam of exams) {
         if (!allowedCourseIds.has(exam.courseId)) {
@@ -275,18 +279,41 @@ export class DashboardExamSchedulesService {
           );
         }
         seenCourseIds.add(exam.courseId);
+        scheduled.push({
+          courseId: exam.courseId,
+          startTime: exam.startTime,
+          duration: exam.duration,
+        });
+      }
 
-        const courseTimeKey = `${exam.courseId}:${exam.startTime}`;
-        if (seenCourseTimes.has(courseTimeKey)) {
-          const course = await this.prisma.course.findUnique({
-            where: { id: exam.courseId },
-            select: { title: true },
-          });
-          throw new BadRequestException(
-            `${course?.title ?? 'This course'} cannot be scheduled twice at ${exam.startTime} on ${examDate.date}.`,
-          );
+      for (let index = 0; index < scheduled.length; index++) {
+        for (
+          let otherIndex = index + 1;
+          otherIndex < scheduled.length;
+          otherIndex++
+        ) {
+          const first = scheduled[index];
+          const second = scheduled[otherIndex];
+          if (
+            this.examsOverlap(
+              first.startTime,
+              first.duration,
+              second.startTime,
+              second.duration,
+            )
+          ) {
+            const courses = await this.prisma.course.findMany({
+              where: { id: { in: [first.courseId, second.courseId] } },
+              select: { id: true, title: true },
+            });
+            const titleById = new Map(
+              courses.map((course) => [course.id, course.title]),
+            );
+            throw new BadRequestException(
+              `${titleById.get(first.courseId) ?? 'Exam'} and ${titleById.get(second.courseId) ?? 'Exam'} have overlapping exam times on ${examDate.date} (${first.startTime} and ${second.startTime}).`,
+            );
+          }
         }
-        seenCourseTimes.add(courseTimeKey);
       }
     }
 
@@ -534,6 +561,24 @@ export class DashboardExamSchedulesService {
       .map((part) => part.trim())
       .filter(Boolean)
       .join(' ');
+  }
+
+  private timeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  private examsOverlap(
+    start1: string,
+    duration1: number,
+    start2: string,
+    duration2: number,
+  ): boolean {
+    const startMinutes1 = this.timeToMinutes(start1);
+    const endMinutes1 = startMinutes1 + duration1;
+    const startMinutes2 = this.timeToMinutes(start2);
+    const endMinutes2 = startMinutes2 + duration2;
+    return startMinutes1 < endMinutes2 && startMinutes2 < endMinutes1;
   }
 
   private formatDateOnly(value: Date): string {
