@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseArrayPipe,
   ParseIntPipe,
   Patch,
   Post,
@@ -20,12 +21,12 @@ import type { Request } from 'express';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateDashboardGradeFormDto } from './dto/create-dashboard-grade-form.dto';
+import { DashboardGradeFormClassesCoursesResponseDto } from './dto/dashboard-grade-form-classes-courses-response.dto';
 import { DashboardGradeFormsQueryDto } from './dto/dashboard-grade-forms-query.dto';
 import {
   DashboardGradeFormDetailDto,
   DashboardGradeFormsResponseDto,
 } from './dto/dashboard-grade-forms-response.dto';
-import { DashboardGradeFormClassesCoursesResponseDto } from './dto/dashboard-grade-form-classes-courses-response.dto';
 import { UpdateDashboardGradeFormClassesDto } from './dto/update-dashboard-grade-form-classes.dto';
 import { DashboardGradeFormsService } from './dashboard-grade-forms.service';
 
@@ -48,38 +49,22 @@ export class DashboardGradeFormsController {
     return this.dashboardGradeFormsService.listGradeForms(request.user, query);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get a grade form' })
-  @ApiOkResponse({ type: DashboardGradeFormDetailDto })
-  getGradeForm(
-    @Req() request: Request & { user: AuthenticatedSchool },
-    @Param('id', ParseIntPipe) id: number,
-  ): Promise<DashboardGradeFormDetailDto> {
-    return this.dashboardGradeFormsService.getGradeForm(request.user, id);
-  }
-
   @Get(':id/classes-courses')
-  @ApiOperation({ summary: 'Get classes and courses for a grade form' })
+  @ApiOperation({ summary: 'List classes and courses for a grade form' })
   @ApiOkResponse({ type: DashboardGradeFormClassesCoursesResponseDto })
   getGradeFormClassesCourses(
     @Req() request: Request & { user: AuthenticatedSchool },
     @Param('id', ParseIntPipe) id: number,
-    @Query('classIds') classIds?: string,
+    @Query(
+      'classIds',
+      new ParseArrayPipe({ items: Number, separator: ',', optional: true }),
+    )
+    classIds?: number[],
   ): Promise<DashboardGradeFormClassesCoursesResponseDto> {
-    const previewClassIds =
-      classIds === undefined
-        ? undefined
-        : classIds.trim() === ''
-          ? []
-          : classIds
-              .split(',')
-              .map((value) => Number(value.trim()))
-              .filter((value) => Number.isInteger(value) && value > 0);
-
     return this.dashboardGradeFormsService.getGradeFormClassesCourses(
       request.user,
       id,
-      previewClassIds,
+      classIds,
     );
   }
 
@@ -94,8 +79,18 @@ export class DashboardGradeFormsController {
     return this.dashboardGradeFormsService.updateGradeFormClasses(
       request.user,
       id,
-      body.classIds,
+      body,
     );
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a grade form' })
+  @ApiOkResponse({ type: DashboardGradeFormDetailDto })
+  getGradeForm(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<DashboardGradeFormDetailDto> {
+    return this.dashboardGradeFormsService.getGradeForm(request.user, id);
   }
 
   @Post()
