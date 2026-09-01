@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -24,6 +25,8 @@ import {
   DashboardGradeFormDetailDto,
   DashboardGradeFormsResponseDto,
 } from './dto/dashboard-grade-forms-response.dto';
+import { DashboardGradeFormClassesCoursesResponseDto } from './dto/dashboard-grade-form-classes-courses-response.dto';
+import { UpdateDashboardGradeFormClassesDto } from './dto/update-dashboard-grade-form-classes.dto';
 import { DashboardGradeFormsService } from './dashboard-grade-forms.service';
 
 @ApiTags('Dashboard Grade Forms v1')
@@ -53,6 +56,46 @@ export class DashboardGradeFormsController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DashboardGradeFormDetailDto> {
     return this.dashboardGradeFormsService.getGradeForm(request.user, id);
+  }
+
+  @Get(':id/classes-courses')
+  @ApiOperation({ summary: 'Get classes and courses for a grade form' })
+  @ApiOkResponse({ type: DashboardGradeFormClassesCoursesResponseDto })
+  getGradeFormClassesCourses(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Query('classIds') classIds?: string,
+  ): Promise<DashboardGradeFormClassesCoursesResponseDto> {
+    const previewClassIds =
+      classIds === undefined
+        ? undefined
+        : classIds.trim() === ''
+          ? []
+          : classIds
+              .split(',')
+              .map((value) => Number(value.trim()))
+              .filter((value) => Number.isInteger(value) && value > 0);
+
+    return this.dashboardGradeFormsService.getGradeFormClassesCourses(
+      request.user,
+      id,
+      previewClassIds,
+    );
+  }
+
+  @Patch(':id/classes')
+  @ApiOperation({ summary: 'Update classes assigned to a grade form' })
+  @ApiOkResponse({ type: DashboardGradeFormClassesCoursesResponseDto })
+  updateGradeFormClasses(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateDashboardGradeFormClassesDto,
+  ): Promise<DashboardGradeFormClassesCoursesResponseDto> {
+    return this.dashboardGradeFormsService.updateGradeFormClasses(
+      request.user,
+      id,
+      body.classIds,
+    );
   }
 
   @Post()

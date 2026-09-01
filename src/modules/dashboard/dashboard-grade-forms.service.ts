@@ -13,6 +13,8 @@ import {
   DashboardGradeFormItemDto,
   DashboardGradeFormsResponseDto,
 } from './dto/dashboard-grade-forms-response.dto';
+import { DashboardGradeFormClassesCoursesResponseDto } from './dto/dashboard-grade-form-classes-courses-response.dto';
+import { UpdateDashboardGradeFormClassesDto } from './dto/update-dashboard-grade-form-classes.dto';
 
 const gradeFormInclude = {
   year: { select: { id: true, title: true } },
@@ -54,8 +56,12 @@ export class DashboardGradeFormsService {
       }),
     ]);
 
+    const courseCountByFormId = await this.buildCourseCountMap(rows);
+
     return {
-      items: rows.map((row) => this.toListItem(row)),
+      items: rows.map((row) =>
+        this.toListItem(row, courseCountByFormId.get(row.id) ?? 0),
+      ),
       pagination: {
         page,
         limit,
@@ -103,6 +109,50 @@ export class DashboardGradeFormsService {
     });
 
     return this.toDetail(created);
+  }
+
+  async getGradeFormClassesCourses(
+    user: AuthenticatedSchool,
+    id: number,
+    previewClassIds?: number[],
+  ): Promise<DashboardGradeFormClassesCoursesResponseDto> {
+    const row = await this.findGradeFormForSchool(user.schoolId, id);
+    const savedClassIds = row.classes.map((item) => item.classId);
+    const classIdsForCourses = previewClassIds ?? savedClassIds;
+    const allClasses = await this.listSchoolClasses(user.schoolId);
+
+    return {
+      gradeFormId: row.id,
+      title: row.title,
+      yearId: row.year.id,
+      yearTitle: row.year.title,
+      classIds: previewClassIds ?? savedClassIds,
+      classes: allClasses,
+      courses: await this.buildCoursesForClasses(
+        classIdsForCourses,
+        row.year.id,
+      ),
+    };
+  }
+
+  async updateGradeFormClasses(
+    user: AuthenticatedSchool,
+    id: number,
+    classIds: number[],
+  ): Promise<DashboardGradeFormClassesCoursesResponseDto> {
+    await this.findGradeFormForSchool(user.schoolId, id);
+    await this.assertClassesForSchool(user.schoolId, classIds);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.gradeFormClass.deleteMany({ where: { gradeFormId: id } });
+      if (classIds.length > 0) {
+        await tx.gradeFormClass.createMany({
+          data: classIds.map((classId) => ({ gradeFormId: id, classId })),
+        });
+      }
+    });
+
+    return this.getGradeFormClassesCourses(user, id);
   }
 
   private async findGradeFormForSchool(
@@ -203,7 +253,10 @@ export class DashboardGradeFormsService {
     }
   }
 
-  private toListItem(row: GradeFormRecord): DashboardGradeFormItemDto {
+  private toListItem(
+    row: GradeFormRecord,
+    courseCount = 0,
+  ): DashboardGradeFormItemDto {
     return {
       id: row.id,
       title: row.title,
@@ -216,6 +269,7 @@ export class DashboardGradeFormsService {
       gradeFormatId: row.gradeFormatId,
       status: row.status,
       classNames: row.classes.map((item) => item.class.className),
+      courseCount,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
@@ -223,9 +277,109 @@ export class DashboardGradeFormsService {
 
   private toDetail(row: GradeFormRecord): DashboardGradeFormDetailDto {
     return {
-      ...this.toListItem(row),
+      ...this.toListItem(row, 0),
       classIds: row.classes.map((item) => item.classId),
     };
+  }
+
+  private async listSchoolClasses(schoolId: number) {
+    return this.prisma.class.findMany({
+      where: { stage: { schoolId } },
+      select: { id: true, className: true },
+      orderBy: [{ position: 'asc' }, { className: 'asc' }],
+    });
+  }
+
+  private async buildCoursesForClasses(classIds: number[], yearId: number) {
+    if (classIds.length === 0) {
+      return [];
+    }
+
+    const rows = await this.prisma.classCourse.findMany({
+      where: {
+        classId: { in: classIds },
+        yearId,
+        status: true,
+      },
+      include: {
+        course: { select: { id: true, title: true } },
+        class: { select: { className: true } },
+      },
+      orderBy: [{ course: { title: 'asc' } }, { class: { className: 'asc' } }],
+    });
+
+    const byCourse = new Map<
+      number,
+      { courseId: number; courseTitle: string; classNames: Set<string> }
+    >();
+
+    for (const row of rows) {
+      const existing = byCourse.get(row.courseId);
+      if (existing) {
+        existing.classNames.add(row.class.className);
+        continue;
+      }
+      byCourse.set(row.courseId, {
+        courseId: row.course.id,
+        courseTitle: row.course.title,
+        classNames: new Set([row.class.className]),
+      });
+    }
+
+    return [...byCourse.values()].map((item) => ({
+      courseId: item.courseId,
+      courseTitle: item.courseTitle,
+      classNames: [...item.classNames].sort((a, b) => a.localeCompare(b)),
+    }));
+  }
+
+  private async buildCourseCountMap(rows: GradeFormRecord[]) {
+    const map = new Map<number, number>();
+    if (rows.length === 0) {
+      return map;
+    }
+
+    const allClassIds = [
+      ...new Set(rows.flatMap((row) => row.classes.map((item) => item.classId))),
+    ];
+
+    if (allClassIds.length === 0) {
+      return map;
+    }
+
+    const yearIds = [...new Set(rows.map((row) => row.year.id))];
+    const classCourses = await this.prisma.classCourse.findMany({
+      where: {
+        classId: { in: allClassIds },
+        yearId: { in: yearIds },
+        status: true,
+      },
+      select: { classId: true, courseId: true, yearId: true },
+    });
+
+    const coursesByYearClass = new Map<string, Set<number>>();
+    for (const row of classCourses) {
+      const key = `${row.yearId}:${row.classId}`;
+      const bucket = coursesByYearClass.get(key) ?? new Set<number>();
+      bucket.add(row.courseId);
+      coursesByYearClass.set(key, bucket);
+    }
+
+    for (const form of rows) {
+      const courseIds = new Set<number>();
+      for (const link of form.classes) {
+        const bucket = coursesByYearClass.get(`${form.year.id}:${link.classId}`);
+        if (!bucket) {
+          continue;
+        }
+        for (const courseId of bucket) {
+          courseIds.add(courseId);
+        }
+      }
+      map.set(form.id, courseIds.size);
+    }
+
+    return map;
   }
 
   private async currentYearId(schoolId: number): Promise<number | null> {

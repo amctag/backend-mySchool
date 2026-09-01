@@ -35,6 +35,9 @@ export class DashboardGradeFormItemDto {
   @ApiProperty({ example: ['Grade 4'] })
   classNames!: string[];
 
+  @ApiProperty({ example: 8 })
+  courseCount!: number;
+
   @ApiProperty({ example: '2026-09-01T10:00:00.000Z' })
   createdAt!: string;
 
