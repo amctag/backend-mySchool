@@ -114,7 +114,7 @@ export class DashboardGradeFormsService {
         status: true,
         isVisible: true,
       },
-      include: { gradeType: { select: { title: true } } },
+      include: { gradeType: { select: { id: true, title: true } } },
       orderBy: [{ position: 'asc' }, { id: 'asc' }],
     });
 
