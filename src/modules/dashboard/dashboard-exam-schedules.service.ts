@@ -255,12 +255,39 @@ export class DashboardExamSchedulesService {
     const dates = body.dates ?? [];
 
     for (const examDate of dates) {
-      for (const exam of examDate.exams) {
+      const exams = examDate.exams ?? [];
+      const seenCourseIds = new Set<number>();
+      const seenCourseTimes = new Set<string>();
+
+      for (const exam of exams) {
         if (!allowedCourseIds.has(exam.courseId)) {
           throw new BadRequestException(
             `Course ${exam.courseId} is not assigned to this class`,
           );
         }
+
+        if (seenCourseIds.has(exam.courseId)) {
+          const course = await this.prisma.course.findUnique({
+            where: { id: exam.courseId },
+            select: { title: true },
+          });
+          throw new BadRequestException(
+            `${course?.title ?? 'This course'} is already scheduled on ${examDate.date}. Each course can only appear once on the same date.`,
+          );
+        }
+        seenCourseIds.add(exam.courseId);
+
+        const courseTimeKey = `${exam.courseId}:${exam.startTime}`;
+        if (seenCourseTimes.has(courseTimeKey)) {
+          const course = await this.prisma.course.findUnique({
+            where: { id: exam.courseId },
+            select: { title: true },
+          });
+          throw new BadRequestException(
+            `${course?.title ?? 'This course'} cannot be scheduled twice at ${exam.startTime} on ${examDate.date}.`,
+          );
+        }
+        seenCourseTimes.add(courseTimeKey);
       }
     }
 
@@ -330,7 +357,7 @@ export class DashboardExamSchedulesService {
         },
       });
 
-      const exams = examDate.exams.map((exam, index) => ({
+      const exams = (examDate.exams ?? []).map((exam, index) => ({
         examDateId: createdDate.id,
         courseId: exam.courseId,
         position: exam.position ?? index,
