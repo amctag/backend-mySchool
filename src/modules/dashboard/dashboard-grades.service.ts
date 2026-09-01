@@ -49,9 +49,9 @@ const gradeSheetInclude = {
         },
       },
     },
-    orderBy: [{ id: 'asc' as const }],
+    orderBy: [{ id: 'asc' }],
   },
-};
+} satisfies Prisma.GradeInclude;
 
 type GradeSheetRecord = {
   id: number;
