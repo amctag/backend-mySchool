@@ -10,8 +10,20 @@ import {
   ScheduleGeneratorObjectDto,
 } from './dto/dashboard-schedule-generator-response.dto';
 
-/** All schedule-generator data is scoped to this year. */
-const SCHEDULE_GENERATOR_YEAR_ID = 3;
+/** All schedule-generator data uses the school's current year. */
+async function resolveYearId(
+  prisma: PrismaService,
+  schoolId: number,
+): Promise<number> {
+  const year = await prisma.year.findFirst({
+    where: { schoolId, isCurrent: true },
+    select: { id: true },
+  });
+  if (!year) {
+    throw new BadRequestException('Current year not found for this school');
+  }
+  return year.id;
+}
 
 @Injectable()
 export class DashboardScheduleGeneratorService {
@@ -30,17 +42,7 @@ export class DashboardScheduleGeneratorService {
       throw new NotFoundException('School not found');
     }
 
-    const yearId = SCHEDULE_GENERATOR_YEAR_ID;
-
-    const year = await this.prisma.year.findFirst({
-      where: { id: yearId, schoolId },
-      select: { id: true },
-    });
-    if (!year) {
-      throw new BadRequestException(
-        `Year ${yearId} not found for this school`,
-      );
-    }
+    const yearId = await resolveYearId(this.prisma, schoolId);
 
     if (query.sectionId) {
       const section = await this.prisma.section.findFirst({

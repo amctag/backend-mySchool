@@ -14,20 +14,92 @@ const prisma = new SeedPrismaClient(connectionString);
 const PRESERVED_PERSON_ID = 1;
 const DEFAULT_PASSWORD = bcrypt.hashSync('password123', 10);
 const CURRENT_YEAR_TITLE = '2026-2027';
+const MAX_WEEKLY_HOURS = 30;
 
-/** coefficient = max grade (العلامة القصوى) for that course in the class */
+/** Weekly hours per course — total across all courses = 30 (max weekly schedule) */
 const COURSES = [
   { title: 'Mathematics', hours: 5, maxGrade: 20 },
   { title: 'Arabic', hours: 5, maxGrade: 20 },
   { title: 'English', hours: 4, maxGrade: 20 },
   { title: 'Science', hours: 4, maxGrade: 20 },
   { title: 'Physics', hours: 3, maxGrade: 20 },
-  { title: 'Chemistry', hours: 3, maxGrade: 20 },
+  { title: 'Chemistry', hours: 2, maxGrade: 20 },
   { title: 'History', hours: 2, maxGrade: 15 },
   { title: 'Geography', hours: 2, maxGrade: 15 },
   { title: 'Computer Science', hours: 2, maxGrade: 20 },
-  { title: 'Physical Education', hours: 2, maxGrade: 10 },
+  { title: 'Physical Education', hours: 1, maxGrade: 10 },
 ] as const;
+
+type GradeSectionSeed = {
+  sectionId: number;
+  classId: number;
+  classLevel: number;
+  sectionCode: 'a' | 'b';
+};
+
+async function seedWeeklyScheduleForSection(
+  section: GradeSectionSeed,
+  yearId: number,
+  schoolId: number,
+  days: Array<{ id: number }>,
+  sessions: Array<{ id: number }>,
+): Promise<number> {
+  const classCourses = await prisma.classCourse.findMany({
+    where: {
+      classId: section.classId,
+      yearId,
+      status: true,
+      course: { schoolId },
+    },
+    orderBy: { position: 'asc' },
+  });
+
+  const schedule = await prisma.weeklySchedule.create({
+    data: { sectionId: section.sectionId },
+  });
+
+  const maxSlots = days.length * sessions.length;
+  let slotIndex = 0;
+  let totalHours = 0;
+
+  for (const classCourse of classCourses) {
+    const teach = await prisma.teach.findFirst({
+      where: {
+        sectionId: section.sectionId,
+        courseId: classCourse.courseId,
+        yearId,
+      },
+      include: { teacher: true },
+    });
+    if (!teach) continue;
+
+    const courseHours = classCourse.numberOfHours ?? 0;
+    for (let hour = 0; hour < courseHours; hour += 1) {
+      if (totalHours >= MAX_WEEKLY_HOURS || slotIndex >= maxSlots) {
+        return totalHours;
+      }
+
+      const day = days[slotIndex % days.length];
+      const session =
+        sessions[Math.floor(slotIndex / days.length) % sessions.length];
+
+      await prisma.weeklyScheduleDetail.create({
+        data: {
+          scheduleId: schedule.id,
+          dayId: day.id,
+          sessionId: session.id,
+          courseId: classCourse.courseId,
+          personId: teach.teacher.personId,
+        },
+      });
+
+      slotIndex += 1;
+      totalHours += 1;
+    }
+  }
+
+  return totalHours;
+}
 
 function maxGradeForClassCourse(
   courseTitle: string,
@@ -383,7 +455,7 @@ async function seedSchool(schoolId: number, gradeFormBackup: GradeFormClassBacku
     ),
   );
 
-  const gradeSections: Array<{ sectionId: number; classId: number; classLevel: number }> = [];
+  const gradeSections: GradeSectionSeed[] = [];
 
   for (const className of GRADE_FORM_CLASS_NAMES) {
     const classRow = classByName[className];
@@ -416,7 +488,7 @@ async function seedSchool(schoolId: number, gradeFormBackup: GradeFormClassBacku
       },
     });
 
-    await prisma.section.create({
+    const sectionB = await prisma.section.create({
       data: {
         schoolId,
         classId: classRow.id,
@@ -426,11 +498,20 @@ async function seedSchool(schoolId: number, gradeFormBackup: GradeFormClassBacku
       },
     });
 
-    gradeSections.push({
-      sectionId: sectionA.id,
-      classId: classRow.id,
-      classLevel: classRow.classLevel,
-    });
+    gradeSections.push(
+      {
+        sectionId: sectionA.id,
+        classId: classRow.id,
+        classLevel: classRow.classLevel,
+        sectionCode: 'a',
+      },
+      {
+        sectionId: sectionB.id,
+        classId: classRow.id,
+        classLevel: classRow.classLevel,
+        sectionCode: 'b',
+      },
+    );
   }
 
   if (schoolId === 1) {
@@ -487,7 +568,7 @@ async function seedSchoolOnePeople({
 }: {
   schoolId: number;
   yearId: number;
-  gradeSections: Array<{ sectionId: number; classId: number; classLevel: number }>;
+  gradeSections: GradeSectionSeed[];
   courses: Array<{ id: number; title: string }>;
   days: Array<{ id: number }>;
   sessions: Array<{ id: number }>;
@@ -554,7 +635,7 @@ async function seedSchoolOnePeople({
   for (const section of gradeSections) {
     for (let i = 1; i <= 10; i += 1) {
       const firstName = STUDENT_FIRST_NAMES[(studentIndex + i - 1) % STUDENT_FIRST_NAMES.length];
-      const username = `g${String(section.classLevel).padStart(2, '0')}-stu-${String(i).padStart(2, '0')}`;
+      const username = `g${String(section.classLevel).padStart(2, '0')}-${section.sectionCode}-stu-${String(i).padStart(2, '0')}`;
       const parent = parentRows[(studentIndex + i) % parentRows.length];
 
       const person = await prisma.person.create({
@@ -611,29 +692,18 @@ async function seedSchoolOnePeople({
       });
     }
 
-    const schedule = await prisma.weeklySchedule.create({
-      data: { sectionId: section.sectionId },
-    });
+    const scheduledHours = await seedWeeklyScheduleForSection(
+      section,
+      yearId,
+      schoolId,
+      days,
+      sessions,
+    );
 
-    const sectionTeaches = await prisma.teach.findMany({
-      where: { sectionId: section.sectionId, yearId },
-      include: { course: true, teacher: { include: { person: true } } },
-    });
-
-    for (let i = 0; i < Math.min(sectionTeaches.length, days.length * sessions.length); i += 1) {
-      const teach = sectionTeaches[i];
-      const day = days[i % days.length];
-      const session = sessions[Math.floor(i / days.length) % sessions.length];
-
-      await prisma.weeklyScheduleDetail.create({
-        data: {
-          scheduleId: schedule.id,
-          dayId: day.id,
-          sessionId: session.id,
-          courseId: teach.courseId,
-          personId: teach.teacher.personId,
-        },
-      });
+    if (scheduledHours > MAX_WEEKLY_HOURS) {
+      throw new Error(
+        `Section ${section.sectionId} exceeds ${MAX_WEEKLY_HOURS} weekly hours (${scheduledHours})`,
+      );
     }
   }
 }
@@ -666,7 +736,9 @@ async function main(): Promise<void> {
   console.log(`  Preserved schools: ${schools.map((s) => s.id).join(', ')}`);
   console.log('  Preserved: grade_form, grade_form_detail, grade_form_percentage');
   console.log(`  Year: ${CURRENT_YEAR_TITLE}`);
-  console.log('  Sessions: 7 | Students: 10 per Grade 1–10 section A (school 1)');
+  console.log(`  Weekly hours cap: ${MAX_WEEKLY_HOURS} per section`);
+  console.log('  Sections A & B: teach + schedule for Grade 1–10 (school 1)');
+  console.log('  Students: 10 per section A and B (200 total for school 1)');
   console.log('  Password for new accounts: password123');
 }
 
