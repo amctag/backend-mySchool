@@ -15,18 +15,43 @@ const PRESERVED_PERSON_ID = 1;
 const DEFAULT_PASSWORD = bcrypt.hashSync('password123', 10);
 const CURRENT_YEAR_TITLE = '2026-2027';
 
+/** coefficient = max grade (العلامة القصوى) for that course in the class */
 const COURSES = [
-  { title: 'Mathematics', hours: 5 },
-  { title: 'Arabic', hours: 5 },
-  { title: 'English', hours: 4 },
-  { title: 'Science', hours: 4 },
-  { title: 'Physics', hours: 3 },
-  { title: 'Chemistry', hours: 3 },
-  { title: 'History', hours: 2 },
-  { title: 'Geography', hours: 2 },
-  { title: 'Computer Science', hours: 2 },
-  { title: 'Physical Education', hours: 2 },
+  { title: 'Mathematics', hours: 5, maxGrade: 20 },
+  { title: 'Arabic', hours: 5, maxGrade: 20 },
+  { title: 'English', hours: 4, maxGrade: 20 },
+  { title: 'Science', hours: 4, maxGrade: 20 },
+  { title: 'Physics', hours: 3, maxGrade: 20 },
+  { title: 'Chemistry', hours: 3, maxGrade: 20 },
+  { title: 'History', hours: 2, maxGrade: 15 },
+  { title: 'Geography', hours: 2, maxGrade: 15 },
+  { title: 'Computer Science', hours: 2, maxGrade: 20 },
+  { title: 'Physical Education', hours: 2, maxGrade: 10 },
 ] as const;
+
+function maxGradeForClassCourse(
+  courseTitle: string,
+  classLevel: number,
+): number {
+  const course = COURSES.find((item) => item.title === courseTitle);
+  const base = course?.maxGrade ?? 20;
+
+  // Primary (Grade 1–3): cap most subjects at 10; PE stays 10
+  if (classLevel <= 3) {
+    if (courseTitle === 'Physical Education') return 10;
+    if (courseTitle === 'History' || courseTitle === 'Geography') return 10;
+    return Math.min(base, 10);
+  }
+
+  // Grade 4–6: history/geography at 15, others at full max
+  if (classLevel <= 6) {
+    if (courseTitle === 'History' || courseTitle === 'Geography') return 15;
+    if (courseTitle === 'Physical Education') return 10;
+    return base;
+  }
+
+  return base;
+}
 
 const SESSION_NAMES = [
   'Session 1',
@@ -371,7 +396,7 @@ async function seedSchool(schoolId: number, gradeFormBackup: GradeFormClassBacku
           classId: classRow.id,
           courseId: course.id,
           yearId: year.id,
-          coefficient: 1,
+          coefficient: maxGradeForClassCourse(course.title, classRow.classLevel),
           numberOfHours: courseDef?.hours ?? 4,
           calculation: true,
           position: course.id,
