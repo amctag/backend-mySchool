@@ -172,7 +172,7 @@ export class DashboardGradesService {
       );
     }
 
-    const [gradeFormRow, classCourses, gradeSheets] = await Promise.all([
+    const [gradeFormRow, classCourses] = await Promise.all([
       this.prisma.gradeForm.findFirst({
         where: {
           schoolId: user.schoolId,
@@ -200,23 +200,6 @@ export class DashboardGradesService {
         },
         orderBy: [{ course: { title: 'asc' } }, { id: 'asc' }],
       }),
-      this.prisma.grade.findMany({
-        where: {
-          schoolId: user.schoolId,
-          sectionId: section.id,
-          details: { some: { registrationId: registration.id } },
-        },
-        select: {
-          courseId: true,
-          gradeTypeId: true,
-          maxGrade: true,
-          details: {
-            where: { registrationId: registration.id },
-            select: { grade: true, comment: true },
-            take: 1,
-          },
-        },
-      }),
     ]);
 
     const gradeFormDetails =
@@ -232,26 +215,56 @@ export class DashboardGradesService {
             orderBy: [{ position: 'asc' }, { id: 'asc' }],
           });
 
-    const allowedCourseIds = new Set(classCourses.map((item) => item.courseId));
-    const allowedGradeTypeIds = new Set(
-      gradeFormDetails.map((item) => item.gradeTypeId),
-    );
+    const courseIds = classCourses.map((item) => item.courseId);
+    const gradeTypeIds = gradeFormDetails.map((item) => item.gradeTypeId);
+
+    const gradeDetails =
+      courseIds.length > 0
+        ? await this.prisma.gradeDetail.findMany({
+            where: {
+              registrationId: registration.id,
+              gradeSheet: {
+                schoolId: user.schoolId,
+                sectionId: section.id,
+                courseId: { in: courseIds },
+                ...(gradeTypeIds.length > 0
+                  ? { gradeTypeId: { in: gradeTypeIds } }
+                  : {}),
+              },
+            },
+            select: {
+              grade: true,
+              comment: true,
+              gradeSheet: {
+                select: {
+                  courseId: true,
+                  gradeTypeId: true,
+                  maxGrade: true,
+                },
+              },
+            },
+          })
+        : [];
+
+    const allowedCourseIds = new Set(courseIds);
+    const allowedGradeTypeIds = new Set(gradeTypeIds);
 
     const cells: Record<string, DashboardGradeCardCellDto> = {};
-    for (const sheet of gradeSheets) {
+    for (const detail of gradeDetails) {
+      const { courseId, gradeTypeId, maxGrade } = detail.gradeSheet;
       if (
-        !allowedCourseIds.has(sheet.courseId) ||
-        !allowedGradeTypeIds.has(sheet.gradeTypeId)
+        !allowedCourseIds.has(courseId) ||
+        (allowedGradeTypeIds.size > 0 &&
+          !allowedGradeTypeIds.has(gradeTypeId))
       ) {
         continue;
       }
 
-      const detail = sheet.details[0];
-      const key = `${sheet.courseId}-${sheet.gradeTypeId}`;
+      const key = `${courseId}-${gradeTypeId}`;
       cells[key] = {
-        score: detail?.grade == null ? null : Number(detail.grade),
-        maxGrade: Number(sheet.maxGrade),
-        comment: detail?.comment ?? null,
+        score: detail.grade == null ? null : Number(detail.grade),
+        maxGrade: Number(maxGrade),
+        comment: detail.comment ?? null,
       };
     }
 
