@@ -1,9 +1,8 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
-import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { DashboardScheduleGeneratorQueryDto } from './dto/dashboard-schedule-generator-query.dto';
 import {
@@ -19,12 +18,16 @@ export class DashboardScheduleGeneratorService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getScheduleGeneratorData(
-    user: AuthenticatedSchool,
     query: DashboardScheduleGeneratorQueryDto,
   ): Promise<DashboardScheduleGeneratorResponseDto> {
     const schoolId = query.schoolId;
-    if (schoolId !== user.schoolId) {
-      throw new ForbiddenException('You can only access your own school');
+
+    const school = await this.prisma.school.findFirst({
+      where: { id: schoolId },
+      select: { id: true },
+    });
+    if (!school) {
+      throw new NotFoundException('School not found');
     }
 
     const yearId = SCHEDULE_GENERATOR_YEAR_ID;
