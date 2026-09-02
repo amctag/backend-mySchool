@@ -141,7 +141,7 @@ export class DashboardGradeFormsService {
         gradeBackground: body.gradeBackground?.trim() || null,
         average: body.average ?? true,
         direction: body.direction ?? 'ltr',
-        tableFormat: body.tableFormat ?? 'standard',
+        tableFormat: body.tableFormat ?? 'grade_on_top',
         gradeFormatId: body.gradeFormatId,
         status: body.status ?? true,
         ...(body.classIds?.length

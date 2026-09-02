@@ -41,9 +41,13 @@ export class CreateDashboardGradeFormDto {
   @IsIn(['ltr', 'rtl'])
   direction?: string;
 
-  @ApiPropertyOptional({ example: 'standard' })
+  @ApiPropertyOptional({
+    example: 'grade_on_top',
+    enum: ['course_on_top', 'grade_on_top'],
+  })
   @IsOptional()
   @IsString()
+  @IsIn(['course_on_top', 'grade_on_top'])
   @MaxLength(30)
   tableFormat?: string;
 

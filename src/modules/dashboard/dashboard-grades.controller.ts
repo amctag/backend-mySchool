@@ -27,6 +27,8 @@ import {
   DashboardGradesByCourseResponseDto,
 } from './dto/dashboard-grades-by-course-response.dto';
 import { DashboardGradeTypesListResponseDto } from './dto/dashboard-grade-types-list-response.dto';
+import { DashboardGradeCardQueryDto } from './dto/dashboard-grade-card-query.dto';
+import { DashboardGradeCardResponseDto } from './dto/dashboard-grade-card-response.dto';
 import { SaveDashboardGradeByCourseDto } from './dto/save-dashboard-grade-by-course.dto';
 import { DashboardGradesService } from './dashboard-grades.service';
 
@@ -44,6 +46,20 @@ export class DashboardGradesController {
     @Req() request: Request & { user: AuthenticatedSchool },
   ): Promise<DashboardGradeTypesListResponseDto> {
     return this.dashboardGradesService.listGradeTypes(request.user);
+  }
+
+  @Get('grade-card')
+  @ApiOperation({
+    summary: 'Grade card matrix for one student (courses × grade types)',
+  })
+  @ApiOkResponse({ type: DashboardGradeCardResponseDto })
+  @ApiUnauthorizedResponse()
+  @ApiForbiddenResponse()
+  getGradeCard(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardGradeCardQueryDto,
+  ): Promise<DashboardGradeCardResponseDto> {
+    return this.dashboardGradesService.getGradeCard(request.user, query);
   }
 
   @Get('by-course')

@@ -14,6 +14,11 @@ import {
   DashboardGradesByCourseResponseDto,
 } from './dto/dashboard-grades-by-course-response.dto';
 import { DashboardGradeTypesListResponseDto } from './dto/dashboard-grade-types-list-response.dto';
+import { DashboardGradeCardQueryDto } from './dto/dashboard-grade-card-query.dto';
+import {
+  DashboardGradeCardResponseDto,
+  DashboardGradeCardCellDto,
+} from './dto/dashboard-grade-card-response.dto';
 import { SaveDashboardGradeByCourseDto } from './dto/save-dashboard-grade-by-course.dto';
 
 const DASHBOARD_CREATOR_PERSON_ID = 1;
@@ -107,6 +112,184 @@ export class DashboardGradesService {
     });
 
     return { items };
+  }
+
+  async getGradeCard(
+    user: AuthenticatedSchool,
+    query: DashboardGradeCardQueryDto,
+  ): Promise<DashboardGradeCardResponseDto> {
+    const registration = await this.prisma.registration.findFirst({
+      where: {
+        id: query.registrationId,
+        schoolId: user.schoolId,
+        status: true,
+      },
+      include: {
+        student: {
+          select: {
+            id: true,
+            person: {
+              select: {
+                firstName: true,
+                middleName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        section: {
+          select: {
+            id: true,
+            classId: true,
+            yearId: true,
+            class: { select: { className: true } },
+            sectionTitle: { select: { title: true } },
+            year: { select: { id: true, title: true } },
+          },
+        },
+      },
+    });
+
+    if (!registration) {
+      throw new NotFoundException('Registration not found');
+    }
+
+    const { section } = registration;
+
+    if (query.sectionId !== undefined && section.id !== query.sectionId) {
+      throw new BadRequestException(
+        'Registration does not match the selected section',
+      );
+    }
+    if (query.classId !== undefined && section.classId !== query.classId) {
+      throw new BadRequestException(
+        'Registration does not match the selected class',
+      );
+    }
+    if (query.yearId !== undefined && section.yearId !== query.yearId) {
+      throw new BadRequestException(
+        'Registration does not match the selected year',
+      );
+    }
+
+    const [gradeFormRow, classCourses, gradeSheets] = await Promise.all([
+      this.prisma.gradeForm.findFirst({
+        where: {
+          schoolId: user.schoolId,
+          yearId: section.yearId,
+          status: true,
+          classes: { some: { classId: section.classId } },
+        },
+        orderBy: [{ id: 'desc' }],
+        select: {
+          id: true,
+          title: true,
+          direction: true,
+          tableFormat: true,
+          average: true,
+        },
+      }),
+      this.prisma.classCourse.findMany({
+        where: {
+          classId: section.classId,
+          yearId: section.yearId,
+          status: true,
+        },
+        include: {
+          course: { select: { id: true, title: true } },
+        },
+        orderBy: [{ course: { title: 'asc' } }, { id: 'asc' }],
+      }),
+      this.prisma.grade.findMany({
+        where: {
+          schoolId: user.schoolId,
+          sectionId: section.id,
+          details: { some: { registrationId: registration.id } },
+        },
+        select: {
+          courseId: true,
+          gradeTypeId: true,
+          maxGrade: true,
+          details: {
+            where: { registrationId: registration.id },
+            select: { grade: true, comment: true },
+            take: 1,
+          },
+        },
+      }),
+    ]);
+
+    const gradeFormDetails =
+      gradeFormRow === null
+        ? []
+        : await this.prisma.gradeFormDetail.findMany({
+            where: {
+              gradeFormId: gradeFormRow.id,
+              status: true,
+              isVisible: true,
+            },
+            include: { gradeType: { select: { id: true, title: true } } },
+            orderBy: [{ position: 'asc' }, { id: 'asc' }],
+          });
+
+    const allowedCourseIds = new Set(classCourses.map((item) => item.courseId));
+    const allowedGradeTypeIds = new Set(
+      gradeFormDetails.map((item) => item.gradeTypeId),
+    );
+
+    const cells: Record<string, DashboardGradeCardCellDto> = {};
+    for (const sheet of gradeSheets) {
+      if (
+        !allowedCourseIds.has(sheet.courseId) ||
+        !allowedGradeTypeIds.has(sheet.gradeTypeId)
+      ) {
+        continue;
+      }
+
+      const detail = sheet.details[0];
+      const key = `${sheet.courseId}-${sheet.gradeTypeId}`;
+      cells[key] = {
+        score: detail?.grade == null ? null : Number(detail.grade),
+        maxGrade: Number(sheet.maxGrade),
+        comment: detail?.comment ?? null,
+      };
+    }
+
+    return {
+      student: {
+        registrationId: registration.id,
+        studentId: registration.student.id,
+        studentName: this.formatPersonName(registration.student.person),
+        classId: section.classId,
+        className: section.class.className,
+        sectionId: section.id,
+        sectionTitle: section.sectionTitle.title,
+        yearId: section.year.id,
+        yearTitle: section.year.title,
+      },
+      gradeForm: gradeFormRow
+        ? {
+            id: gradeFormRow.id,
+            title: gradeFormRow.title,
+            direction: gradeFormRow.direction,
+            tableFormat: gradeFormRow.tableFormat,
+            average: gradeFormRow.average,
+          }
+        : null,
+      courses: classCourses.map((item) => ({
+        classCourseId: item.id,
+        courseId: item.courseId,
+        courseTitle: item.course.title,
+        coefficient: Number(item.coefficient),
+      })),
+      gradeTypes: gradeFormDetails.map((item) => ({
+        detailId: item.id,
+        gradeTypeId: item.gradeTypeId,
+        gradeTypeTitle: item.gradeType.title,
+        position: item.position,
+      })),
+      cells,
+    };
   }
 
   async listGradesByCourse(
