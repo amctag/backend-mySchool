@@ -60,34 +60,120 @@ export class DashboardScheduleGeneratorService {
 
     const sectionFilter = query.sectionId ? { id: query.sectionId } : {};
 
-    const teaches = await this.prisma.teach.findMany({
-      where: {
-        yearId,
-        year: { schoolId },
-        course: { schoolId },
-        section: {
-          schoolId,
+    const [teaches, classCourses] = await Promise.all([
+      this.prisma.teach.findMany({
+        where: {
           yearId,
-          ...sectionFilter,
+          year: { schoolId },
+          course: { schoolId },
+          section: {
+            schoolId,
+            yearId,
+            ...sectionFilter,
+          },
+          teacher: {
+            schools: { some: { schoolId, isActive: true } },
+          },
         },
-        teacher: {
-          schools: { some: { schoolId, isActive: true } },
+        include: {
+          teacher: {
+            select: {
+              person: {
+                select: {
+                  firstName: true,
+                  middleName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
+          section: {
+            select: {
+              classId: true,
+              class: { select: { className: true } },
+              sectionTitle: { select: { title: true } },
+            },
+          },
+          course: { select: { id: true, title: true } },
         },
-      },
-      orderBy: { id: 'asc' },
-    });
+        orderBy: { id: 'asc' },
+      }),
+      this.prisma.classCourse.findMany({
+        where: {
+          yearId,
+          status: true,
+          class: {
+            stage: { schoolId },
+            sections: {
+              some: {
+                schoolId,
+                yearId,
+                ...sectionFilter,
+              },
+            },
+          },
+        },
+        select: {
+          classId: true,
+          courseId: true,
+          numberOfHours: true,
+        },
+      }),
+    ]);
 
-    const objects: ScheduleGeneratorObjectDto[] = teaches.map((item) => ({
-      id: String(item.id),
-      Prof_id: String(item.teacherId),
-      section_id: String(item.sectionId),
-      matiere_id: String(item.courseId),
-      year_id: String(item.yearId),
-    }));
+    const weeklyHoursByClassCourse = new Map<string, number | null>();
+    for (const item of classCourses) {
+      weeklyHoursByClassCourse.set(
+        `${item.classId}:${item.courseId}`,
+        item.numberOfHours,
+      );
+    }
+
+    const objects: ScheduleGeneratorObjectDto[] = teaches.map((item) => {
+      const weeklyHours = weeklyHoursByClassCourse.get(
+        `${item.section.classId}:${item.courseId}`,
+      );
+
+      return {
+        id: String(item.id),
+        prof: {
+          id: String(item.teacherId),
+          name: this.formatPersonName(item.teacher.person),
+        },
+        section: {
+          id: String(item.sectionId),
+          name: item.section.sectionTitle.title,
+        },
+        class: {
+          id: String(item.section.classId),
+          name: item.section.class.className,
+        },
+        matiere: {
+          id: String(item.courseId),
+          name: item.course.title,
+        },
+        year_id: String(item.yearId),
+        weekly_hours:
+          weeklyHours === null || weeklyHours === undefined
+            ? null
+            : String(weeklyHours),
+      };
+    });
 
     return {
       success: true,
       objects,
     };
+  }
+
+  private formatPersonName(person: {
+    firstName: string;
+    middleName: string;
+    lastName: string;
+  }): string {
+    return [person.firstName, person.middleName, person.lastName]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(' ');
   }
 }
