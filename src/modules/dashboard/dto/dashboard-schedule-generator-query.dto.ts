@@ -10,8 +10,9 @@ export class DashboardScheduleGeneratorQueryDto {
   schoolId!: number;
 
   @ApiPropertyOptional({
-    example: 4,
-    description: 'Filter by section; omit to return all sections',
+    example: 8,
+    description:
+      'Filter by class id (legacy param name: sectionId). Omit to return all classes/sections.',
   })
   @IsOptional()
   @Type(() => Number)

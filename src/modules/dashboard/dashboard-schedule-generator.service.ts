@@ -45,22 +45,19 @@ export class DashboardScheduleGeneratorService {
     const yearId = await resolveYearId(this.prisma, schoolId);
 
     if (query.sectionId) {
-      const section = await this.prisma.section.findFirst({
+      const classRow = await this.prisma.class.findFirst({
         where: {
           id: query.sectionId,
-          schoolId,
-          yearId,
+          stage: { schoolId },
         },
         select: { id: true },
       });
-      if (!section) {
-        throw new BadRequestException(
-          'Section not found for this school and year',
-        );
+      if (!classRow) {
+        throw new BadRequestException('Class not found for this school');
       }
     }
 
-    const sectionFilter = query.sectionId ? { id: query.sectionId } : {};
+    const classFilter = query.sectionId ? { classId: query.sectionId } : {};
 
     const [teaches, classCourses] = await Promise.all([
       this.prisma.teach.findMany({
@@ -71,7 +68,7 @@ export class DashboardScheduleGeneratorService {
           section: {
             schoolId,
             yearId,
-            ...sectionFilter,
+            ...classFilter,
           },
           teacher: {
             schools: { some: { schoolId, isActive: true } },
@@ -106,11 +103,11 @@ export class DashboardScheduleGeneratorService {
           status: true,
           class: {
             stage: { schoolId },
+            ...(query.sectionId ? { id: query.sectionId } : {}),
             sections: {
               some: {
                 schoolId,
                 yearId,
-                ...sectionFilter,
               },
             },
           },

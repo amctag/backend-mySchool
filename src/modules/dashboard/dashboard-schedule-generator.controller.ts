@@ -20,7 +20,7 @@ export class DashboardScheduleGeneratorController {
   @Get()
   @ApiOperation({
     summary:
-      'Get teach assignments for schedule generation (year id 3). Query: schoolId, optional sectionId. Public — no auth.',
+      'Get teach assignments for schedule generation. Query: schoolId, optional sectionId (class id). Public — no auth.',
   })
   @ApiOkResponse({ type: DashboardScheduleGeneratorResponseDto })
   getScheduleGeneratorData(
