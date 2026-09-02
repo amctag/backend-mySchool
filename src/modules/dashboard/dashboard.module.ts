@@ -31,6 +31,8 @@ import { DashboardGradeFormsController } from './dashboard-grade-forms.controlle
 import { DashboardGradeFormsService } from './dashboard-grade-forms.service';
 import { DashboardParentsController } from './dashboard-parents.controller';
 import { DashboardParentsService } from './dashboard-parents.service';
+import { DashboardScheduleGeneratorController } from './dashboard-schedule-generator.controller';
+import { DashboardScheduleGeneratorService } from './dashboard-schedule-generator.service';
 
 @Module({
   imports: [PrismaModule, AuthModule],
@@ -50,6 +52,7 @@ import { DashboardParentsService } from './dashboard-parents.service';
     DashboardGradesController,
     DashboardGradeFormsController,
     DashboardLookupsController,
+    DashboardScheduleGeneratorController,
   ],
   providers: [
     DashboardParentsService,
@@ -67,6 +70,7 @@ import { DashboardParentsService } from './dashboard-parents.service';
     DashboardGradesService,
     DashboardGradeFormsService,
     DashboardLookupsService,
+    DashboardScheduleGeneratorService,
   ],
 })
 export class DashboardModule {}
