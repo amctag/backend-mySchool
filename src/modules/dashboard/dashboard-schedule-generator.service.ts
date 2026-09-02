@@ -143,10 +143,8 @@ export class DashboardScheduleGeneratorService {
         section: {
           id: String(item.sectionId),
           name: item.section.sectionTitle.title,
-        },
-        class: {
-          id: String(item.section.classId),
-          name: item.section.class.className,
+          class_id: String(item.section.classId),
+          class_name: item.section.class.className,
         },
         matiere: {
           id: String(item.courseId),

@@ -8,6 +8,20 @@ export class ScheduleGeneratorRefDto {
   name!: string;
 }
 
+export class ScheduleGeneratorSectionDto {
+  @ApiProperty({ example: '4' })
+  id!: string;
+
+  @ApiProperty({ example: 'A' })
+  name!: string;
+
+  @ApiProperty({ example: '43' })
+  class_id!: string;
+
+  @ApiProperty({ example: 'Grade 1' })
+  class_name!: string;
+}
+
 export class ScheduleGeneratorObjectDto {
   @ApiProperty({ example: '37' })
   id!: string;
@@ -15,11 +29,8 @@ export class ScheduleGeneratorObjectDto {
   @ApiProperty({ type: ScheduleGeneratorRefDto })
   prof!: ScheduleGeneratorRefDto;
 
-  @ApiProperty({ type: ScheduleGeneratorRefDto })
-  section!: ScheduleGeneratorRefDto;
-
-  @ApiProperty({ type: ScheduleGeneratorRefDto })
-  class!: ScheduleGeneratorRefDto;
+  @ApiProperty({ type: ScheduleGeneratorSectionDto })
+  section!: ScheduleGeneratorSectionDto;
 
   @ApiProperty({ type: ScheduleGeneratorRefDto })
   matiere!: ScheduleGeneratorRefDto;
