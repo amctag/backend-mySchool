@@ -125,6 +125,124 @@ function maxGradeForClassCourse(
   return base;
 }
 
+const GRADE_CARD_TYPE_TITLES = [
+  'اختبار الفصل الأول',
+  'اختبار الفصل الثاني',
+  'الامتحان النهائي للفصل الأول',
+] as const;
+
+function seededStudentScore(
+  registrationId: number,
+  courseId: number,
+  gradeTypeId: number,
+  maxGrade: number,
+): number {
+  const bucket = (registrationId * 17 + courseId * 13 + gradeTypeId * 7) % 41;
+  const ratio = 0.55 + bucket / 100;
+  return Math.round(maxGrade * ratio * 10) / 10;
+}
+
+async function seedGradesForSchool(
+  schoolId: number,
+  yearId: number,
+): Promise<void> {
+  const formDetails = await prisma.gradeFormDetail.findMany({
+    where: {
+      status: true,
+      isVisible: true,
+      gradeForm: { schoolId },
+    },
+    include: { gradeType: true },
+    orderBy: { position: 'asc' },
+  });
+
+  let gradeTypes = [...new Map(
+    formDetails.map((detail) => [detail.gradeType.id, detail.gradeType]),
+  ).values()];
+  if (gradeTypes.length === 0) {
+    gradeTypes = await prisma.gradeType.findMany({
+      where: {
+        schoolId,
+        title: { in: [...GRADE_CARD_TYPE_TITLES] },
+        status: true,
+      },
+      orderBy: { position: 'asc' },
+    });
+  }
+
+  if (gradeTypes.length === 0) {
+    console.log(`  No grade types for school ${schoolId} — grades skipped`);
+    return;
+  }
+
+  const sections = await prisma.section.findMany({
+    where: {
+      schoolId,
+      yearId,
+      class: {
+        className: { in: [...GRADE_FORM_CLASS_NAMES] },
+      },
+    },
+    select: { id: true, classId: true },
+  });
+
+  const publishedAt = new Date();
+  let sheetCount = 0;
+  let detailCount = 0;
+
+  for (const section of sections) {
+    const registrations = await prisma.registration.findMany({
+      where: { schoolId, sectionId: section.id, status: true },
+      select: { id: true },
+    });
+    if (registrations.length === 0) continue;
+
+    const classCourses = await prisma.classCourse.findMany({
+      where: { classId: section.classId, yearId, status: true },
+      orderBy: { position: 'asc' },
+    });
+
+    for (const classCourse of classCourses) {
+      const maxGrade = Number(classCourse.coefficient);
+
+      for (const gradeType of gradeTypes) {
+        const gradeSheet = await prisma.grade.create({
+          data: {
+            schoolId,
+            sectionId: section.id,
+            courseId: classCourse.courseId,
+            gradeTypeId: gradeType.id,
+            maxGrade,
+            publishDate: publishedAt,
+            personId: PRESERVED_PERSON_ID,
+          },
+        });
+        sheetCount += 1;
+
+        for (const registration of registrations) {
+          await prisma.gradeDetail.create({
+            data: {
+              gradeId: gradeSheet.id,
+              registrationId: registration.id,
+              grade: seededStudentScore(
+                registration.id,
+                classCourse.courseId,
+                gradeType.id,
+                maxGrade,
+              ),
+            },
+          });
+          detailCount += 1;
+        }
+      }
+    }
+  }
+
+  console.log(
+    `  Grades seeded for school ${schoolId}: ${sheetCount} sheets, ${detailCount} student scores`,
+  );
+}
+
 const SESSION_NAMES = [
   'Session 1',
   'Session 2',
@@ -706,6 +824,9 @@ async function seedSchoolOnePeople({
       );
     }
   }
+
+  console.log(`  Seeding grades for school ${schoolId}...`);
+  await seedGradesForSchool(schoolId, yearId);
 }
 
 async function main(): Promise<void> {
@@ -739,6 +860,7 @@ async function main(): Promise<void> {
   console.log(`  Weekly hours cap: ${MAX_WEEKLY_HOURS} per section`);
   console.log('  Sections A & B: teach + schedule for Grade 1–10 (school 1)');
   console.log('  Students: 10 per section A and B (200 total for school 1)');
+  console.log('  Grades: all courses × grade-form columns for every student');
   console.log('  Password for new accounts: password123');
 }
 
