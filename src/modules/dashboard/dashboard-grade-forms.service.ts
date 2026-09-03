@@ -386,6 +386,53 @@ export class DashboardGradeFormsService {
     };
   }
 
+  async listGradeFormExpressions(
+    user: AuthenticatedSchool,
+    gradeFormId: number,
+    detailId: number,
+  ): Promise<{
+    items: Array<{
+      id: number;
+      sourceGradeTypeId: number;
+      sourceGradeTypeTitle: string;
+      percentage: number;
+    }>;
+  }> {
+    await this.findGradeFormDetailForSchool(
+      user.schoolId,
+      gradeFormId,
+      detailId,
+    );
+
+    const rows = await this.prisma.gradeFormPercentage.findMany({
+      where: {
+        gradeFormatDetailId: detailId,
+        status: true,
+        sourceGradeTypeId: { not: null },
+      },
+      include: {
+        sourceGradeType: { select: { id: true, title: true } },
+      },
+      orderBy: [{ id: 'asc' }],
+    });
+
+    return {
+      items: rows.flatMap((row) => {
+        if (row.sourceGradeTypeId == null || row.sourceGradeType == null) {
+          return [];
+        }
+        return [
+          {
+            id: row.id,
+            sourceGradeTypeId: row.sourceGradeTypeId,
+            sourceGradeTypeTitle: row.sourceGradeType.title,
+            percentage: Number(row.percentage),
+          },
+        ];
+      }),
+    };
+  }
+
   async createGradeFormDetail(
     user: AuthenticatedSchool,
     gradeFormId: number,

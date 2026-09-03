@@ -26,6 +26,7 @@ import { CreateDashboardGradeFormDto } from './dto/create-dashboard-grade-form.d
 import { DashboardGradeFormClassesCoursesResponseDto } from './dto/dashboard-grade-form-classes-courses-response.dto';
 import {
   DashboardGradeFormDetailsListResponseDto,
+  DashboardGradeFormExpressionsResponseDto,
   DashboardGradeFormExpressionTypesResponseDto,
 } from './dto/dashboard-grade-form-details-response.dto';
 import { DashboardGradeFormByClassResponseDto } from './dto/dashboard-grade-form-by-class-response.dto';
@@ -180,6 +181,23 @@ export class DashboardGradeFormsController {
     @Param('detailId', ParseIntPipe) detailId: number,
   ): Promise<DashboardGradeFormExpressionTypesResponseDto> {
     return this.dashboardGradeFormsService.listGradeFormExpressionTypes(
+      request.user,
+      id,
+      detailId,
+    );
+  }
+
+  @Get(':id/details/:detailId/percentages')
+  @ApiOperation({
+    summary: 'List expression rows from grade_form_percentage for a detail',
+  })
+  @ApiOkResponse({ type: DashboardGradeFormExpressionsResponseDto })
+  listGradeFormExpressions(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Param('detailId', ParseIntPipe) detailId: number,
+  ): Promise<DashboardGradeFormExpressionsResponseDto> {
+    return this.dashboardGradeFormsService.listGradeFormExpressions(
       request.user,
       id,
       detailId,

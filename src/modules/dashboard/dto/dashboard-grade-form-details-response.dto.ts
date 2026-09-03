@@ -62,6 +62,11 @@ export class DashboardGradeFormExpressionTypesResponseDto {
   items!: DashboardGradeFormExpressionTypeOptionDto[];
 }
 
+export class DashboardGradeFormExpressionsResponseDto {
+  @ApiProperty({ type: [DashboardGradeFormExpressionItemDto] })
+  items!: DashboardGradeFormExpressionItemDto[];
+}
+
 export class DashboardGradeFormDetailsListResponseDto {
   @ApiProperty({ example: 1 })
   gradeFormId!: number;
