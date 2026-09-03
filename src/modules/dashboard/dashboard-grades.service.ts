@@ -20,6 +20,8 @@ import {
   DashboardGradeCardCellDto,
 } from './dto/dashboard-grade-card-response.dto';
 import { SaveDashboardGradeByCourseDto } from './dto/save-dashboard-grade-by-course.dto';
+import { SaveDashboardGradeTypeDto } from './dto/save-dashboard-grade-type.dto';
+import { DashboardGradeTypeListItemDto } from './dto/dashboard-grade-types-list-response.dto';
 
 const DASHBOARD_CREATOR_PERSON_ID = 1;
 const DEFAULT_MAX_GRADE = 100;
@@ -96,22 +98,107 @@ export class DashboardGradesService {
 
   async listGradeTypes(
     user: AuthenticatedSchool,
+    includeInactive = false,
   ): Promise<DashboardGradeTypesListResponseDto> {
     const items = await this.prisma.gradeType.findMany({
       where: {
-        status: true,
+        ...(includeInactive ? {} : { status: true }),
         OR: [{ schoolId: user.schoolId }, { schoolId: null }],
       },
       orderBy: [{ position: 'asc' }, { id: 'asc' }],
-      select: {
-        id: true,
-        title: true,
-        type: true,
-        status: true,
+    });
+
+    return { items: items.map((item) => this.toGradeTypeItem(item)) };
+  }
+
+  async createGradeType(
+    user: AuthenticatedSchool,
+    body: SaveDashboardGradeTypeDto,
+  ): Promise<DashboardGradeTypeListItemDto> {
+    const title = body.title.trim();
+    const type = body.type.trim();
+    if (!title) {
+      throw new BadRequestException('Title is required');
+    }
+    if (!type) {
+      throw new BadRequestException('Type is required');
+    }
+
+    const row = await this.prisma.gradeType.create({
+      data: {
+        schoolId: user.schoolId,
+        title,
+        type,
+        isAbstract: body.isAbstract ?? false,
+        position: body.position ?? 0,
+        isMain: body.isMain ?? false,
+        status: body.status ?? true,
       },
     });
 
-    return { items };
+    return this.toGradeTypeItem(row);
+  }
+
+  async updateGradeType(
+    user: AuthenticatedSchool,
+    id: number,
+    body: SaveDashboardGradeTypeDto,
+  ): Promise<DashboardGradeTypeListItemDto> {
+    const existing = await this.prisma.gradeType.findFirst({
+      where: { id, schoolId: user.schoolId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Grade type not found');
+    }
+
+    const title = body.title.trim();
+    const type = body.type.trim();
+    if (!title) {
+      throw new BadRequestException('Title is required');
+    }
+    if (!type) {
+      throw new BadRequestException('Type is required');
+    }
+
+    const row = await this.prisma.gradeType.update({
+      where: { id },
+      data: {
+        title,
+        type,
+        isAbstract: body.isAbstract ?? false,
+        position: body.position ?? 0,
+        isMain: body.isMain ?? false,
+        status: body.status ?? true,
+      },
+    });
+
+    return this.toGradeTypeItem(row);
+  }
+
+  private toGradeTypeItem(row: {
+    id: number;
+    schoolId: number | null;
+    title: string;
+    isAbstract: boolean;
+    position: number;
+    isMain: boolean;
+    type: string;
+    status: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }): DashboardGradeTypeListItemDto {
+    return {
+      id: row.id,
+      schoolId: row.schoolId,
+      title: row.title,
+      isAbstract: row.isAbstract,
+      position: row.position,
+      isMain: row.isMain,
+      type: row.type,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
   }
 
   async getGradeCard(

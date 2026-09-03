@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -30,6 +31,11 @@ import { DashboardGradeTypesListResponseDto } from './dto/dashboard-grade-types-
 import { DashboardGradeCardQueryDto } from './dto/dashboard-grade-card-query.dto';
 import { DashboardGradeCardResponseDto } from './dto/dashboard-grade-card-response.dto';
 import { SaveDashboardGradeByCourseDto } from './dto/save-dashboard-grade-by-course.dto';
+import {
+  DashboardGradeTypesQueryDto,
+  SaveDashboardGradeTypeDto,
+} from './dto/save-dashboard-grade-type.dto';
+import { DashboardGradeTypeListItemDto } from './dto/dashboard-grade-types-list-response.dto';
 import { DashboardGradesService } from './dashboard-grades.service';
 
 @ApiTags('Dashboard Grades v1')
@@ -44,8 +50,33 @@ export class DashboardGradesController {
   @ApiOkResponse({ type: DashboardGradeTypesListResponseDto })
   listGradeTypes(
     @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardGradeTypesQueryDto,
   ): Promise<DashboardGradeTypesListResponseDto> {
-    return this.dashboardGradesService.listGradeTypes(request.user);
+    return this.dashboardGradesService.listGradeTypes(
+      request.user,
+      query.includeInactive === true,
+    );
+  }
+
+  @Post('grade-types')
+  @ApiOperation({ summary: 'Create a grade type for this school' })
+  @ApiCreatedResponse({ type: DashboardGradeTypeListItemDto })
+  createGradeType(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Body() body: SaveDashboardGradeTypeDto,
+  ): Promise<DashboardGradeTypeListItemDto> {
+    return this.dashboardGradesService.createGradeType(request.user, body);
+  }
+
+  @Patch('grade-types/:id')
+  @ApiOperation({ summary: 'Update a school grade type' })
+  @ApiOkResponse({ type: DashboardGradeTypeListItemDto })
+  updateGradeType(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: SaveDashboardGradeTypeDto,
+  ): Promise<DashboardGradeTypeListItemDto> {
+    return this.dashboardGradesService.updateGradeType(request.user, id, body);
   }
 
   @Get('grade-card')
