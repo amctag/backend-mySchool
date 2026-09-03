@@ -345,7 +345,7 @@ export class DashboardGradeFormsService {
     user: AuthenticatedSchool,
     gradeFormId: number,
     detailId: number,
-  ): Promise<{ items: Array<{ id: number; title: string }> }> {
+  ): Promise<{ items: Array<{ id: number; title: string; used: boolean }> }> {
     const detail = await this.findGradeFormDetailForSchool(
       user.schoolId,
       gradeFormId,
@@ -360,16 +360,17 @@ export class DashboardGradeFormsService {
       },
       select: { sourceGradeTypeId: true },
     });
-    const usedIds = used
-      .map((row) => row.sourceGradeTypeId)
-      .filter((id): id is number => id != null);
+    const usedIds = new Set(
+      used
+        .map((row) => row.sourceGradeTypeId)
+        .filter((id): id is number => id != null),
+    );
 
-    const excludedTypeIds = [detail.gradeTypeId, ...usedIds];
     const relatedDetails = await this.prisma.gradeFormDetail.findMany({
       where: {
         gradeFormId,
         id: { not: detailId },
-        gradeTypeId: { notIn: excludedTypeIds },
+        gradeTypeId: { not: detail.gradeTypeId },
         gradeForm: { schoolId: user.schoolId },
       },
       include: { gradeType: { select: { id: true, title: true } } },
@@ -382,7 +383,11 @@ export class DashboardGradeFormsService {
     }
 
     return {
-      items: [...unique.entries()].map(([id, title]) => ({ id, title })),
+      items: [...unique.entries()].map(([id, title]) => ({
+        id,
+        title,
+        used: usedIds.has(id),
+      })),
     };
   }
 

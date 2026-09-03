@@ -55,6 +55,12 @@ export class DashboardGradeFormExpressionTypeOptionDto {
 
   @ApiProperty({ example: 'Daily work 1' })
   title!: string;
+
+  @ApiProperty({
+    example: false,
+    description: 'True when this type is already in the expression',
+  })
+  used!: boolean;
 }
 
 export class DashboardGradeFormExpressionTypesResponseDto {
