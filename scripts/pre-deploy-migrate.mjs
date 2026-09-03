@@ -1,11 +1,12 @@
 import { execSync } from 'node:child_process';
 
 /**
- * Production previously failed on 20260812160000 (duplicate start_time).
- * Mark it rolled back so migrate deploy can re-run the now-idempotent SQL.
+ * Production previously failed on these migrations.
+ * Mark them rolled back so migrate deploy can re-run the now-idempotent SQL.
  */
 const FAILED_MIGRATIONS_TO_RETRY = [
   '20260812160000_exam_schedule_detail_start_time',
+  '20260903140000_grade_form_average_int',
 ];
 
 function run(command, { inherit = false } = {}) {
