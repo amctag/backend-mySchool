@@ -473,15 +473,17 @@ export class DashboardGradesService {
   } {
     let marksSum = 0;
     let maxSum = 0;
-    let scoredCount = 0;
+    let hasAnyScore = false;
 
     for (const gradeTypeId of gradeTypeIds) {
       const cell = cells[`${courseId}-${gradeTypeId}`];
-      if (cell?.score == null || Number.isNaN(cell.score)) {
-        continue;
+      const hasScore =
+        cell?.score != null && !Number.isNaN(Number(cell.score));
+      if (hasScore) {
+        hasAnyScore = true;
       }
       const maxGrade =
-        cell.maxGrade != null &&
+        cell?.maxGrade != null &&
         Number.isFinite(cell.maxGrade) &&
         cell.maxGrade > 0
           ? cell.maxGrade
@@ -493,12 +495,12 @@ export class DashboardGradesService {
       if (maxGrade == null) {
         continue;
       }
-      marksSum += cell.score;
+      // Missing scores count as 0 once the course has any entered grade.
+      marksSum += hasScore ? Number(cell!.score) : 0;
       maxSum += maxGrade;
-      scoredCount += 1;
     }
 
-    if (scoredCount === 0) {
+    if (!hasAnyScore) {
       return { marksSum: null, scaledAverage: null, passed: null };
     }
 
