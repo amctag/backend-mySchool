@@ -812,6 +812,7 @@ model GradeType {
   examSchedules     ExamSchedule[]
   grades            Grade[]
   gradeFormDetails  GradeFormDetail[]
+  expressionSources GradeFormPercentage[] @relation("GradeFormPercentageSource")
 
   @@index([schoolId])
   @@map("grade_types")
@@ -970,12 +971,15 @@ model GradeFormDetail {
 model GradeFormPercentage {
   id                   Int      @id @default(autoincrement())
   gradeFormatDetailId  Int      @map("grade_format_detail_id")
+  sourceGradeTypeId    Int?     @map("source_grade_type_id")
   percentage           Decimal  @db.Decimal(5, 2)
   status               Boolean  @default(true)
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   gradeFormDetail GradeFormDetail @relation(fields: [gradeFormatDetailId], references: [id], onDelete: Cascade)
+  sourceGradeType GradeType?      @relation("GradeFormPercentageSource", fields: [sourceGradeTypeId], references: [id], onDelete: Restrict)
 
+  @@index([gradeFormatDetailId])
   @@map("grade_form_percentage")
 }

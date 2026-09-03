@@ -32,6 +32,7 @@ import {
   DashboardGradeFormsResponseDto,
 } from './dto/dashboard-grade-forms-response.dto';
 import { SaveDashboardGradeFormDetailDto } from './dto/save-dashboard-grade-form-detail.dto';
+import { SaveDashboardGradeFormExpressionDto } from './dto/save-dashboard-grade-form-expression.dto';
 import { UpdateDashboardGradeFormClassesDto } from './dto/update-dashboard-grade-form-classes.dto';
 import { UpdateDashboardGradeFormDto } from './dto/update-dashboard-grade-form.dto';
 import { DashboardGradeFormsService } from './dashboard-grade-forms.service';
@@ -161,6 +162,40 @@ export class DashboardGradeFormsController {
       request.user,
       id,
       detailId,
+    );
+  }
+
+  @Post(':id/details/:detailId/percentages')
+  @ApiOperation({ summary: 'Add a related grade type to a detail expression' })
+  @ApiOkResponse({ type: DashboardGradeFormDetailsListResponseDto })
+  createGradeFormExpression(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Param('detailId', ParseIntPipe) detailId: number,
+    @Body() body: SaveDashboardGradeFormExpressionDto,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    return this.dashboardGradeFormsService.createGradeFormExpression(
+      request.user,
+      id,
+      detailId,
+      body,
+    );
+  }
+
+  @Delete(':id/details/:detailId/percentages/:percentageId')
+  @ApiOperation({ summary: 'Remove a related grade type from a detail expression' })
+  @ApiOkResponse({ type: DashboardGradeFormDetailsListResponseDto })
+  deleteGradeFormExpression(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Param('detailId', ParseIntPipe) detailId: number,
+    @Param('percentageId', ParseIntPipe) percentageId: number,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    return this.dashboardGradeFormsService.deleteGradeFormExpression(
+      request.user,
+      id,
+      detailId,
+      percentageId,
     );
   }
 

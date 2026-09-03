@@ -17,6 +17,7 @@ import {
 import { DashboardGradeFormDetailsListResponseDto } from './dto/dashboard-grade-form-details-response.dto';
 import { DashboardGradeFormByClassResponseDto } from './dto/dashboard-grade-form-by-class-response.dto';
 import { SaveDashboardGradeFormDetailDto } from './dto/save-dashboard-grade-form-detail.dto';
+import { SaveDashboardGradeFormExpressionDto } from './dto/save-dashboard-grade-form-expression.dto';
 import { UpdateDashboardGradeFormClassesDto } from './dto/update-dashboard-grade-form-classes.dto';
 import { UpdateDashboardGradeFormDto } from './dto/update-dashboard-grade-form.dto';
 
@@ -29,6 +30,14 @@ const gradeFormInclude = {
     orderBy: [{ class: { className: 'asc' } }],
   },
 } satisfies Prisma.GradeFormInclude;
+
+const gradeFormDetailPercentagesInclude = {
+  where: { status: true, sourceGradeTypeId: { not: null } },
+  include: {
+    sourceGradeType: { select: { id: true, title: true } },
+  },
+  orderBy: [{ id: 'asc' }],
+} satisfies Prisma.GradeFormDetail$percentagesArgs;
 
 type GradeFormRecord = Prisma.GradeFormGetPayload<{
   include: typeof gradeFormInclude;
@@ -116,11 +125,7 @@ export class DashboardGradeFormsService {
       },
       include: {
         gradeType: { select: { id: true, title: true } },
-        percentages: {
-          where: { status: true },
-          orderBy: [{ id: 'desc' }],
-          take: 1,
-        },
+        percentages: gradeFormDetailPercentagesInclude,
       },
       orderBy: [{ position: 'asc' }, { id: 'asc' }],
     });
@@ -324,11 +329,7 @@ export class DashboardGradeFormsService {
       where: { gradeFormId },
       include: {
         gradeType: { select: { id: true, title: true } },
-        percentages: {
-          where: { status: true },
-          orderBy: [{ id: 'desc' }],
-          take: 1,
-        },
+        percentages: gradeFormDetailPercentagesInclude,
       },
       orderBy: [{ position: 'asc' }, { id: 'asc' }],
     });
@@ -417,6 +418,96 @@ export class DashboardGradeFormsService {
     await this.prisma.gradeFormDetail.delete({ where: { id: detailId } });
 
     return this.listGradeFormDetails(user, gradeFormId);
+  }
+
+  async createGradeFormExpression(
+    user: AuthenticatedSchool,
+    gradeFormId: number,
+    detailId: number,
+    body: SaveDashboardGradeFormExpressionDto,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    const detail = await this.findGradeFormDetailForSchool(
+      user.schoolId,
+      gradeFormId,
+      detailId,
+    );
+    await this.assertGradeTypeForSchool(user.schoolId, body.sourceGradeTypeId);
+
+    if (body.sourceGradeTypeId === detail.gradeTypeId) {
+      throw new BadRequestException(
+        'Expression cannot use the same grade type as this detail',
+      );
+    }
+
+    const existing = await this.prisma.gradeFormPercentage.findFirst({
+      where: {
+        gradeFormatDetailId: detailId,
+        sourceGradeTypeId: body.sourceGradeTypeId,
+        status: true,
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new BadRequestException(
+        'This grade type is already in the expression',
+      );
+    }
+
+    const currentTotal = await this.sumExpressionPercentages(detailId);
+    if (currentTotal + body.percentage > 100) {
+      throw new BadRequestException('Total cannot exceed 100%');
+    }
+
+    await this.prisma.gradeFormPercentage.create({
+      data: {
+        gradeFormatDetailId: detailId,
+        sourceGradeTypeId: body.sourceGradeTypeId,
+        percentage: body.percentage,
+        status: true,
+      },
+    });
+
+    return this.listGradeFormDetails(user, gradeFormId);
+  }
+
+  async deleteGradeFormExpression(
+    user: AuthenticatedSchool,
+    gradeFormId: number,
+    detailId: number,
+    percentageId: number,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    await this.findGradeFormDetailForSchool(
+      user.schoolId,
+      gradeFormId,
+      detailId,
+    );
+
+    const row = await this.prisma.gradeFormPercentage.findFirst({
+      where: {
+        id: percentageId,
+        gradeFormatDetailId: detailId,
+      },
+      select: { id: true },
+    });
+    if (!row) {
+      throw new NotFoundException('Expression item not found');
+    }
+
+    await this.prisma.gradeFormPercentage.delete({ where: { id: percentageId } });
+
+    return this.listGradeFormDetails(user, gradeFormId);
+  }
+
+  private async sumExpressionPercentages(detailId: number): Promise<number> {
+    const rows = await this.prisma.gradeFormPercentage.findMany({
+      where: {
+        gradeFormatDetailId: detailId,
+        status: true,
+        sourceGradeTypeId: { not: null },
+      },
+      select: { percentage: true },
+    });
+    return rows.reduce((sum, row) => sum + Number(row.percentage), 0);
   }
 
   private async findGradeFormForSchool(
@@ -589,17 +680,39 @@ export class DashboardGradeFormsService {
     createdAt: Date;
     updatedAt: Date;
     gradeType: { id: number; title: string };
-    percentages?: Array<{ percentage: Prisma.Decimal | number }>;
+    percentages?: Array<{
+      id: number;
+      percentage: Prisma.Decimal | number;
+      sourceGradeTypeId?: number | null;
+      sourceGradeType?: { id: number; title: string } | null;
+    }>;
   }): DashboardGradeFormDetailsListResponseDto['items'][number] {
-    const percentageRow = row.percentages?.[0];
+    const expressions = (row.percentages ?? [])
+      .filter(
+        (
+          item,
+        ): item is typeof item & {
+          sourceGradeTypeId: number;
+          sourceGradeType: { id: number; title: string };
+        } =>
+          item.sourceGradeTypeId != null && item.sourceGradeType != null,
+      )
+      .map((item) => ({
+        id: item.id,
+        sourceGradeTypeId: item.sourceGradeTypeId,
+        sourceGradeTypeTitle: item.sourceGradeType.title,
+        percentage: Number(item.percentage),
+      }));
+    const total = expressions.reduce((sum, item) => sum + item.percentage, 0);
+
     return {
       id: row.id,
       gradeFormId: row.gradeFormId,
       gradeTypeId: row.gradeTypeId,
       gradeTypeTitle: row.gradeType.title,
       position: row.position,
-      percentage:
-        percentageRow == null ? null : Number(percentageRow.percentage),
+      percentage: expressions.length > 0 ? total : null,
+      expressions,
       status: row.status,
       isVisible: row.isVisible,
       createdAt: row.createdAt.toISOString(),

@@ -1,5 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+export class DashboardGradeFormExpressionItemDto {
+  @ApiProperty({ example: 1 })
+  id!: number;
+
+  @ApiProperty({ example: 12 })
+  sourceGradeTypeId!: number;
+
+  @ApiProperty({ example: 'Daily work 1' })
+  sourceGradeTypeTitle!: string;
+
+  @ApiProperty({ example: 12.5 })
+  percentage!: number;
+}
+
 export class DashboardGradeFormDetailRowDto {
   @ApiProperty({ example: 1 })
   id!: number;
@@ -18,6 +32,9 @@ export class DashboardGradeFormDetailRowDto {
 
   @ApiPropertyOptional({ nullable: true, example: 40 })
   percentage!: number | null;
+
+  @ApiProperty({ type: [DashboardGradeFormExpressionItemDto] })
+  expressions!: DashboardGradeFormExpressionItemDto[];
 
   @ApiProperty({ example: true })
   status!: boolean;
