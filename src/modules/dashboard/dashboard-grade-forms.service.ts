@@ -341,6 +341,51 @@ export class DashboardGradeFormsService {
     };
   }
 
+  async listGradeFormExpressionTypes(
+    user: AuthenticatedSchool,
+    gradeFormId: number,
+    detailId: number,
+  ): Promise<{ items: Array<{ id: number; title: string }> }> {
+    const detail = await this.findGradeFormDetailForSchool(
+      user.schoolId,
+      gradeFormId,
+      detailId,
+    );
+
+    const used = await this.prisma.gradeFormPercentage.findMany({
+      where: {
+        gradeFormatDetailId: detailId,
+        status: true,
+        sourceGradeTypeId: { not: null },
+      },
+      select: { sourceGradeTypeId: true },
+    });
+    const usedIds = used
+      .map((row) => row.sourceGradeTypeId)
+      .filter((id): id is number => id != null);
+
+    const excludedTypeIds = [detail.gradeTypeId, ...usedIds];
+    const relatedDetails = await this.prisma.gradeFormDetail.findMany({
+      where: {
+        gradeFormId,
+        id: { not: detailId },
+        gradeTypeId: { notIn: excludedTypeIds },
+        gradeForm: { schoolId: user.schoolId },
+      },
+      include: { gradeType: { select: { id: true, title: true } } },
+      orderBy: [{ position: 'asc' }, { id: 'asc' }],
+    });
+
+    const unique = new Map<number, string>();
+    for (const row of relatedDetails) {
+      unique.set(row.gradeType.id, row.gradeType.title);
+    }
+
+    return {
+      items: [...unique.entries()].map(([id, title]) => ({ id, title })),
+    };
+  }
+
   async createGradeFormDetail(
     user: AuthenticatedSchool,
     gradeFormId: number,
@@ -436,6 +481,20 @@ export class DashboardGradeFormsService {
     if (body.sourceGradeTypeId === detail.gradeTypeId) {
       throw new BadRequestException(
         'Expression cannot use the same grade type as this detail',
+      );
+    }
+
+    const relatedDetail = await this.prisma.gradeFormDetail.findFirst({
+      where: {
+        gradeFormId,
+        gradeTypeId: body.sourceGradeTypeId,
+        id: { not: detailId },
+      },
+      select: { id: true },
+    });
+    if (!relatedDetail) {
+      throw new BadRequestException(
+        'Related grade type must belong to this grade form',
       );
     }
 

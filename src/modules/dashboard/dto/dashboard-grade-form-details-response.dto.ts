@@ -49,6 +49,19 @@ export class DashboardGradeFormDetailRowDto {
   updatedAt!: string;
 }
 
+export class DashboardGradeFormExpressionTypeOptionDto {
+  @ApiProperty({ example: 12 })
+  id!: number;
+
+  @ApiProperty({ example: 'Daily work 1' })
+  title!: string;
+}
+
+export class DashboardGradeFormExpressionTypesResponseDto {
+  @ApiProperty({ type: [DashboardGradeFormExpressionTypeOptionDto] })
+  items!: DashboardGradeFormExpressionTypeOptionDto[];
+}
+
 export class DashboardGradeFormDetailsListResponseDto {
   @ApiProperty({ example: 1 })
   gradeFormId!: number;

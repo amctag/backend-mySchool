@@ -24,7 +24,10 @@ import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateDashboardGradeFormDto } from './dto/create-dashboard-grade-form.dto';
 import { DashboardGradeFormClassesCoursesResponseDto } from './dto/dashboard-grade-form-classes-courses-response.dto';
-import { DashboardGradeFormDetailsListResponseDto } from './dto/dashboard-grade-form-details-response.dto';
+import {
+  DashboardGradeFormDetailsListResponseDto,
+  DashboardGradeFormExpressionTypesResponseDto,
+} from './dto/dashboard-grade-form-details-response.dto';
 import { DashboardGradeFormByClassResponseDto } from './dto/dashboard-grade-form-by-class-response.dto';
 import { DashboardGradeFormsQueryDto } from './dto/dashboard-grade-forms-query.dto';
 import {
@@ -159,6 +162,24 @@ export class DashboardGradeFormsController {
     @Param('detailId', ParseIntPipe) detailId: number,
   ): Promise<DashboardGradeFormDetailsListResponseDto> {
     return this.dashboardGradeFormsService.deleteGradeFormDetail(
+      request.user,
+      id,
+      detailId,
+    );
+  }
+
+  @Get(':id/details/:detailId/expression-types')
+  @ApiOperation({
+    summary:
+      'List grade types from this form that can be used in a detail expression',
+  })
+  @ApiOkResponse({ type: DashboardGradeFormExpressionTypesResponseDto })
+  listGradeFormExpressionTypes(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Param('detailId', ParseIntPipe) detailId: number,
+  ): Promise<DashboardGradeFormExpressionTypesResponseDto> {
+    return this.dashboardGradeFormsService.listGradeFormExpressionTypes(
       request.user,
       id,
       detailId,
