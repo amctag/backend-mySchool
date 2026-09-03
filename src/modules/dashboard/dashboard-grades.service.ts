@@ -485,10 +485,10 @@ export class DashboardGradesService {
         Number.isFinite(cell.maxGrade) &&
         cell.maxGrade > 0
           ? cell.maxGrade
-          : averageScale > 0
-            ? averageScale
-            : courseCoefficient > 0
-              ? courseCoefficient
+          : courseCoefficient > 0
+            ? courseCoefficient
+            : averageScale > 0
+              ? averageScale
               : null;
       if (maxGrade == null) {
         continue;
