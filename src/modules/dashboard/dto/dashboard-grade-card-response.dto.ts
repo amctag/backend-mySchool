@@ -58,6 +58,14 @@ export class DashboardGradeCardCourseDto {
 
   @ApiProperty({ example: 2 })
   coefficient!: number;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 7.25,
+    description:
+      'Weighted result from grade_form_percentage: sum(score * pct) / sum(pct)',
+  })
+  yearlyAverage!: number | null;
 }
 
 export class DashboardGradeCardGradeTypeDto {
@@ -72,6 +80,13 @@ export class DashboardGradeCardGradeTypeDto {
 
   @ApiProperty({ example: 0 })
   position!: number;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 40,
+    description: 'Active weight from grade_form_percentage (0–100)',
+  })
+  percentage!: number | null;
 }
 
 export class DashboardGradeCardCellDto {

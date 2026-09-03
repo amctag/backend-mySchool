@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsInt,
+  IsNumber,
   IsOptional,
   Max,
   Min,
@@ -22,6 +23,17 @@ export class SaveDashboardGradeFormDetailDto {
   @Min(0)
   @Max(32767)
   position?: number;
+
+  @ApiPropertyOptional({
+    example: 40,
+    description: 'Weight 0–100 for result calculation',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  percentage?: number;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()

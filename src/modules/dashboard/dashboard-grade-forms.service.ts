@@ -114,7 +114,14 @@ export class DashboardGradeFormsService {
         status: true,
         isVisible: true,
       },
-      include: { gradeType: { select: { id: true, title: true } } },
+      include: {
+        gradeType: { select: { id: true, title: true } },
+        percentages: {
+          where: { status: true },
+          orderBy: [{ id: 'desc' }],
+          take: 1,
+        },
+      },
       orderBy: [{ position: 'asc' }, { id: 'asc' }],
     });
 
@@ -317,6 +324,11 @@ export class DashboardGradeFormsService {
       where: { gradeFormId },
       include: {
         gradeType: { select: { id: true, title: true } },
+        percentages: {
+          where: { status: true },
+          orderBy: [{ id: 'desc' }],
+          take: 1,
+        },
       },
       orderBy: [{ position: 'asc' }, { id: 'asc' }],
     });
@@ -343,6 +355,16 @@ export class DashboardGradeFormsService {
         position: body.position ?? 0,
         status: body.status ?? true,
         isVisible: body.isVisible ?? true,
+        ...(body.percentage !== undefined
+          ? {
+              percentages: {
+                create: {
+                  percentage: body.percentage,
+                  status: true,
+                },
+              },
+            }
+          : {}),
       },
     });
 
@@ -362,14 +384,20 @@ export class DashboardGradeFormsService {
     );
     await this.assertGradeTypeForSchool(user.schoolId, body.gradeTypeId);
 
-    await this.prisma.gradeFormDetail.update({
-      where: { id: detailId },
-      data: {
-        gradeTypeId: body.gradeTypeId,
-        position: body.position ?? 0,
-        status: body.status ?? true,
-        isVisible: body.isVisible ?? true,
-      },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.gradeFormDetail.update({
+        where: { id: detailId },
+        data: {
+          gradeTypeId: body.gradeTypeId,
+          position: body.position ?? 0,
+          status: body.status ?? true,
+          isVisible: body.isVisible ?? true,
+        },
+      });
+
+      if (body.percentage !== undefined) {
+        await this.upsertDetailPercentage(tx, detailId, body.percentage);
+      }
     });
 
     return this.listGradeFormDetails(user, gradeFormId);
@@ -561,18 +589,50 @@ export class DashboardGradeFormsService {
     createdAt: Date;
     updatedAt: Date;
     gradeType: { id: number; title: string };
+    percentages?: Array<{ percentage: Prisma.Decimal | number }>;
   }): DashboardGradeFormDetailsListResponseDto['items'][number] {
+    const percentageRow = row.percentages?.[0];
     return {
       id: row.id,
       gradeFormId: row.gradeFormId,
       gradeTypeId: row.gradeTypeId,
       gradeTypeTitle: row.gradeType.title,
       position: row.position,
+      percentage:
+        percentageRow == null ? null : Number(percentageRow.percentage),
       status: row.status,
       isVisible: row.isVisible,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  private async upsertDetailPercentage(
+    tx: Prisma.TransactionClient,
+    gradeFormatDetailId: number,
+    percentage: number,
+  ): Promise<void> {
+    const existing = await tx.gradeFormPercentage.findFirst({
+      where: { gradeFormatDetailId, status: true },
+      orderBy: [{ id: 'desc' }],
+      select: { id: true },
+    });
+
+    if (existing) {
+      await tx.gradeFormPercentage.update({
+        where: { id: existing.id },
+        data: { percentage },
+      });
+      return;
+    }
+
+    await tx.gradeFormPercentage.create({
+      data: {
+        gradeFormatDetailId,
+        percentage,
+        status: true,
+      },
+    });
   }
 
   private toFormDetail(

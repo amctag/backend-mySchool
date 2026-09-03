@@ -211,7 +211,14 @@ export class DashboardGradesService {
               status: true,
               isVisible: true,
             },
-            include: { gradeType: { select: { id: true, title: true } } },
+            include: {
+              gradeType: { select: { id: true, title: true } },
+              percentages: {
+                where: { status: true },
+                orderBy: [{ id: 'desc' }],
+                take: 1,
+              },
+            },
             orderBy: [{ position: 'asc' }, { id: 'asc' }],
           });
 
@@ -268,6 +275,26 @@ export class DashboardGradesService {
       };
     }
 
+    const weightedDetails = gradeFormDetails
+      .map((item) => {
+        const percentageRow = item.percentages[0];
+        const percentage =
+          percentageRow == null ? null : Number(percentageRow.percentage);
+        return {
+          gradeTypeId: item.gradeTypeId,
+          percentage:
+            percentage != null && Number.isFinite(percentage) && percentage > 0
+              ? percentage
+              : null,
+        };
+      })
+      .filter(
+        (item): item is { gradeTypeId: number; percentage: number } =>
+          item.percentage != null,
+      );
+
+    const showYearlyAverage = gradeFormRow?.average ?? false;
+
     return {
       student: {
         registrationId: registration.id,
@@ -294,15 +321,51 @@ export class DashboardGradesService {
         courseId: item.courseId,
         courseTitle: item.course.title,
         coefficient: Number(item.coefficient),
+        yearlyAverage: showYearlyAverage
+          ? this.calculateWeightedAverage(item.courseId, cells, weightedDetails)
+          : null,
       })),
-      gradeTypes: gradeFormDetails.map((item) => ({
-        detailId: item.id,
-        gradeTypeId: item.gradeTypeId,
-        gradeTypeTitle: item.gradeType.title,
-        position: item.position,
-      })),
+      gradeTypes: gradeFormDetails.map((item) => {
+        const percentageRow = item.percentages[0];
+        return {
+          detailId: item.id,
+          gradeTypeId: item.gradeTypeId,
+          gradeTypeTitle: item.gradeType.title,
+          position: item.position,
+          percentage:
+            percentageRow == null ? null : Number(percentageRow.percentage),
+        };
+      }),
       cells,
     };
+  }
+
+  private calculateWeightedAverage(
+    courseId: number,
+    cells: Record<string, DashboardGradeCardCellDto>,
+    weightedDetails: Array<{ gradeTypeId: number; percentage: number }>,
+  ): number | null {
+    if (weightedDetails.length === 0) {
+      return null;
+    }
+
+    let weightedSum = 0;
+    let totalPercentage = 0;
+
+    for (const detail of weightedDetails) {
+      const cell = cells[`${courseId}-${detail.gradeTypeId}`];
+      if (cell?.score == null || Number.isNaN(cell.score)) {
+        continue;
+      }
+      weightedSum += cell.score * detail.percentage;
+      totalPercentage += detail.percentage;
+    }
+
+    if (totalPercentage <= 0) {
+      return null;
+    }
+
+    return Math.round((weightedSum / totalPercentage) * 100) / 100;
   }
 
   async listGradesByCourse(

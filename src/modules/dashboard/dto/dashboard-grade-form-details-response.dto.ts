@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class DashboardGradeFormDetailRowDto {
   @ApiProperty({ example: 1 })
@@ -15,6 +15,9 @@ export class DashboardGradeFormDetailRowDto {
 
   @ApiProperty({ example: 1 })
   position!: number;
+
+  @ApiPropertyOptional({ nullable: true, example: 40 })
+  percentage!: number | null;
 
   @ApiProperty({ example: true })
   status!: boolean;
