@@ -289,28 +289,52 @@ export class DashboardGradesService {
       }),
     ]);
 
-    const gradeFormDetails =
+    const allFormDetails =
       gradeFormRow === null
         ? []
         : await this.prisma.gradeFormDetail.findMany({
             where: {
               gradeFormId: gradeFormRow.id,
               status: true,
-              isVisible: true,
             },
             include: {
-              gradeType: { select: { id: true, title: true } },
+              gradeType: {
+                select: {
+                  id: true,
+                  title: true,
+                  isAbstract: true,
+                  isMain: true,
+                },
+              },
               percentages: {
-                where: { status: true },
-                orderBy: [{ id: 'desc' }],
-                take: 1,
+                where: { status: true, sourceGradeTypeId: { not: null } },
+                select: {
+                  sourceGradeTypeId: true,
+                  percentage: true,
+                },
+                orderBy: [{ id: 'asc' }],
               },
             },
             orderBy: [{ position: 'asc' }, { id: 'asc' }],
           });
 
+    const gradeFormDetails = allFormDetails.filter((item) => item.isVisible);
     const courseIds = classCourses.map((item) => item.courseId);
-    const gradeTypeIds = gradeFormDetails.map((item) => item.gradeTypeId);
+    const abstractTypeIds = new Set(
+      allFormDetails
+        .filter((item) => item.gradeType.isAbstract)
+        .map((item) => item.gradeTypeId),
+    );
+    const gradeTypeIds = [
+      ...new Set([
+        ...allFormDetails.map((item) => item.gradeTypeId),
+        ...allFormDetails.flatMap((item) =>
+          item.percentages
+            .map((row) => row.sourceGradeTypeId)
+            .filter((id): id is number => id != null),
+        ),
+      ]),
+    ];
 
     const gradeDetails =
       courseIds.length > 0
@@ -354,6 +378,10 @@ export class DashboardGradesService {
         continue;
       }
 
+      if (abstractTypeIds.has(gradeTypeId)) {
+        continue;
+      }
+
       const key = `${courseId}-${gradeTypeId}`;
       cells[key] = {
         score: detail.grade == null ? null : Number(detail.grade),
@@ -362,23 +390,11 @@ export class DashboardGradesService {
       };
     }
 
+    this.applyAbstractGradeScores(courseIds, allFormDetails, cells);
+
     const weightedDetails = gradeFormDetails
-      .map((item) => {
-        const percentageRow = item.percentages[0];
-        const percentage =
-          percentageRow == null ? null : Number(percentageRow.percentage);
-        return {
-          gradeTypeId: item.gradeTypeId,
-          percentage:
-            percentage != null && Number.isFinite(percentage) && percentage > 0
-              ? percentage
-              : null,
-        };
-      })
-      .filter(
-        (item): item is { gradeTypeId: number; percentage: number } =>
-          item.percentage != null,
-      );
+      .filter((item) => item.gradeType.isMain)
+      .map((item) => ({ gradeTypeId: item.gradeTypeId, percentage: 100 }));
 
     const showYearlyAverage = gradeFormRow?.average ?? false;
 
@@ -413,18 +429,113 @@ export class DashboardGradesService {
           : null,
       })),
       gradeTypes: gradeFormDetails.map((item) => {
-        const percentageRow = item.percentages[0];
+        const expressionTotal = item.percentages.reduce(
+          (sum, row) => sum + Number(row.percentage),
+          0,
+        );
         return {
           detailId: item.id,
           gradeTypeId: item.gradeTypeId,
           gradeTypeTitle: item.gradeType.title,
           position: item.position,
-          percentage:
-            percentageRow == null ? null : Number(percentageRow.percentage),
+          percentage: item.gradeType.isAbstract
+            ? expressionTotal > 0
+              ? expressionTotal
+              : null
+            : null,
         };
       }),
       cells,
     };
+  }
+
+  private applyAbstractGradeScores(
+    courseIds: number[],
+    formDetails: Array<{
+      gradeTypeId: number;
+      gradeType: { isAbstract: boolean };
+      percentages: Array<{
+        sourceGradeTypeId: number | null;
+        percentage: Prisma.Decimal | number;
+      }>;
+    }>,
+    cells: Record<string, DashboardGradeCardCellDto>,
+  ): void {
+    const recipes = formDetails
+      .filter((item) => item.gradeType.isAbstract)
+      .map((item) => ({
+        gradeTypeId: item.gradeTypeId,
+        sources: item.percentages.flatMap((row) => {
+          const percentage = Number(row.percentage);
+          if (
+            row.sourceGradeTypeId == null ||
+            !Number.isFinite(percentage) ||
+            percentage <= 0
+          ) {
+            return [];
+          }
+          return [
+            {
+              sourceGradeTypeId: row.sourceGradeTypeId,
+              percentage,
+            },
+          ];
+        }),
+      }))
+      .filter((item) => item.sources.length > 0);
+
+    if (recipes.length === 0) {
+      return;
+    }
+
+    const abstractIds = new Set(recipes.map((item) => item.gradeTypeId));
+
+    for (const courseId of courseIds) {
+      const pending = new Set(abstractIds);
+      let progressed = true;
+
+      while (pending.size > 0 && progressed) {
+        progressed = false;
+
+        for (const recipe of recipes) {
+          if (!pending.has(recipe.gradeTypeId)) {
+            continue;
+          }
+          if (
+            recipe.sources.some((source) =>
+              pending.has(source.sourceGradeTypeId),
+            )
+          ) {
+            continue;
+          }
+
+          let weightedSum = 0;
+          let totalPercentage = 0;
+          for (const source of recipe.sources) {
+            const cell = cells[`${courseId}-${source.sourceGradeTypeId}`];
+            if (cell?.score == null || Number.isNaN(cell.score)) {
+              continue;
+            }
+            weightedSum += cell.score * source.percentage;
+            totalPercentage += source.percentage;
+          }
+
+          pending.delete(recipe.gradeTypeId);
+          progressed = true;
+
+          if (totalPercentage <= 0) {
+            continue;
+          }
+
+          const existing = cells[`${courseId}-${recipe.gradeTypeId}`];
+          cells[`${courseId}-${recipe.gradeTypeId}`] = {
+            score: Math.round((weightedSum / totalPercentage) * 100) / 100,
+            maxGrade: existing?.maxGrade ?? null,
+            comment: existing?.comment ?? null,
+          };
+        }
+      }
+    }
   }
 
   private calculateWeightedAverage(

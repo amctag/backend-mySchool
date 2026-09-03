@@ -63,7 +63,7 @@ export class DashboardGradeCardCourseDto {
     nullable: true,
     example: 7.25,
     description:
-      'Weighted result from grade_form_percentage: sum(score * pct) / sum(pct)',
+      'Mean of is_main type scores after abstract types are calculated from Expression percentages',
   })
   yearlyAverage!: number | null;
 }
@@ -84,7 +84,8 @@ export class DashboardGradeCardGradeTypeDto {
   @ApiPropertyOptional({
     nullable: true,
     example: 40,
-    description: 'Active weight from grade_form_percentage (0–100)',
+    description:
+      'Sum of Expression percentages when this type is abstract; otherwise unused',
   })
   percentage!: number | null;
 }
