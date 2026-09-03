@@ -42,8 +42,14 @@ export class DashboardGradeCardFormDto {
   @ApiProperty({ example: 'grade_on_top' })
   tableFormat!: string;
 
-  @ApiProperty({ example: true })
-  average!: boolean;
+  @ApiProperty({ example: 20, description: 'Average scale (e.g. 20 or 10)' })
+  average!: number;
+
+  @ApiProperty({
+    example: 10,
+    description: 'Pass minimum for نتيجة (ناجح / راسب)',
+  })
+  minimum!: number;
 }
 
 export class DashboardGradeCardCourseDto {
@@ -61,9 +67,30 @@ export class DashboardGradeCardCourseDto {
 
   @ApiPropertyOptional({
     nullable: true,
-    example: 7.25,
+    example: 280.59,
+    description: 'Sum of visible grade-type scores for this course',
+  })
+  marksSum!: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 14.76,
     description:
-      'Mean of is_main type scores after abstract types are calculated from Expression percentages',
+      'Scaled average: (marksSum / maxSum) * grade_form.average',
+  })
+  scaledAverage!: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: true,
+    description: 'true = ناجح, false = راسب, null = not enough data',
+  })
+  passed!: boolean | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 7.25,
+    description: 'Unused legacy field',
   })
   yearlyAverage!: number | null;
 }

@@ -151,7 +151,8 @@ export class DashboardGradeFormsService {
         title: body.title.trim(),
         yearId: body.yearId,
         gradeBackground: body.gradeBackground?.trim() || null,
-        average: body.average ?? true,
+        average: body.average ?? 0,
+        minimum: body.minimum ?? 0,
         direction: body.direction ?? 'ltr',
         tableFormat: body.tableFormat ?? 'grade_on_top',
         gradeFormatId: body.gradeFormatId,
@@ -163,11 +164,11 @@ export class DashboardGradeFormsService {
               },
             }
           : {}),
-      },
+      } as unknown as Prisma.GradeFormUncheckedCreateInput,
       include: gradeFormInclude,
     });
 
-    return this.toFormDetail(created, 0);
+    return this.toFormDetail(created as GradeFormRecord, 0);
   }
 
   async updateGradeForm(
@@ -194,6 +195,7 @@ export class DashboardGradeFormsService {
             ? { gradeBackground: body.gradeBackground.trim() || null }
             : {}),
           ...(body.average !== undefined ? { average: body.average } : {}),
+          ...(body.minimum !== undefined ? { minimum: body.minimum } : {}),
           ...(body.direction !== undefined ? { direction: body.direction } : {}),
           ...(body.tableFormat !== undefined
             ? { tableFormat: body.tableFormat }
@@ -202,7 +204,7 @@ export class DashboardGradeFormsService {
             ? { gradeFormatId: body.gradeFormatId }
             : {}),
           ...(body.status !== undefined ? { status: body.status } : {}),
-        },
+        } as unknown as Prisma.GradeFormUncheckedUpdateInput,
       });
 
       if (body.classIds !== undefined) {
@@ -769,7 +771,10 @@ export class DashboardGradeFormsService {
       yearId: row.year.id,
       yearTitle: row.year.title,
       gradeBackground: row.gradeBackground,
-      average: row.average,
+      average: Number(row.average),
+      minimum: Number(
+        (row as GradeFormRecord & { minimum?: number }).minimum ?? 0,
+      ),
       direction: row.direction,
       tableFormat: row.tableFormat,
       gradeFormatId: row.gradeFormatId,

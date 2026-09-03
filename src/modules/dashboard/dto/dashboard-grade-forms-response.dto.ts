@@ -17,8 +17,11 @@ export class DashboardGradeFormItemDto {
   @ApiProperty({ example: null, nullable: true })
   gradeBackground!: string | null;
 
-  @ApiProperty({ example: true })
-  average!: boolean;
+  @ApiProperty({ example: 20 })
+  average!: number;
+
+  @ApiProperty({ example: 10 })
+  minimum!: number;
 
   @ApiProperty({ example: 'ltr' })
   direction!: string;

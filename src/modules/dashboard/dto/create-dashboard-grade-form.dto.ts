@@ -30,10 +30,22 @@ export class CreateDashboardGradeFormDto {
   @MaxLength(255)
   gradeBackground?: string;
 
-  @ApiPropertyOptional({ example: true })
+  @ApiPropertyOptional({ example: 20, description: 'Average scale (e.g. 20 or 10)' })
   @IsOptional()
-  @IsBoolean()
-  average?: boolean;
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  average?: number;
+
+  @ApiPropertyOptional({
+    example: 10,
+    description: 'Pass minimum; student average < minimum => راسب, else ناجح',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minimum?: number;
 
   @ApiPropertyOptional({ example: 'ltr', enum: ['ltr', 'rtl'] })
   @IsOptional()
