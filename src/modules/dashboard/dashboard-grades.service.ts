@@ -485,9 +485,11 @@ export class DashboardGradesService {
         Number.isFinite(cell.maxGrade) &&
         cell.maxGrade > 0
           ? cell.maxGrade
-          : courseCoefficient > 0
-            ? courseCoefficient
-            : null;
+          : averageScale > 0
+            ? averageScale
+            : courseCoefficient > 0
+              ? courseCoefficient
+              : null;
       if (maxGrade == null) {
         continue;
       }
