@@ -393,9 +393,103 @@ export class DashboardGradesService {
 
     const averageScale = Number(gradeFormRow?.average ?? 0);
     const passMinimum = Number(gradeFormRow?.minimum ?? 0);
+    const gradeFormatId = Number(gradeFormRow?.gradeFormatId ?? 1);
+    const coefficientsTotal = classCourses.reduce(
+      (sum, item) => sum + Number(item.coefficient),
+      0,
+    );
     const summaryTypeIds = gradeFormDetails
       .filter((item) => !item.gradeType.isAbstract)
       .map((item) => item.gradeTypeId);
+
+    const courses = classCourses.map((item) => {
+      const coefficient = Number(item.coefficient);
+      const summary = this.calculateCourseSummary(
+        item.courseId,
+        coefficient,
+        summaryTypeIds,
+        cells,
+        averageScale,
+        passMinimum,
+      );
+      return {
+        classCourseId: item.id,
+        courseId: item.courseId,
+        courseTitle: item.course.title,
+        coefficient,
+        marksSum: summary.marksSum,
+        scaledAverage: summary.scaledAverage,
+        passed: summary.passed,
+        displayAverage: this.formatGradeDisplay(
+          summary.scaledAverage,
+          averageScale,
+          gradeFormatId,
+        ),
+        yearlyAverage: null,
+      };
+    });
+
+    for (const course of courses) {
+      for (const detail of gradeFormDetails) {
+        const key = `${course.courseId}-${detail.gradeTypeId}`;
+        const cell = cells[key];
+        if (!cell) {
+          continue;
+        }
+        const maxGrade =
+          cell.maxGrade != null &&
+          Number.isFinite(cell.maxGrade) &&
+          cell.maxGrade > 0
+            ? cell.maxGrade
+            : course.coefficient > 0
+              ? course.coefficient
+              : averageScale > 0
+                ? averageScale
+                : null;
+        cell.display = this.formatGradeDisplay(
+          cell.score,
+          maxGrade,
+          gradeFormatId,
+        );
+      }
+    }
+
+    const gradeTypes = gradeFormDetails.map((item) => {
+      const expressionTotal = item.percentages.reduce(
+        (sum, row) => sum + Number(row.percentage),
+        0,
+      );
+      const typeSummary = this.calculateGradeTypeSummary(
+        item.gradeTypeId,
+        courses.map((course) => ({
+          courseId: course.courseId,
+          coefficient: course.coefficient,
+        })),
+        cells,
+        coefficientsTotal,
+        averageScale,
+        passMinimum,
+      );
+      return {
+        detailId: item.id,
+        gradeTypeId: item.gradeTypeId,
+        gradeTypeTitle: item.gradeType.title,
+        position: item.position,
+        percentage: item.gradeType.isAbstract
+          ? expressionTotal > 0
+            ? expressionTotal
+            : null
+          : null,
+        marksSum: typeSummary.marksSum,
+        scaledAverage: typeSummary.scaledAverage,
+        passed: typeSummary.passed,
+        displayAverage: this.formatGradeDisplay(
+          typeSummary.scaledAverage,
+          averageScale,
+          gradeFormatId,
+        ),
+      };
+    });
 
     return {
       student: {
@@ -415,49 +509,95 @@ export class DashboardGradesService {
             title: gradeFormRow.title,
             direction: gradeFormRow.direction,
             tableFormat: gradeFormRow.tableFormat,
-            gradeFormatId: Number(gradeFormRow.gradeFormatId),
+            gradeFormatId,
             average: Number(gradeFormRow.average),
             minimum: Number(gradeFormRow.minimum),
           }
         : null,
-      courses: classCourses.map((item) => {
-        const summary = this.calculateCourseSummary(
-          item.courseId,
-          Number(item.coefficient),
-          summaryTypeIds,
-          cells,
-          averageScale,
-          passMinimum,
-        );
-        return {
-          classCourseId: item.id,
-          courseId: item.courseId,
-          courseTitle: item.course.title,
-          coefficient: Number(item.coefficient),
-          marksSum: summary.marksSum,
-          scaledAverage: summary.scaledAverage,
-          passed: summary.passed,
-          yearlyAverage: null,
-        };
-      }),
-      gradeTypes: gradeFormDetails.map((item) => {
-        const expressionTotal = item.percentages.reduce(
-          (sum, row) => sum + Number(row.percentage),
-          0,
-        );
-        return {
-          detailId: item.id,
-          gradeTypeId: item.gradeTypeId,
-          gradeTypeTitle: item.gradeType.title,
-          position: item.position,
-          percentage: item.gradeType.isAbstract
-            ? expressionTotal > 0
-              ? expressionTotal
-              : null
-            : null,
-        };
-      }),
+      courses,
+      gradeTypes,
       cells,
+      coefficientsTotal,
+    };
+  }
+
+  private percentToLetterGrade(percent: number): string {
+    if (percent >= 95) return 'A+';
+    if (percent >= 90) return 'A';
+    if (percent >= 85) return 'A-';
+    if (percent >= 80) return 'B+';
+    if (percent >= 75) return 'B';
+    if (percent >= 70) return 'B-';
+    if (percent >= 65) return 'C+';
+    if (percent >= 60) return 'C';
+    if (percent >= 55) return 'C-';
+    if (percent >= 50) return 'D';
+    return 'F';
+  }
+
+  private formatGradeDisplay(
+    score: number | null | undefined,
+    max: number | null | undefined,
+    gradeFormatId: number,
+  ): string | null {
+    if (score == null || Number.isNaN(Number(score))) {
+      return null;
+    }
+    const numeric = Number(score);
+    if (gradeFormatId !== 2) {
+      return numeric.toFixed(2);
+    }
+    const maxValue =
+      max != null && Number.isFinite(Number(max)) && Number(max) > 0
+        ? Number(max)
+        : null;
+    if (maxValue == null) {
+      return null;
+    }
+    return this.percentToLetterGrade((numeric / maxValue) * 100);
+  }
+
+  private calculateGradeTypeSummary(
+    gradeTypeId: number,
+    courses: Array<{ courseId: number; coefficient: number }>,
+    cells: Record<string, DashboardGradeCardCellDto>,
+    coefficientsTotal: number,
+    averageScale: number,
+    passMinimum: number,
+  ): {
+    marksSum: number | null;
+    scaledAverage: number | null;
+    passed: boolean | null;
+  } {
+    let marksSum = 0;
+    let hasAnyScore = false;
+
+    for (const course of courses) {
+      const cell = cells[`${course.courseId}-${gradeTypeId}`];
+      const hasScore =
+        cell?.score != null && !Number.isNaN(Number(cell.score));
+      if (hasScore) {
+        hasAnyScore = true;
+      }
+      marksSum += hasScore ? Number(cell!.score) : 0;
+    }
+
+    if (!hasAnyScore) {
+      return { marksSum: null, scaledAverage: null, passed: null };
+    }
+
+    const roundedSum = Math.round(marksSum * 100) / 100;
+    const scaledAverage =
+      averageScale > 0 && coefficientsTotal > 0
+        ? Math.round((marksSum / coefficientsTotal) * averageScale * 100) / 100
+        : null;
+    const passed =
+      scaledAverage == null ? null : scaledAverage >= passMinimum;
+
+    return {
+      marksSum: roundedSum,
+      scaledAverage,
+      passed,
     };
   }
 

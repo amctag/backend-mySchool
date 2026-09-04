@@ -95,6 +95,13 @@ export class DashboardGradeCardCourseDto {
 
   @ApiPropertyOptional({
     nullable: true,
+    example: 'B+',
+    description: 'scaledAverage formatted by grade_form.gradeFormatId',
+  })
+  displayAverage!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
     example: 7.25,
     description: 'Unused legacy field',
   })
@@ -121,6 +128,36 @@ export class DashboardGradeCardGradeTypeDto {
       'Sum of Expression percentages when this type is abstract; otherwise unused',
   })
   percentage!: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 69,
+    description:
+      'Sum of this grade type across courses (missing scores count as 0 when any score exists)',
+  })
+  marksSum!: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 13.8,
+    description:
+      'Scaled average: (marksSum / coefficientsTotal) * grade_form.average',
+  })
+  scaledAverage!: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: true,
+    description: 'true = ناجح, false = راسب, null = not enough data',
+  })
+  passed!: boolean | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 'C+',
+    description: 'scaledAverage formatted by grade_form.gradeFormatId',
+  })
+  displayAverage!: string | null;
 }
 
 export class DashboardGradeCardCellDto {
@@ -132,6 +169,13 @@ export class DashboardGradeCardCellDto {
 
   @ApiPropertyOptional({ nullable: true })
   comment!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 'A-',
+    description: 'score formatted by grade_form.gradeFormatId (numeric or letter)',
+  })
+  display!: string | null;
 }
 
 export class DashboardGradeCardResponseDto {
@@ -148,10 +192,16 @@ export class DashboardGradeCardResponseDto {
   gradeTypes!: DashboardGradeCardGradeTypeDto[];
 
   @ApiProperty({
-    example: { '1-3': { score: 17.5, maxGrade: 20, comment: null } },
+    example: { '1-3': { score: 17.5, maxGrade: 20, comment: null, display: 'A-' } },
     description: 'Map key: `${courseId}-${gradeTypeId}`',
     type: 'object',
     additionalProperties: { type: 'object' },
   })
   cells!: Record<string, DashboardGradeCardCellDto>;
+
+  @ApiProperty({
+    example: 100,
+    description: 'Sum of all course coefficients (reference max for matrix totals)',
+  })
+  coefficientsTotal!: number;
 }
