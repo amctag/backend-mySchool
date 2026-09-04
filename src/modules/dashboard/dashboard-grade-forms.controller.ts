@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -37,6 +38,7 @@ import {
 } from './dto/dashboard-grade-forms-response.dto';
 import { SaveDashboardGradeFormDetailDto } from './dto/save-dashboard-grade-form-detail.dto';
 import { SaveDashboardGradeFormExpressionDto } from './dto/save-dashboard-grade-form-expression.dto';
+import { SaveDashboardGradeFormExpressionsDto } from './dto/save-dashboard-grade-form-expressions.dto';
 import { UpdateDashboardGradeFormClassesDto } from './dto/update-dashboard-grade-form-classes.dto';
 import { UpdateDashboardGradeFormDto } from './dto/update-dashboard-grade-form.dto';
 import { DashboardGradeFormsService } from './dashboard-grade-forms.service';
@@ -201,6 +203,26 @@ export class DashboardGradeFormsController {
       request.user,
       id,
       detailId,
+    );
+  }
+
+  @Put(':id/details/:detailId/percentages')
+  @ApiOperation({
+    summary:
+      'Replace all expression rows for a detail (total must equal 100%)',
+  })
+  @ApiOkResponse({ type: DashboardGradeFormDetailsListResponseDto })
+  replaceGradeFormExpressions(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Param('detailId', ParseIntPipe) detailId: number,
+    @Body() body: SaveDashboardGradeFormExpressionsDto,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    return this.dashboardGradeFormsService.replaceGradeFormExpressions(
+      request.user,
+      id,
+      detailId,
+      body,
     );
   }
 

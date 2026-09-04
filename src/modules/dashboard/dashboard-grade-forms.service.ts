@@ -18,6 +18,7 @@ import { DashboardGradeFormDetailsListResponseDto } from './dto/dashboard-grade-
 import { DashboardGradeFormByClassResponseDto } from './dto/dashboard-grade-form-by-class-response.dto';
 import { SaveDashboardGradeFormDetailDto } from './dto/save-dashboard-grade-form-detail.dto';
 import { SaveDashboardGradeFormExpressionDto } from './dto/save-dashboard-grade-form-expression.dto';
+import { SaveDashboardGradeFormExpressionsDto } from './dto/save-dashboard-grade-form-expressions.dto';
 import { UpdateDashboardGradeFormClassesDto } from './dto/update-dashboard-grade-form-classes.dto';
 import { UpdateDashboardGradeFormDto } from './dto/update-dashboard-grade-form.dto';
 
@@ -515,6 +516,73 @@ export class DashboardGradeFormsService {
     );
 
     await this.prisma.gradeFormDetail.delete({ where: { id: detailId } });
+
+    return this.listGradeFormDetails(user, gradeFormId);
+  }
+
+  async replaceGradeFormExpressions(
+    user: AuthenticatedSchool,
+    gradeFormId: number,
+    detailId: number,
+    body: SaveDashboardGradeFormExpressionsDto,
+  ): Promise<DashboardGradeFormDetailsListResponseDto> {
+    const detail = await this.findGradeFormDetailForSchool(
+      user.schoolId,
+      gradeFormId,
+      detailId,
+    );
+
+    const sourceIds = body.items.map((item) => item.sourceGradeTypeId);
+    if (new Set(sourceIds).size !== sourceIds.length) {
+      throw new BadRequestException(
+        'Each related grade type can only appear once in the expression',
+      );
+    }
+
+    const total =
+      Math.round(
+        body.items.reduce((sum, item) => sum + item.percentage, 0) * 100,
+      ) / 100;
+    if (total !== 100) {
+      throw new BadRequestException('Expression total must equal 100%');
+    }
+
+    for (const item of body.items) {
+      if (item.sourceGradeTypeId === detail.gradeTypeId) {
+        throw new BadRequestException(
+          'Expression cannot use the same grade type as this detail',
+        );
+      }
+      await this.assertGradeTypeForSchool(user.schoolId, item.sourceGradeTypeId);
+
+      const relatedDetail = await this.prisma.gradeFormDetail.findFirst({
+        where: {
+          gradeFormId,
+          gradeTypeId: item.sourceGradeTypeId,
+          id: { not: detailId },
+        },
+        select: { id: true },
+      });
+      if (!relatedDetail) {
+        throw new BadRequestException(
+          'Related grade type must belong to this grade form',
+        );
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.gradeFormPercentage.deleteMany({
+        where: { gradeFormatDetailId: detailId },
+      });
+      await tx.gradeFormPercentage.createMany({
+        data: body.items.map((item) => ({
+          gradeFormatDetailId: detailId,
+          sourceGradeTypeId: item.sourceGradeTypeId,
+          percentage: item.percentage,
+          status: true,
+        })),
+      });
+    });
 
     return this.listGradeFormDetails(user, gradeFormId);
   }
