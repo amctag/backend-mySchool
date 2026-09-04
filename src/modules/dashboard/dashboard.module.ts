@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../../auth/auth.module';
 import { PrismaModule } from '../../database/prisma/prisma.module';
+import { DashboardAttendancesController } from './dashboard-attendances.controller';
+import { DashboardAttendancesService } from './dashboard-attendances.service';
 import { DashboardLookupsController } from './dashboard-lookups.controller';
 import { DashboardLookupsService } from './dashboard-lookups.service';
 import { DashboardChildrenController } from './dashboard-children.controller';
@@ -51,6 +53,7 @@ import { DashboardScheduleGeneratorService } from './dashboard-schedule-generato
     DashboardRegistrationsController,
     DashboardGradesController,
     DashboardGradeFormsController,
+    DashboardAttendancesController,
     DashboardLookupsController,
     DashboardScheduleGeneratorController,
   ],
@@ -69,6 +72,7 @@ import { DashboardScheduleGeneratorService } from './dashboard-schedule-generato
     DashboardRegistrationsService,
     DashboardGradesService,
     DashboardGradeFormsService,
+    DashboardAttendancesService,
     DashboardLookupsService,
     DashboardScheduleGeneratorService,
   ],
