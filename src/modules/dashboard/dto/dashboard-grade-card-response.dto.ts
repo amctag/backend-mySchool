@@ -175,7 +175,7 @@ export class DashboardGradeCardCellDto {
     example: 'A-',
     description: 'score formatted by grade_form.gradeFormatId (numeric or letter)',
   })
-  display!: string | null;
+  display?: string | null;
 }
 
 export class DashboardGradeCardResponseDto {

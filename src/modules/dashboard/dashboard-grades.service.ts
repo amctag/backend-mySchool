@@ -386,6 +386,7 @@ export class DashboardGradesService {
         score: detail.grade == null ? null : Number(detail.grade),
         maxGrade: Number(maxGrade),
         comment: detail.comment ?? null,
+        display: null,
       };
     }
 
@@ -744,6 +745,7 @@ export class DashboardGradesService {
             score: Math.round((weightedSum / totalPercentage) * 100) / 100,
             maxGrade: existing?.maxGrade ?? null,
             comment: existing?.comment ?? null,
+            display: null,
           };
         }
       }
