@@ -273,6 +273,7 @@ export class DashboardGradesService {
           title: true,
           direction: true,
           tableFormat: true,
+          gradeFormatId: true,
           average: true,
           minimum: true,
         },
@@ -414,6 +415,7 @@ export class DashboardGradesService {
             title: gradeFormRow.title,
             direction: gradeFormRow.direction,
             tableFormat: gradeFormRow.tableFormat,
+            gradeFormatId: Number(gradeFormRow.gradeFormatId),
             average: Number(gradeFormRow.average),
             minimum: Number(gradeFormRow.minimum),
           }

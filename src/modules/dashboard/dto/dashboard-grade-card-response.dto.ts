@@ -42,6 +42,12 @@ export class DashboardGradeCardFormDto {
   @ApiProperty({ example: 'grade_on_top' })
   tableFormat!: string;
 
+  @ApiProperty({
+    example: 1,
+    description: '1 = Numeric, 2 = Letter (A+, A, A-, …)',
+  })
+  gradeFormatId!: number;
+
   @ApiProperty({ example: 20, description: 'Average scale (e.g. 20 or 10)' })
   average!: number;
 
