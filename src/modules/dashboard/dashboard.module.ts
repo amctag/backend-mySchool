@@ -3,6 +3,8 @@ import { AuthModule } from '../../auth/auth.module';
 import { PrismaModule } from '../../database/prisma/prisma.module';
 import { DashboardAttendancesController } from './dashboard-attendances.controller';
 import { DashboardAttendancesService } from './dashboard-attendances.service';
+import { DashboardAttendanceReasonsController } from './dashboard-attendance-reasons.controller';
+import { DashboardAttendanceReasonsService } from './dashboard-attendance-reasons.service';
 import { DashboardLookupsController } from './dashboard-lookups.controller';
 import { DashboardLookupsService } from './dashboard-lookups.service';
 import { DashboardChildrenController } from './dashboard-children.controller';
@@ -54,6 +56,7 @@ import { DashboardScheduleGeneratorService } from './dashboard-schedule-generato
     DashboardGradesController,
     DashboardGradeFormsController,
     DashboardAttendancesController,
+    DashboardAttendanceReasonsController,
     DashboardLookupsController,
     DashboardScheduleGeneratorController,
   ],
@@ -73,6 +76,7 @@ import { DashboardScheduleGeneratorService } from './dashboard-schedule-generato
     DashboardGradesService,
     DashboardGradeFormsService,
     DashboardAttendancesService,
+    DashboardAttendanceReasonsService,
     DashboardLookupsService,
     DashboardScheduleGeneratorService,
   ],

@@ -112,6 +112,9 @@ export class DashboardAttendancesService {
         include: {
           details: {
             where: { deletedAt: null },
+            include: {
+              attendanceReason: { select: { id: true, title: true } },
+            },
           },
         },
       }),
@@ -141,6 +144,8 @@ export class DashboardAttendancesService {
             | 'absent'
             | 'late'
             | 'excused',
+          attendanceReasonId: detail?.attendanceReasonId ?? null,
+          attendanceReasonTitle: detail?.attendanceReason?.title ?? null,
           description: detail?.description ?? null,
         };
       }),
@@ -168,6 +173,7 @@ export class DashboardAttendancesService {
         details: {
           where: { deletedAt: null },
           include: {
+            attendanceReason: { select: { id: true, title: true } },
             student: {
               include: {
                 person: {
@@ -215,6 +221,8 @@ export class DashboardAttendancesService {
         registrationId: registrationByStudent.get(detail.studentId) ?? 0,
         studentName: this.formatPersonName(detail.student.person),
         status: detail.status,
+        attendanceReasonId: detail.attendanceReasonId ?? null,
+        attendanceReasonTitle: detail.attendanceReason?.title ?? null,
         description: detail.description ?? null,
       })),
     };
@@ -254,13 +262,35 @@ export class DashboardAttendancesService {
       }
     }
 
+    const absentReasonIds = [
+      ...new Set(
+        body.details
+          .filter((detail) => detail.status === 'absent')
+          .map((detail) => detail.attendanceReasonId)
+          .filter((id): id is number => typeof id === 'number' && id > 0),
+      ),
+    ];
+
     for (const detail of body.details) {
-      if (
-        detail.status === 'absent' &&
-        (!detail.description || !detail.description.trim())
-      ) {
+      if (detail.status === 'absent' && !detail.attendanceReasonId) {
         throw new BadRequestException(
-          'Reason is required when a student is absent',
+          'Attendance reason is required when a student is absent',
+        );
+      }
+    }
+
+    if (absentReasonIds.length > 0) {
+      const reasons = await this.prisma.attendanceReason.findMany({
+        where: {
+          id: { in: absentReasonIds },
+          deletedAt: null,
+          status: true,
+        },
+        select: { id: true },
+      });
+      if (reasons.length !== absentReasonIds.length) {
+        throw new BadRequestException(
+          'One or more attendance reasons are invalid or inactive',
         );
       }
     }
@@ -291,6 +321,10 @@ export class DashboardAttendancesService {
             attendanceId: existing.id,
             studentId: detail.studentId,
             status: detail.status as AttendanceStatus,
+            attendanceReasonId:
+              detail.status === 'absent'
+                ? detail.attendanceReasonId ?? null
+                : null,
             description:
               detail.status === 'absent'
                 ? detail.description?.trim() || null
@@ -310,6 +344,10 @@ export class DashboardAttendancesService {
             create: body.details.map((detail) => ({
               studentId: detail.studentId,
               status: detail.status as AttendanceStatus,
+              attendanceReasonId:
+                detail.status === 'absent'
+                  ? detail.attendanceReasonId ?? null
+                  : null,
               description:
                 detail.status === 'absent'
                   ? detail.description?.trim() || null

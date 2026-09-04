@@ -10,6 +10,7 @@ import {
   IsString,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -24,7 +25,14 @@ export class SaveDashboardAttendanceDetailDto {
   @IsIn(['present', 'absent', 'late', 'excused'])
   status!: 'present' | 'absent' | 'late' | 'excused';
 
-  @ApiPropertyOptional({ example: 'Fever', nullable: true })
+  @ApiPropertyOptional({ example: 1, nullable: true })
+  @ValidateIf((dto: SaveDashboardAttendanceDetailDto) => dto.status === 'absent')
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  attendanceReasonId?: number | null;
+
+  @ApiPropertyOptional({ example: 'Fever since morning', nullable: true })
   @IsOptional()
   @IsString()
   @MaxLength(1000)

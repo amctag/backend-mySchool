@@ -68,7 +68,13 @@ export class DashboardAttendanceStudentRowDto {
   })
   status!: 'present' | 'absent' | 'late' | 'excused';
 
-  @ApiPropertyOptional({ nullable: true, example: 'Fever' })
+  @ApiPropertyOptional({ nullable: true, example: 1 })
+  attendanceReasonId!: number | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 'Sick' })
+  attendanceReasonTitle!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 'Fever since morning' })
   description!: string | null;
 }
 
