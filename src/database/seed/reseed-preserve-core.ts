@@ -806,9 +806,10 @@ async function seedSchoolOnePeople({
       const section = gradeSections[slot % gradeSections.length];
       const firstName =
         STUDENT_FIRST_NAMES[parentIndex * CHILDREN_PER_PARENT + child];
-      const username = `${firstName}.${parent.lastName}`
+      const nameSlug = `${firstName}.${parent.lastName}`
         .toLowerCase()
         .replace(/[^a-z0-9.]+/g, '');
+      const username = `stu.${nameSlug}`;
 
       const person = await prisma.person.create({
         data: {
