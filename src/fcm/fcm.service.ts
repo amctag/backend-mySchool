@@ -94,7 +94,7 @@ export class FcmService implements OnModuleInit {
       const message =
         error instanceof Error ? error.message : 'Failed to send FCM notification';
       this.logger.error(`FCM send failed: ${message}`);
-      throw new BadGatewayException(message);
+      throw new BadGatewayException(this.toClientMessage(message));
     }
   }
 
@@ -108,6 +108,18 @@ export class FcmService implements OnModuleInit {
       code === 'messaging/registration-token-not-registered' ||
       code === 'messaging/invalid-registration-token'
     );
+  }
+
+  private toClientMessage(message: string): string {
+    if (message.includes("cloudmessaging.messages.create")) {
+      return (
+        'FCM permission denied on project koi-beirut. In Google Cloud, enable ' +
+        'Firebase Cloud Messaging API and grant the service account the ' +
+        '"Firebase Cloud Messaging Admin" role.'
+      );
+    }
+
+    return message;
   }
 
   private parseServiceAccount(
