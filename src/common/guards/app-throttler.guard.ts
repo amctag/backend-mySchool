@@ -5,13 +5,14 @@ import { resolveThrottleTracker } from './throttle-tracker';
 @Injectable()
 export class AppThrottlerGuard extends ThrottlerGuard {
   protected async shouldSkip(context: ExecutionContext): Promise<boolean> {
-    if (process.env.THROTTLE_DISABLED === 'true') {
-      return true;
-    }
+    const request = context.switchToHttp().getRequest<{
+      path?: string;
+      url?: string;
+      originalUrl?: string;
+    }>();
+    const url = `${request.originalUrl ?? ''} ${request.url ?? ''} ${request.path ?? ''}`;
 
-    const request = context.switchToHttp().getRequest<{ path?: string }>();
-
-    if (request.path?.startsWith('/api/docs')) {
+    if (url.includes('/docs') || url.includes('/dashboard')) {
       return true;
     }
 
