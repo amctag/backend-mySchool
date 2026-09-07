@@ -47,7 +47,7 @@ export class DashboardAnnouncementsController {
   @ApiOperation({
     summary: 'Create a dashboard announcement',
     description:
-      'Creates an announcement as person id 1 (created by). School admin only.',
+      'Creates an announcement as person id 1 (created by). School admin only. If Parents is selected, sends an FCM push to matching parent devices.',
   })
   @ApiCreatedResponse({ type: DashboardAnnouncementItemDto })
   createAnnouncement(

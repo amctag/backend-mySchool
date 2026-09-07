@@ -1,8 +1,8 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
-import { FcmService } from '../../fcm/fcm.service';
+import { ParentFcmNotifyService } from '../../fcm/parent-fcm-notify.service';
 import { CreateDashboardNoticeDto } from './dto/create-dashboard-notice.dto';
 import { DashboardNoticesQueryDto } from './dto/dashboard-notices-query.dto';
 import {
@@ -67,11 +67,9 @@ type NoticeRecord = {
 
 @Injectable()
 export class DashboardNoticesService {
-  private readonly logger = new Logger(DashboardNoticesService.name);
-
   constructor(
     private readonly prisma: PrismaService,
-    private readonly fcmService: FcmService,
+    private readonly parentFcmNotify: ParentFcmNotifyService,
   ) {}
 
   async listNotices(
@@ -231,64 +229,31 @@ export class DashboardNoticesService {
     description: string,
     noticeTypeTitle: string | null,
   ): Promise<void> {
-    if (!this.fcmService.isReady()) {
-      this.logger.warn(
-        'Skipped notice FCM: FCM is not configured',
-      );
-      return;
-    }
-
     const students = await this.prisma.student.findMany({
       where: {
         id: { in: studentIds },
         parentId: { not: null },
       },
       select: {
-        id: true,
         parent: {
           select: { personId: true },
         },
       },
     });
 
-    const personIds = [
-      ...new Set(
-        students
-          .map((student) => student.parent?.personId)
-          .filter((id): id is number => id !== undefined),
-      ),
-    ];
+    const personIds = students
+      .map((student) => student.parent?.personId)
+      .filter((id): id is number => id !== undefined);
 
-    if (personIds.length === 0) {
-      return;
-    }
-
-    const tokens = await this.prisma.fcmToken.findMany({
-      where: { personId: { in: personIds } },
-    });
-
-    const title = noticeTypeTitle?.trim() || 'Notice';
-    const body =
-      description.length > 180 ? `${description.slice(0, 177)}...` : description;
-
-    for (const row of tokens) {
-      const result = await this.fcmService.trySendNotification(
-        row.token,
-        title,
-        body,
-        {
-          type: 'notice',
-          noticeId: String(noticeId),
-          personId: String(row.personId),
-        },
-      );
-
-      if (result === 'invalid') {
-        await this.prisma.fcmToken.deleteMany({
-          where: { personId: row.personId },
-        });
-      }
-    }
+    await this.parentFcmNotify.sendToPersonIds(
+      personIds,
+      noticeTypeTitle?.trim() || 'Notice',
+      description,
+      {
+        type: 'notice',
+        noticeId: String(noticeId),
+      },
+    );
   }
 
   private parseDate(value?: string): Date {

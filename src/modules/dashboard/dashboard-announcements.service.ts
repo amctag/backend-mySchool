@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { ParentFcmNotifyService } from '../../fcm/parent-fcm-notify.service';
 import { CreateDashboardAnnouncementDto } from './dto/create-dashboard-announcement.dto';
 import {
   DashboardAnnouncementItemDto,
@@ -62,7 +63,10 @@ type AnnouncementRecord = {
 
 @Injectable()
 export class DashboardAnnouncementsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly parentFcmNotify: ParentFcmNotifyService,
+  ) {}
 
   async listAnnouncements(
     _user: AuthenticatedSchool,
@@ -173,7 +177,52 @@ export class DashboardAnnouncementsService {
       include: announcementInclude,
     });
 
+    if (uniqueTargets.includes('parent')) {
+      await this.notifyParentAudience(
+        user.schoolId,
+        sectionLink?.sectionId,
+        announcement.id,
+        announcement.title,
+        announcement.content,
+      );
+    }
+
     return this.toItem(announcement);
+  }
+
+  private async notifyParentAudience(
+    schoolId: number,
+    sectionId: number | undefined,
+    announcementId: number,
+    title: string | null,
+    content: string,
+  ): Promise<void> {
+    const parents = await this.prisma.parent.findMany({
+      where: {
+        students: {
+          some: {
+            registrations: {
+              some: {
+                status: true,
+                schoolId,
+                ...(sectionId ? { sectionId } : {}),
+              },
+            },
+          },
+        },
+      },
+      select: { personId: true },
+    });
+
+    await this.parentFcmNotify.sendToPersonIds(
+      parents.map((parent) => parent.personId),
+      title?.trim() || 'Announcement',
+      content,
+      {
+        type: 'announcement',
+        announcementId: String(announcementId),
+      },
+    );
   }
 
   private async assertCreatorPersonExists(): Promise<void> {
