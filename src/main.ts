@@ -68,6 +68,7 @@ async function bootstrap() {
     .addTag('Dashboard Parents v1', 'Parents for the school admin dashboard')
     .addTag('Dashboard FCM v1', 'Send test Firebase Cloud Messaging notifications')
     .addTag('Dashboard Notices v1', 'School notices for students and sections')
+    .addTag('Dashboard Activities v1', 'School activities and events')
     .addTag('Dashboard Lookups v1', 'Governorates, regions, nationalities, and jobs')
     .build();
 
