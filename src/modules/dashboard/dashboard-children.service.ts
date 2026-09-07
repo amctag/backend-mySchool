@@ -4,6 +4,7 @@ import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { DashboardChildrenQueryDto } from './dto/dashboard-children-query.dto';
 import { DashboardChildrenResponseDto } from './dto/dashboard-children-response.dto';
+import { personNameContainsFilter } from './person-name-search';
 
 @Injectable()
 export class DashboardChildrenService {
@@ -132,7 +133,7 @@ export class DashboardChildrenService {
     schoolId: number,
     query: DashboardChildrenQueryDto,
   ): Prisma.StudentWhereInput {
-    const nameContains = this.nameContainsFilter(query.name);
+    const nameContains = personNameContainsFilter(query.name);
     const searchContains = this.searchFilter(query.search);
 
     return {
@@ -146,28 +147,12 @@ export class DashboardChildrenService {
     };
   }
 
-  private nameContainsFilter(
-    name?: string,
-  ): Prisma.PersonWhereInput | undefined {
-    if (!name) {
-      return undefined;
-    }
-
-    return {
-      OR: [
-        { firstName: { contains: name, mode: 'insensitive' } },
-        { middleName: { contains: name, mode: 'insensitive' } },
-        { lastName: { contains: name, mode: 'insensitive' } },
-      ],
-    };
-  }
-
   private searchFilter(search?: string): Prisma.StudentWhereInput {
     if (!search) {
       return {};
     }
 
-    const nameMatch = this.nameContainsFilter(search);
+    const nameMatch = personNameContainsFilter(search);
     const parsedId = /^\d+$/.test(search) ? Number(search) : undefined;
 
     return {

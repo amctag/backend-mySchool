@@ -22,6 +22,7 @@ import {
   normalizeEmail,
   rethrowPersonWriteError,
 } from './person-contact-uniqueness';
+import { personNameContainsFilter } from './person-name-search';
 import { purgeStudentAndPerson } from './purge-student';
 
 const DEFAULT_PARENT_PASSWORD = 'password123';
@@ -128,7 +129,7 @@ export class DashboardParentsService {
     }
 
     const schoolId = user.schoolId;
-    const nameMatch = this.nameContainsFilter(term);
+    const nameMatch = personNameContainsFilter(term);
     const parents = await this.prisma.parent.findMany({
       where: {
         AND: [
@@ -631,7 +632,7 @@ export class DashboardParentsService {
     schoolId: number,
     query: DashboardParentsQueryDto,
   ): Prisma.ParentWhereInput {
-    const nameContains = this.nameContainsFilter(query.name);
+    const nameContains = personNameContainsFilter(query.name);
     const searchContains = this.searchFilter(query.search);
 
     return {
@@ -651,28 +652,12 @@ export class DashboardParentsService {
     };
   }
 
-  private nameContainsFilter(
-    name?: string,
-  ): Prisma.PersonWhereInput | undefined {
-    if (!name) {
-      return undefined;
-    }
-
-    return {
-      OR: [
-        { firstName: { contains: name, mode: 'insensitive' } },
-        { middleName: { contains: name, mode: 'insensitive' } },
-        { lastName: { contains: name, mode: 'insensitive' } },
-      ],
-    };
-  }
-
   private searchFilter(search?: string): Prisma.ParentWhereInput {
     if (!search) {
       return {};
     }
 
-    const nameMatch = this.nameContainsFilter(search);
+    const nameMatch = personNameContainsFilter(search);
     const parsedId = /^\d+$/.test(search) ? Number(search) : undefined;
 
     return {

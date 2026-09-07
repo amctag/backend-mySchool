@@ -6,6 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { personNameContainsFilter } from './person-name-search';
 import { CreateDashboardRegistrationDto } from './dto/create-dashboard-registration.dto';
 import { DashboardRegistrationsQueryDto } from './dto/dashboard-registrations-query.dto';
 import {
@@ -200,6 +201,7 @@ export class DashboardRegistrationsService {
     query: DashboardRegistrationsQueryDto & { yearId?: number },
   ): Prisma.RegistrationWhereInput {
     const search = query.search?.trim();
+    const nameMatch = personNameContainsFilter(search);
     return {
       status: true,
       ...(query.sectionId ? { sectionId: query.sectionId } : {}),
@@ -211,33 +213,8 @@ export class DashboardRegistrationsService {
       ...(search
         ? {
             OR: [
-              {
-                student: {
-                  person: {
-                    OR: [
-                      {
-                        firstName: {
-                          contains: search,
-                          mode: 'insensitive',
-                        },
-                      },
-                      {
-                        middleName: {
-                          contains: search,
-                          mode: 'insensitive',
-                        },
-                      },
-                      {
-                        lastName: {
-                          contains: search,
-                          mode: 'insensitive',
-                        },
-                      },
-                    ],
-                  },
-                },
-              },
-              ...( /^\d+$/.test(search)
+              ...(nameMatch ? [{ student: { person: nameMatch } }] : []),
+              ...(/^\d+$/.test(search)
                 ? [{ studentId: Number(search) }]
                 : []),
             ],

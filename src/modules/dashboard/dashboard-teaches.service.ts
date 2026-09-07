@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { personNameContainsFilter } from './person-name-search';
 import { CreateDashboardTeachDto } from './dto/create-dashboard-teach.dto';
 import { DashboardTeachesQueryDto } from './dto/dashboard-teaches-query.dto';
 import {
@@ -304,6 +305,7 @@ export class DashboardTeachesService {
     query: DashboardTeachesQueryDto,
   ): Prisma.TeachWhereInput {
     const search = query.search?.trim();
+    const teacherNameMatch = personNameContainsFilter(search);
     return {
       year: { schoolId },
       course: { schoolId },
@@ -319,17 +321,9 @@ export class DashboardTeachesService {
       ...(search
         ? {
             OR: [
-              {
-                teacher: {
-                  person: {
-                    OR: [
-                      { firstName: { contains: search, mode: 'insensitive' } },
-                      { middleName: { contains: search, mode: 'insensitive' } },
-                      { lastName: { contains: search, mode: 'insensitive' } },
-                    ],
-                  },
-                },
-              },
+              ...(teacherNameMatch
+                ? [{ teacher: { person: teacherNameMatch } }]
+                : []),
               {
                 section: {
                   class: { className: { contains: search, mode: 'insensitive' } },

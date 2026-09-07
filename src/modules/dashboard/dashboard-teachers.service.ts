@@ -13,6 +13,7 @@ import { DashboardTeacherDetailDto } from './dto/dashboard-teacher-detail.dto';
 import { DashboardTeachersQueryDto } from './dto/dashboard-teachers-query.dto';
 import { DashboardTeachersResponseDto } from './dto/dashboard-teachers-response.dto';
 import { UpdateDashboardTeacherDto } from './dto/update-dashboard-teacher.dto';
+import { personNameContainsFilter } from './person-name-search';
 import {
   assertUniquePersonContacts,
   emptyToNull,
@@ -539,7 +540,7 @@ export class DashboardTeachersService {
     schoolId: number,
     query: DashboardTeachersQueryDto,
   ): Prisma.TeacherWhereInput {
-    const nameContains = this.nameContainsFilter(query.name);
+    const nameContains = personNameContainsFilter(query.name);
     const searchContains = this.searchFilter(query.search);
 
     return {
@@ -554,28 +555,12 @@ export class DashboardTeachersService {
     };
   }
 
-  private nameContainsFilter(
-    name?: string,
-  ): Prisma.PersonWhereInput | undefined {
-    if (!name) {
-      return undefined;
-    }
-
-    return {
-      OR: [
-        { firstName: { contains: name, mode: 'insensitive' } },
-        { middleName: { contains: name, mode: 'insensitive' } },
-        { lastName: { contains: name, mode: 'insensitive' } },
-      ],
-    };
-  }
-
   private searchFilter(search?: string): Prisma.TeacherWhereInput {
     if (!search) {
       return {};
     }
 
-    const nameMatch = this.nameContainsFilter(search);
+    const nameMatch = personNameContainsFilter(search);
     const parsedId = /^\d+$/.test(search) ? Number(search) : undefined;
 
     return {
