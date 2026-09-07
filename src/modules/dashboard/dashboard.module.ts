@@ -47,6 +47,8 @@ import { DashboardFcmController } from './dashboard-fcm.controller';
 import { DashboardFcmService } from './dashboard-fcm.service';
 import { DashboardNoticesController } from './dashboard-notices.controller';
 import { DashboardNoticesService } from './dashboard-notices.service';
+import { DashboardNoticeTypesController } from './dashboard-notice-types.controller';
+import { DashboardNoticeTypesService } from './dashboard-notice-types.service';
 
 @Module({
   imports: [PrismaModule, AuthModule],
@@ -74,6 +76,7 @@ import { DashboardNoticesService } from './dashboard-notices.service';
     DashboardScheduleGeneratorController,
     DashboardFcmController,
     DashboardNoticesController,
+    DashboardNoticeTypesController,
   ],
   providers: [
     DashboardParentsService,
@@ -99,6 +102,7 @@ import { DashboardNoticesService } from './dashboard-notices.service';
     DashboardScheduleGeneratorService,
     DashboardFcmService,
     DashboardNoticesService,
+    DashboardNoticeTypesService,
   ],
 })
 export class DashboardModule {}

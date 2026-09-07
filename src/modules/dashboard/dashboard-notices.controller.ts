@@ -13,7 +13,6 @@ import { CreateDashboardNoticeDto } from './dto/create-dashboard-notice.dto';
 import { DashboardNoticesQueryDto } from './dto/dashboard-notices-query.dto';
 import {
   DashboardNoticeItemDto,
-  DashboardNoticeTypeItemDto,
   DashboardNoticesResponseDto,
 } from './dto/dashboard-notices-response.dto';
 import { DashboardNoticesService } from './dashboard-notices.service';
@@ -26,13 +25,6 @@ export class DashboardNoticesController {
   constructor(
     private readonly dashboardNoticesService: DashboardNoticesService,
   ) {}
-
-  @Get('types')
-  @ApiOperation({ summary: 'List notice types' })
-  @ApiOkResponse({ type: [DashboardNoticeTypeItemDto] })
-  listNoticeTypes(): Promise<DashboardNoticeTypeItemDto[]> {
-    return this.dashboardNoticesService.listNoticeTypes();
-  }
 
   @Get()
   @ApiOperation({

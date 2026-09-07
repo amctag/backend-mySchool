@@ -7,6 +7,9 @@ export class DashboardNoticeTypeItemDto {
 
   @ApiProperty({ example: 'Behavior' })
   title!: string;
+
+  @ApiProperty({ example: 3 })
+  usageCount!: number;
 }
 
 export class DashboardNoticeItemDto {

@@ -6,7 +6,6 @@ import { CreateDashboardNoticeDto } from './dto/create-dashboard-notice.dto';
 import { DashboardNoticesQueryDto } from './dto/dashboard-notices-query.dto';
 import {
   DashboardNoticeItemDto,
-  DashboardNoticeTypeItemDto,
   DashboardNoticesResponseDto,
 } from './dto/dashboard-notices-response.dto';
 
@@ -68,16 +67,6 @@ type NoticeRecord = {
 @Injectable()
 export class DashboardNoticesService {
   constructor(private readonly prisma: PrismaService) {}
-
-  async listNoticeTypes(): Promise<DashboardNoticeTypeItemDto[]> {
-    const types = await this.prisma.noticeType.findMany({
-      where: { deletedAt: null },
-      orderBy: { title: 'asc' },
-      select: { id: true, title: true },
-    });
-
-    return types;
-  }
 
   async listNotices(
     user: AuthenticatedSchool,
