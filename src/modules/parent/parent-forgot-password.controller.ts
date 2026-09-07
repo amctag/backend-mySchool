@@ -1,5 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
+import { AUTH_ROUTE_THROTTLE } from '../../common/guards/auth-route-throttle';
 import {
   ApiBadRequestResponse,
   ApiOkResponse,
@@ -24,8 +25,7 @@ export class ParentForgotPasswordController {
   constructor(private readonly parentService: ParentService) {}
 
   @Public()
-  @SkipThrottle({ default: true })
-  @Throttle({ auth: {} })
+  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('forgot-password/request-otp')
   @ApiOperation({ summary: 'Request forgot-password OTP by username' })
   @ApiOkResponse({ type: ParentForgotPasswordRequestOtpResponseDto })
@@ -39,8 +39,7 @@ export class ParentForgotPasswordController {
   }
 
   @Public()
-  @SkipThrottle({ default: true })
-  @Throttle({ auth: {} })
+  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('forgot-password/verify-otp')
   @ApiOperation({ summary: 'Verify forgot-password OTP' })
   @ApiOkResponse({ type: ParentForgotPasswordVerifyOtpResponseDto })
@@ -54,8 +53,7 @@ export class ParentForgotPasswordController {
   }
 
   @Public()
-  @SkipThrottle({ default: true })
-  @Throttle({ auth: {} })
+  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('forgot-password/reset')
   @ApiOperation({ summary: 'Set a new password after OTP verification' })
   @ApiOkResponse({ type: ParentForgotPasswordResetResponseDto })

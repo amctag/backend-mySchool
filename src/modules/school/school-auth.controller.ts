@@ -6,7 +6,8 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
+import { AUTH_ROUTE_THROTTLE } from '../../common/guards/auth-route-throttle';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -35,8 +36,7 @@ export class SchoolAuthController {
   ) {}
 
   @Public()
-  @SkipThrottle({ default: true })
-  @Throttle({ auth: {} })
+  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('login')
   @ApiOperation({ summary: 'School admin login' })
   @ApiOkResponse({ type: SchoolAccessTokenResponseDto })
@@ -57,8 +57,7 @@ export class SchoolAuthController {
   }
 
   @Public()
-  @SkipThrottle({ default: true })
-  @Throttle({ auth: {} })
+  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh school admin access token' })
   @ApiOkResponse({ type: SchoolAccessTokenResponseDto })

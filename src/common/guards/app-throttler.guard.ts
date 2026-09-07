@@ -1,5 +1,6 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { resolveThrottleTracker } from './throttle-tracker';
 
 @Injectable()
 export class AppThrottlerGuard extends ThrottlerGuard {
@@ -15,5 +16,9 @@ export class AppThrottlerGuard extends ThrottlerGuard {
     }
 
     return super.shouldSkip(context);
+  }
+
+  protected async getTracker(req: Record<string, unknown>): Promise<string> {
+    return resolveThrottleTracker(req);
   }
 }

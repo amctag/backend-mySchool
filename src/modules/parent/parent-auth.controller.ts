@@ -1,5 +1,6 @@
 import { Body, Controller, Post, Req } from '@nestjs/common';
-import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
+import { AUTH_ROUTE_THROTTLE } from '../../common/guards/auth-route-throttle';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -25,8 +26,7 @@ export class ParentAuthController {
   constructor(private readonly parentService: ParentService) {}
 
   @Public()
-  @SkipThrottle({ default: true })
-  @Throttle({ auth: {} })
+  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('login')
   @ApiOperation({
     summary: 'Parent login',
@@ -42,8 +42,7 @@ export class ParentAuthController {
   }
 
   @Public()
-  @SkipThrottle({ default: true })
-  @Throttle({ auth: {} })
+  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh parent access token' })
   @ApiOkResponse({ type: ParentRefreshResponseDto })

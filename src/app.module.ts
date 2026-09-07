@@ -40,16 +40,12 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
+        skipIf: () => configService.get<boolean>('throttle.disabled') === true,
         throttlers: [
           {
             name: 'default',
             ttl: configService.get<number>('throttle.ttl') ?? 60000,
             limit: configService.get<number>('throttle.limit') ?? 10000,
-          },
-          {
-            name: 'auth',
-            ttl: configService.get<number>('throttle.authTtl') ?? 60000,
-            limit: configService.get<number>('throttle.authLimit') ?? 1000,
           },
         ],
       }),
@@ -70,11 +66,11 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     },
     {
       provide: APP_GUARD,
-      useClass: AppThrottlerGuard,
+      useClass: JwtAuthGuard,
     },
     {
       provide: APP_GUARD,
-      useClass: JwtAuthGuard,
+      useClass: AppThrottlerGuard,
     },
     {
       provide: APP_GUARD,
