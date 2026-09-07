@@ -5,6 +5,12 @@ import { DashboardAttendancesController } from './dashboard-attendances.controll
 import { DashboardAttendancesService } from './dashboard-attendances.service';
 import { DashboardAttendanceReasonsController } from './dashboard-attendance-reasons.controller';
 import { DashboardAttendanceReasonsService } from './dashboard-attendance-reasons.service';
+import { DashboardAgendasController } from './dashboard-agendas.controller';
+import { DashboardAgendasService } from './dashboard-agendas.service';
+import { DashboardAgendaSectionsController } from './dashboard-agenda-sections.controller';
+import { DashboardAgendaSectionsService } from './dashboard-agenda-sections.service';
+import { DashboardSessionsController } from './dashboard-sessions.controller';
+import { DashboardSessionsService } from './dashboard-sessions.service';
 import { DashboardLookupsController } from './dashboard-lookups.controller';
 import { DashboardLookupsService } from './dashboard-lookups.service';
 import { DashboardChildrenController } from './dashboard-children.controller';
@@ -57,6 +63,9 @@ import { DashboardScheduleGeneratorService } from './dashboard-schedule-generato
     DashboardGradeFormsController,
     DashboardAttendancesController,
     DashboardAttendanceReasonsController,
+    DashboardAgendasController,
+    DashboardAgendaSectionsController,
+    DashboardSessionsController,
     DashboardLookupsController,
     DashboardScheduleGeneratorController,
   ],
@@ -77,6 +86,9 @@ import { DashboardScheduleGeneratorService } from './dashboard-schedule-generato
     DashboardGradeFormsService,
     DashboardAttendancesService,
     DashboardAttendanceReasonsService,
+    DashboardAgendasService,
+    DashboardAgendaSectionsService,
+    DashboardSessionsService,
     DashboardLookupsService,
     DashboardScheduleGeneratorService,
   ],
