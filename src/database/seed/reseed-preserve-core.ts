@@ -752,9 +752,10 @@ async function seedSchoolOnePeople({
   let studentIndex = 0;
   for (const section of gradeSections) {
     for (let i = 1; i <= 10; i += 1) {
-      const firstName = STUDENT_FIRST_NAMES[(studentIndex + i - 1) % STUDENT_FIRST_NAMES.length];
+      const firstName = STUDENT_FIRST_NAMES[i - 1];
       const username = `g${String(section.classLevel).padStart(2, '0')}-${section.sectionCode}-stu-${String(i).padStart(2, '0')}`;
       const parent = parentRows[(studentIndex + i) % parentRows.length];
+      const classTag = `${section.classLevel}${section.sectionCode.toUpperCase()}`;
 
       const person = await prisma.person.create({
         data: {
@@ -763,8 +764,9 @@ async function seedSchoolOnePeople({
           password: DEFAULT_PASSWORD,
           firstName,
           middleName: parent.firstName,
-          lastName: parent.lastName,
+          lastName: `${parent.lastName} ${classTag}`,
           email: `${username}@student.greenvalley.edu`,
+          identityNumber: `LB-${schoolId}-${username}`,
           status: true,
           gender: i % 2 === 0 ? 1 : 0,
           birthday: new Date(2010 + section.classLevel, (i % 12) + 1, 10),
