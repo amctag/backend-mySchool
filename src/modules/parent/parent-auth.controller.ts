@@ -1,11 +1,13 @@
 import { Body, Controller, Post, Req } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
+import { AUTH_ROUTE_THROTTLE } from '../../common/guards/auth-route-throttle';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Request } from 'express';
@@ -19,31 +21,34 @@ import { ParentRefreshDto } from './dto/parent-refresh.dto';
 import { ParentService } from './parent.service';
 
 @ApiTags('Parent Auth v1')
-@SkipThrottle()
 @Controller({ path: 'parent', version: '1' })
 export class ParentAuthController {
   constructor(private readonly parentService: ParentService) {}
 
   @Public()
+  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('login')
   @ApiOperation({
     summary: 'Parent login',
     description:
-      'Authenticates the parent and stores their FCM device token (one row per person).',
+      'Authenticates the parent. Optional fcmToken is stored when sent (one row per person).',
   })
   @ApiOkResponse({ type: ParentLoginResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   @ApiUnauthorizedResponse({ description: 'Invalid username or password' })
+  @ApiTooManyRequestsResponse({ description: 'Too many login attempts' })
   login(@Body() loginDto: ParentLoginDto): Promise<ParentLoginResponseDto> {
     return this.parentService.login(loginDto);
   }
 
   @Public()
+  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh parent access token' })
   @ApiOkResponse({ type: ParentRefreshResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   @ApiUnauthorizedResponse({ description: 'Invalid or expired refresh token' })
+  @ApiTooManyRequestsResponse({ description: 'Too many refresh attempts' })
   refresh(@Body() refreshDto: ParentRefreshDto): Promise<ParentRefreshResponseDto> {
     return this.parentService.refresh(refreshDto.refreshToken);
   }

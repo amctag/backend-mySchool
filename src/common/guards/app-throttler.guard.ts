@@ -12,13 +12,7 @@ export class AppThrottlerGuard extends ThrottlerGuard {
     }>();
     const url = `${request.originalUrl ?? ''} ${request.url ?? ''} ${request.path ?? ''}`;
 
-    if (
-      url.includes('/docs') ||
-      url.includes('/dashboard') ||
-      url.includes('/parent') ||
-      url.includes('/school/login') ||
-      url.includes('/school/refresh')
-    ) {
+    if (url.includes('/docs') || url.includes('/dashboard')) {
       return true;
     }
 

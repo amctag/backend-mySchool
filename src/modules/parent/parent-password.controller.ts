@@ -1,5 +1,6 @@
 import { Body, Controller, Post, Req } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
+import { AUTH_ROUTE_THROTTLE } from '../../common/guards/auth-route-throttle';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -18,11 +19,11 @@ import { ParentChangePasswordDto } from './dto/parent-change-password.dto';
 import { ParentService } from './parent.service';
 
 @ApiTags('Parent Profile v1')
-@SkipThrottle()
 @Controller({ path: 'parent', version: '1' })
 export class ParentPasswordController {
   constructor(private readonly parentService: ParentService) {}
 
+  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('me/change-password/request-otp')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Send email OTP to change password' })
@@ -37,6 +38,7 @@ export class ParentPasswordController {
     return this.parentService.requestChangePasswordOtp(request.user);
   }
 
+  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('me/change-password')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Change password using email OTP' })

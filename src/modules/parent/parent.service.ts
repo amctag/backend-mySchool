@@ -85,7 +85,10 @@ export class ParentService {
   async login(loginDto: ParentLoginDto): Promise<ParentLoginResponseDto> {
     const person = await this.validateCredentials(loginDto);
     const tokens = await this.createSession(person);
-    await this.fcmTokenService.upsertForPerson(person.id, loginDto.fcmToken);
+    const fcmToken = loginDto.fcmToken?.trim();
+    if (fcmToken) {
+      await this.fcmTokenService.upsertForPerson(person.id, fcmToken);
+    }
 
     return {
       ...tokens,
