@@ -28,11 +28,11 @@ export class ParentNoticeItemDto {
 
   @ApiProperty({
     example: 'section',
-    enum: ['student', 'section'],
+    enum: ['student', 'section', 'school'],
     description:
-      'How the child received the notice: directly targeted or via section membership',
+      'How the child received the notice: directly targeted, via section, or all school',
   })
-  receivedVia!: 'student' | 'section';
+  receivedVia!: 'student' | 'section' | 'school';
 }
 
 export class ParentNoticesResponseDto {

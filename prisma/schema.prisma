@@ -667,25 +667,28 @@ model NoticeType {
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   person Person @relation(fields: [personId], references: [id], onDelete: Restrict)
+  notices Notice[]
 
   @@map("notice_types")
 }
 
 model Notice {
-  id          Int       @id @default(autoincrement())
-  schoolId    Int       @map("school_id")
-  description String    @db.Text
-  personId    Int       @map("person_id")
-  date        DateTime  @db.Date
-  status      Boolean   @default(true)
-  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           Int       @id @default(autoincrement())
+  schoolId     Int       @map("school_id")
+  noticeTypeId Int?      @map("notice_type_id")
+  description  String    @db.Text
+  personId     Int       @map("person_id")
+  date         DateTime  @db.Date
+  status       Boolean   @default(true)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  school   School          @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  person   Person          @relation(fields: [personId], references: [id], onDelete: Restrict)
-  students NoticeStudent[]
-  sections NoticeSection[]
+  school     School          @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  noticeType NoticeType?     @relation(fields: [noticeTypeId], references: [id], onDelete: SetNull)
+  person     Person          @relation(fields: [personId], references: [id], onDelete: Restrict)
+  students   NoticeStudent[]
+  sections   NoticeSection[]
 
   @@index([schoolId, status, date])
   @@map("notices")

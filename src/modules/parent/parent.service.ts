@@ -1046,6 +1046,18 @@ export class ParentService {
         OR: [
           {
             students: {
+              none: {
+                deletedAt: null,
+              },
+            },
+            sections: {
+              none: {
+                deletedAt: null,
+              },
+            },
+          },
+          {
+            students: {
               some: {
                 studentId: { in: studentIds },
                 deletedAt: null,
@@ -1096,7 +1108,7 @@ export class ParentService {
           (target) => target.sectionId === section.id,
         );
 
-        if (!viaStudent && !viaSection) {
+        if (!viaStudent && !viaSection && (notice.students.length > 0 || notice.sections.length > 0)) {
           continue;
         }
 
@@ -1109,7 +1121,7 @@ export class ParentService {
           schoolName: section.school.name,
           sectionName: this.formatSectionName(section.sectionTitle.title),
           class: String(section.class.classLevel),
-          receivedVia: viaStudent ? 'student' : 'section',
+          receivedVia: viaStudent ? 'student' : viaSection ? 'section' : 'school',
         });
       }
     }
