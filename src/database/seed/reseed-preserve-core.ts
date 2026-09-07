@@ -286,14 +286,51 @@ const TEACHERS = [
 ] as const;
 
 const PARENTS = [
-  { username: 'ahmad.khalil', firstName: 'Ahmad', middleName: 'Hassan', lastName: 'Khalil', email: 'ahmad.khalil@example.com', phone: '+96170111222', global: true },
-  { username: 'maya.hassan', firstName: 'Maya', middleName: 'Joseph', lastName: 'Hassan', email: 'maya.hassan@example.com', phone: '+96170333444', global: false },
-  { username: 'georges.njeim', firstName: 'Georges', middleName: 'Maroun', lastName: 'Njeim', email: 'georges.njeim@example.com', phone: '+96170555666', global: false },
+  { username: 'ahmad.khalil', firstName: 'Ahmad', middleName: 'Hassan', lastName: 'Khalil', email: 'ahmad.khalil@example.com', phone: '+96170111001', gender: 0, global: true, motherName: 'Hala', motherFamily: 'Khoury' },
+  { username: 'maya.hassan', firstName: 'Maya', middleName: 'Joseph', lastName: 'Hassan', email: 'maya.hassan@example.com', phone: '+96170111002', gender: 1, global: false, motherName: 'Maya', motherFamily: 'Joseph' },
+  { username: 'georges.njeim', firstName: 'Georges', middleName: 'Maroun', lastName: 'Njeim', email: 'georges.njeim@example.com', phone: '+96170111003', gender: 0, global: false, motherName: 'Rita', motherFamily: 'Njeim' },
+  { username: 'sami.rahme', firstName: 'Sami', middleName: 'Elias', lastName: 'Rahme', email: 'sami.rahme@example.com', phone: '+96170111004', gender: 0, global: false, motherName: 'Nadia', motherFamily: 'Rahme' },
+  { username: 'lina.trad', firstName: 'Lina', middleName: 'Fadi', lastName: 'Trad', email: 'lina.trad@example.com', phone: '+96170111005', gender: 1, global: false, motherName: 'Lina', motherFamily: 'Haddad' },
+  { username: 'walid.sabbagh', firstName: 'Walid', middleName: 'Karim', lastName: 'Sabbagh', email: 'walid.sabbagh@example.com', phone: '+96170111006', gender: 0, global: false, motherName: 'Dina', motherFamily: 'Sabbagh' },
+  { username: 'rima.chami', firstName: 'Rima', middleName: 'Nabil', lastName: 'Chami', email: 'rima.chami@example.com', phone: '+96170111007', gender: 1, global: false, motherName: 'Rima', motherFamily: 'Mansour' },
+  { username: 'elie.karam', firstName: 'Elie', middleName: 'Antoine', lastName: 'Karam', email: 'elie.karam@example.com', phone: '+96170111008', gender: 0, global: false, motherName: 'Sonia', motherFamily: 'Karam' },
+  { username: 'noura.habib', firstName: 'Noura', middleName: 'Michel', lastName: 'Habib', email: 'noura.habib@example.com', phone: '+96170111009', gender: 1, global: false, motherName: 'Noura', motherFamily: 'Saad' },
+  { username: 'bassam.farah', firstName: 'Bassam', middleName: 'Georges', lastName: 'Farah', email: 'bassam.farah@example.com', phone: '+96170111010', gender: 0, global: false, motherName: 'Lara', motherFamily: 'Farah' },
+  { username: 'zeina.mattar', firstName: 'Zeina', middleName: 'Sami', lastName: 'Mattar', email: 'zeina.mattar@example.com', phone: '+96170111011', gender: 1, global: false, motherName: 'Zeina', motherFamily: 'Gemayel' },
+  { username: 'fadi.khoury', firstName: 'Fadi', middleName: 'Maroun', lastName: 'Khoury', email: 'fadi.khoury@example.com', phone: '+96170111012', gender: 0, global: false, motherName: 'Maya', motherFamily: 'Khoury' },
+  { username: 'carla.aboud', firstName: 'Carla', middleName: 'Joseph', lastName: 'Aboud', email: 'carla.aboud@example.com', phone: '+96170111013', gender: 1, global: false, motherName: 'Carla', motherFamily: 'Aboud' },
+  { username: 'imad.tannous', firstName: 'Imad', middleName: 'Elias', lastName: 'Tannous', email: 'imad.tannous@example.com', phone: '+96170111014', gender: 0, global: false, motherName: 'Hiba', motherFamily: 'Tannous' },
+  { username: 'dalia.nassar', firstName: 'Dalia', middleName: 'Fadi', lastName: 'Nassar', email: 'dalia.nassar@example.com', phone: '+96170111015', gender: 1, global: false, motherName: 'Dalia', motherFamily: 'Nassar' },
+  { username: 'marwan.saliba', firstName: 'Marwan', middleName: 'Karim', lastName: 'Saliba', email: 'marwan.saliba@example.com', phone: '+96170111016', gender: 0, global: false, motherName: 'Yara', motherFamily: 'Saliba' },
+  { username: 'hiba.azzam', firstName: 'Hiba', middleName: 'Nabil', lastName: 'Azzam', email: 'hiba.azzam@example.com', phone: '+96170111017', gender: 1, global: false, motherName: 'Hiba', motherFamily: 'Azzam' },
+  { username: 'tony.ghanem', firstName: 'Tony', middleName: 'Antoine', lastName: 'Ghanem', email: 'tony.ghanem@example.com', phone: '+96170111018', gender: 0, global: false, motherName: 'Nadine', motherFamily: 'Ghanem' },
+  { username: 'sara.barakat', firstName: 'Sara', middleName: 'Michel', lastName: 'Barakat', email: 'sara.barakat@example.com', phone: '+96170111019', gender: 1, global: false, motherName: 'Sara', motherFamily: 'Barakat' },
+  { username: 'rami.daou', firstName: 'Rami', middleName: 'Georges', lastName: 'Daou', email: 'rami.daou@example.com', phone: '+96170111020', gender: 0, global: false, motherName: 'Lina', motherFamily: 'Daou' },
 ] as const;
 
+const CHILDREN_PER_PARENT = 3;
+
 const STUDENT_FIRST_NAMES = [
-  'Layla', 'Omar', 'Rana', 'Adam', 'Mira',
-  'Ziad', 'Nour', 'Tarek', 'Yara', 'Hadi',
+  'Layla', 'Omar', 'Rana',
+  'Adam', 'Mira', 'Ziad',
+  'Nour', 'Tarek', 'Yara',
+  'Hadi', 'Lama', 'Sami',
+  'Jana', 'Karim', 'Maya',
+  'Nabil', 'Rita', 'Elie',
+  'Dina', 'Fadi', 'Hala',
+  'Joe', 'Lara', 'Michel',
+  'Nadine', 'Pierre', 'Rania',
+  'Samer', 'Tala', 'Walid',
+  'Aya', 'Bassel', 'Celine',
+  'Daniel', 'Elena', 'Farid',
+  'Ghada', 'Hassan', 'Iman',
+  'Jad', 'Karen', 'Louis',
+  'Mona', 'Naji', 'Ola',
+  'Paul', 'Qamar', 'Rawan',
+  'Mark', 'Tina', 'Usama',
+  'Vera', 'Wissam', 'Yasmine',
+  'Zain', 'Aline', 'Bilal',
+  'Carmen', 'Dany', 'Eva',
 ] as const;
 
 type GradeFormClassBackup = {
@@ -306,6 +343,9 @@ type ParentPersonRow = {
   id: number;
   firstName: string;
   lastName: string;
+  motherName: string;
+  motherFamily: string;
+  phone: string;
   parent: { id: number } | null;
 };
 
@@ -705,7 +745,7 @@ async function seedSchoolOnePeople({
         phoneNumber: parent.phone,
         status: true,
         address: 'Beirut, Lebanon',
-        gender: parent.firstName === 'Maya' ? 1 : 0,
+        gender: parent.gender,
         parent: { create: {} },
       },
       include: { parent: true },
@@ -714,6 +754,9 @@ async function seedSchoolOnePeople({
       id: person.id,
       firstName: person.firstName,
       lastName: person.lastName,
+      motherName: parent.motherName,
+      motherFamily: parent.motherFamily,
+      phone: parent.phone,
       parent: person.parent,
     });
   }
@@ -749,13 +792,23 @@ async function seedSchoolOnePeople({
     });
   }
 
-  let studentIndex = 0;
-  for (const section of gradeSections) {
-    for (let i = 1; i <= 10; i += 1) {
-      const firstName = STUDENT_FIRST_NAMES[i - 1];
-      const username = `g${String(section.classLevel).padStart(2, '0')}-${section.sectionCode}-stu-${String(i).padStart(2, '0')}`;
-      const parent = parentRows[(studentIndex + i) % parentRows.length];
-      const classTag = `${section.classLevel}${section.sectionCode.toUpperCase()}`;
+  if (STUDENT_FIRST_NAMES.length < PARENTS.length * CHILDREN_PER_PARENT) {
+    throw new Error('Need a unique first name for every seeded student');
+  }
+  if (gradeSections.length === 0) {
+    throw new Error('No sections available for student registration');
+  }
+
+  let slot = 0;
+  for (let parentIndex = 0; parentIndex < parentRows.length; parentIndex += 1) {
+    const parent = parentRows[parentIndex];
+    for (let child = 0; child < CHILDREN_PER_PARENT; child += 1) {
+      const section = gradeSections[slot % gradeSections.length];
+      const firstName =
+        STUDENT_FIRST_NAMES[parentIndex * CHILDREN_PER_PARENT + child];
+      const username = `${firstName}.${parent.lastName}`
+        .toLowerCase()
+        .replace(/[^a-z0-9.]+/g, '');
 
       const person = await prisma.person.create({
         data: {
@@ -764,19 +817,24 @@ async function seedSchoolOnePeople({
           password: DEFAULT_PASSWORD,
           firstName,
           middleName: parent.firstName,
-          lastName: `${parent.lastName} ${classTag}`,
+          lastName: parent.lastName,
           email: `${username}@student.greenvalley.edu`,
           identityNumber: `LB-${schoolId}-${username}`,
+          phoneNumber: parent.phone,
           status: true,
-          gender: i % 2 === 0 ? 1 : 0,
-          birthday: new Date(2010 + section.classLevel, (i % 12) + 1, 10),
+          gender: child % 2 === 0 ? 1 : 0,
+          birthday: new Date(
+            2018 - section.classLevel,
+            (slot % 12) + 1,
+            8 + child,
+          ),
           address: 'Beirut, Lebanon',
           student: {
             create: {
               parentId: parent.parent!.id,
-              motherName: 'Maya',
-              motherFamily: 'Hassan',
-              motherPhone: '+96170333444',
+              motherName: parent.motherName,
+              motherFamily: parent.motherFamily,
+              motherPhone: parent.phone,
             },
           },
         },
@@ -792,8 +850,8 @@ async function seedSchoolOnePeople({
           status: true,
         },
       });
+      slot += 1;
     }
-    studentIndex += 10;
   }
 
   let teacherCursor = 0;
@@ -861,7 +919,7 @@ async function main(): Promise<void> {
   console.log(`  Year: ${CURRENT_YEAR_TITLE}`);
   console.log(`  Weekly hours cap: ${MAX_WEEKLY_HOURS} per section`);
   console.log('  Sections A & B: teach + schedule for Grade 1–10 (school 1)');
-  console.log('  Students: 10 per section A and B (200 total for school 1)');
+  console.log('  Students: 20 parents × 3 children (60), one class/section each');
   console.log('  Grades: all courses × grade-form columns for every student');
   console.log('  Password for new accounts: password123');
 }
