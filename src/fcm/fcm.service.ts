@@ -24,20 +24,23 @@ export class FcmService implements OnModuleInit {
 
   onModuleInit(): void {
     const projectId = this.configService.get<string>('fcm.projectId') ?? '';
+    const credentialsJson =
+      this.configService.get<string>('fcm.credentialsJson') ?? '';
     const credentialsBase64 =
       this.configService.get<string>('fcm.credentialsBase64') ?? '';
 
-    if (!projectId || !credentialsBase64) {
+    if (!projectId || (!credentialsJson && !credentialsBase64)) {
       this.logger.warn(
-        'FCM not configured. Set FCM_PROJECT_ID and FCM_CREDENTIALS_BASE64.',
+        'FCM not configured. Set FCM_PROJECT_ID and FCM_CREDENTIALS_JSON.',
       );
       return;
     }
 
     try {
-      const parsed = JSON.parse(
-        Buffer.from(credentialsBase64, 'base64').toString('utf8'),
-      ) as ServiceAccountJson;
+      const parsed = this.parseServiceAccount(
+        credentialsJson,
+        credentialsBase64,
+      );
 
       if (!getApps().length) {
         initializeApp({
@@ -67,7 +70,7 @@ export class FcmService implements OnModuleInit {
   ): Promise<string> {
     if (!this.ready) {
       throw new ServiceUnavailableException(
-        'FCM is not configured. Set FCM_PROJECT_ID and FCM_CREDENTIALS_BASE64.',
+        'FCM is not configured. Set FCM_PROJECT_ID and FCM_CREDENTIALS_JSON.',
       );
     }
 
@@ -105,5 +108,18 @@ export class FcmService implements OnModuleInit {
       code === 'messaging/registration-token-not-registered' ||
       code === 'messaging/invalid-registration-token'
     );
+  }
+
+  private parseServiceAccount(
+    credentialsJson: string,
+    credentialsBase64: string,
+  ): ServiceAccountJson {
+    if (credentialsJson) {
+      return JSON.parse(credentialsJson) as ServiceAccountJson;
+    }
+
+    return JSON.parse(
+      Buffer.from(credentialsBase64, 'base64').toString('utf8'),
+    ) as ServiceAccountJson;
   }
 }

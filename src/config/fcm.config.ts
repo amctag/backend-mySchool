@@ -15,5 +15,6 @@ function trim(value: string | undefined): string {
 
 export default registerAs('fcm', () => ({
   projectId: trim(process.env.FCM_PROJECT_ID),
+  credentialsJson: trim(process.env.FCM_CREDENTIALS_JSON),
   credentialsBase64: trim(process.env.FCM_CREDENTIALS_BASE64),
 }));
