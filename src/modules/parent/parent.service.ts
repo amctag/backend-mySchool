@@ -31,6 +31,7 @@ import { ParentForgotPasswordVerifyOtpResponseDto } from './dto/parent-forgot-pa
 import { ParentLoginResponseDto } from './dto/parent-login-response.dto';
 import { ParentLoginDto } from './dto/parent-login.dto';
 import { ParentLogoutResponseDto } from './dto/parent-logout-response.dto';
+import { ParentFcmTokenService } from './parent-fcm-token.service';
 import { ParentMeChildDetailResponseDto } from './dto/parent-me-children-response.dto';
 import { ParentMeChildrenSummaryResponseDto } from './dto/parent-me-children-summary-response.dto';
 import { ParentMeResponseDto } from './dto/parent-me-response.dto';
@@ -78,11 +79,13 @@ export class ParentService {
     private readonly sessionService: SessionService,
     private readonly mailService: MailService,
     private readonly schoolService: SchoolService,
+    private readonly fcmTokenService: ParentFcmTokenService,
   ) {}
 
   async login(loginDto: ParentLoginDto): Promise<ParentLoginResponseDto> {
     const person = await this.validateCredentials(loginDto);
     const tokens = await this.createSession(person);
+    await this.fcmTokenService.upsertForPerson(person.id, loginDto.fcmToken);
 
     return {
       ...tokens,
@@ -1531,6 +1534,7 @@ export class ParentService {
     this.ensureParentRole(user);
 
     await this.revokeParentSessions(user.id);
+    await this.fcmTokenService.deleteForPerson(user.id);
 
     return { message: 'Logged out successfully' };
   }

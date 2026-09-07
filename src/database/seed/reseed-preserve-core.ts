@@ -409,6 +409,7 @@ async function wipeOperationalData(): Promise<GradeFormClassBackup[]> {
       sessions,
       password_reset_otps,
       password_change_otps,
+      fcm_tokens,
       parent_sessions,
       school_details
     RESTART IDENTITY CASCADE

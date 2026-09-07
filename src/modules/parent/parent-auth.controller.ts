@@ -28,7 +28,11 @@ export class ParentAuthController {
   @SkipThrottle({ default: true })
   @Throttle({ auth: {} })
   @Post('login')
-  @ApiOperation({ summary: 'Parent login' })
+  @ApiOperation({
+    summary: 'Parent login',
+    description:
+      'Authenticates the parent and stores their FCM device token (one row per person).',
+  })
   @ApiOkResponse({ type: ParentLoginResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   @ApiUnauthorizedResponse({ description: 'Invalid username or password' })
@@ -52,7 +56,10 @@ export class ParentAuthController {
 
   @Post('logout')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Parent logout' })
+  @ApiOperation({
+    summary: 'Parent logout',
+    description: 'Ends the session and deletes the parent FCM token row.',
+  })
   @ApiOkResponse({ type: ParentLogoutResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
   logout(

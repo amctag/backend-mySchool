@@ -153,6 +153,10 @@ export class PrismaService
     return super.albumImage;
   }
 
+  override get fcmToken(): PrismaClient['fcmToken'] {
+    return super.fcmToken;
+  }
+
   private readonly pool: Pool;
 
   constructor(configService: ConfigService) {

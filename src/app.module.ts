@@ -6,6 +6,7 @@ import appConfig from './config/app.config';
 import corsConfig from './config/cors.config';
 import databaseConfig from './config/database.config';
 import mailConfig from './config/mail.config';
+import fcmConfig from './config/fcm.config';
 import jwtConfig from './config/jwt.config';
 import throttleConfig from './config/throttle.config';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -14,6 +15,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { MailModule } from './mail/mail.module';
+import { FcmModule } from './fcm/fcm.module';
 import { AuthModule } from './auth/auth.module';
 import { ParentModule } from './modules/parent/parent.module';
 import { TeacherModule } from './modules/teacher/teacher.module';
@@ -24,7 +26,15 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, jwtConfig, throttleConfig, corsConfig, mailConfig],
+      load: [
+        appConfig,
+        databaseConfig,
+        jwtConfig,
+        throttleConfig,
+        corsConfig,
+        mailConfig,
+        fcmConfig,
+      ],
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
@@ -46,6 +56,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     }),
     PrismaModule,
     MailModule,
+    FcmModule,
     AuthModule,
     ParentModule,
     TeacherModule,

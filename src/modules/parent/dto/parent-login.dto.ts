@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class ParentLoginDto {
   @ApiProperty({ example: 'ahmad.khalil', description: 'Parent username' })
@@ -11,4 +11,13 @@ export class ParentLoginDto {
   @IsString()
   @MinLength(6)
   password: string;
+
+  @ApiProperty({
+    description: 'Firebase Cloud Messaging device token (saved for this parent)',
+    example: 'dXNlci1kZXZpY2UtdG9rZW4',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(4096)
+  fcmToken: string;
 }

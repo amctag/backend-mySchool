@@ -66,6 +66,7 @@ async function bootstrap() {
     .setVersion('1.0')
     .addBearerAuth()
     .addTag('Dashboard Parents v1', 'Parents for the school admin dashboard')
+    .addTag('Dashboard FCM v1', 'Send test Firebase Cloud Messaging notifications')
     .addTag('Dashboard Lookups v1', 'Governorates, regions, nationalities, and jobs')
     .build();
 

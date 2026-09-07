@@ -43,6 +43,8 @@ import { DashboardParentsController } from './dashboard-parents.controller';
 import { DashboardParentsService } from './dashboard-parents.service';
 import { DashboardScheduleGeneratorController } from './dashboard-schedule-generator.controller';
 import { DashboardScheduleGeneratorService } from './dashboard-schedule-generator.service';
+import { DashboardFcmController } from './dashboard-fcm.controller';
+import { DashboardFcmService } from './dashboard-fcm.service';
 
 @Module({
   imports: [PrismaModule, AuthModule],
@@ -68,6 +70,7 @@ import { DashboardScheduleGeneratorService } from './dashboard-schedule-generato
     DashboardSessionsController,
     DashboardLookupsController,
     DashboardScheduleGeneratorController,
+    DashboardFcmController,
   ],
   providers: [
     DashboardParentsService,
@@ -91,6 +94,7 @@ import { DashboardScheduleGeneratorService } from './dashboard-schedule-generato
     DashboardSessionsService,
     DashboardLookupsService,
     DashboardScheduleGeneratorService,
+    DashboardFcmService,
   ],
 })
 export class DashboardModule {}

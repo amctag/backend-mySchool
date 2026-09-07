@@ -16,6 +16,8 @@ import { ParentExamScheduleController } from './parent-exam-schedule.controller'
 import { ParentGradeController } from './parent-grade.controller';
 import { ParentScheduleController } from './parent-schedule.controller';
 import { ParentSchoolDetailsController } from './parent-school-details.controller';
+import { ParentFcmTokenController } from './parent-fcm-token.controller';
+import { ParentFcmTokenService } from './parent-fcm-token.service';
 import { ParentService } from './parent.service';
 
 @Module({
@@ -35,7 +37,8 @@ import { ParentService } from './parent.service';
     ParentExamScheduleController,
     ParentGradeController,
     ParentScheduleController,
+    ParentFcmTokenController,
   ],
-  providers: [ParentService],
+  providers: [ParentService, ParentFcmTokenService],
 })
 export class ParentModule {}

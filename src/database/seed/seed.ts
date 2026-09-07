@@ -66,6 +66,7 @@ async function resetDatabase(): Promise<void> {
       grade_types,
       password_reset_otps,
       password_change_otps,
+      fcm_tokens,
       school_details,
       weekly_schedule_details,
       weekly_schedules,
