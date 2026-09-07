@@ -44,7 +44,7 @@ export class DashboardNoticesController {
   @ApiOperation({
     summary: 'Create a dashboard notice',
     description:
-      'Creates a notice as person id 1. Optional section (notice_sections) and students (notice_students). Omit both for all school.',
+      'Creates a notice as person id 1. Optional section (notice_sections) and students (notice_students). Omit both for all school. Selected students trigger an FCM push to their parent.',
   })
   @ApiCreatedResponse({ type: DashboardNoticeItemDto })
   createNotice(

@@ -62,6 +62,28 @@ export class FcmService implements OnModuleInit {
     }
   }
 
+  isReady(): boolean {
+    return this.ready;
+  }
+
+  async trySendNotification(
+    token: string,
+    title: string,
+    body: string,
+    data: Record<string, string> = { type: 'test' },
+  ): Promise<'sent' | 'invalid' | 'failed'> {
+    try {
+      await this.sendNotification(token, title, body, data);
+      return 'sent';
+    } catch (error) {
+      if (this.isInvalidTokenError(error)) {
+        return 'invalid';
+      }
+
+      return 'failed';
+    }
+  }
+
   async sendNotification(
     token: string,
     title: string,
