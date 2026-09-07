@@ -1,13 +1,10 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
-import { AUTH_ROUTE_THROTTLE } from '../../common/guards/auth-route-throttle';
 import {
   ApiBadRequestResponse,
   ApiOkResponse,
   ApiOperation,
   ApiResponse,
   ApiTags,
-  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
@@ -25,12 +22,10 @@ export class ParentForgotPasswordController {
   constructor(private readonly parentService: ParentService) {}
 
   @Public()
-  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('forgot-password/request-otp')
   @ApiOperation({ summary: 'Request forgot-password OTP by username' })
   @ApiOkResponse({ type: ParentForgotPasswordRequestOtpResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
-  @ApiTooManyRequestsResponse({ description: 'Too many OTP requests' })
   @ApiResponse({ status: 503, description: 'Unable to send verification email' })
   requestForgotPasswordOtp(
     @Body() dto: ParentForgotPasswordRequestOtpDto,
@@ -39,13 +34,11 @@ export class ParentForgotPasswordController {
   }
 
   @Public()
-  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('forgot-password/verify-otp')
   @ApiOperation({ summary: 'Verify forgot-password OTP' })
   @ApiOkResponse({ type: ParentForgotPasswordVerifyOtpResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   @ApiUnauthorizedResponse({ description: 'Invalid or expired verification code' })
-  @ApiTooManyRequestsResponse({ description: 'Too many attempts' })
   verifyForgotPasswordOtp(
     @Body() dto: ParentForgotPasswordVerifyOtpDto,
   ): Promise<ParentForgotPasswordVerifyOtpResponseDto> {
@@ -53,7 +46,6 @@ export class ParentForgotPasswordController {
   }
 
   @Public()
-  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('forgot-password/reset')
   @ApiOperation({ summary: 'Set a new password after OTP verification' })
   @ApiOkResponse({ type: ParentForgotPasswordResetResponseDto })
@@ -61,7 +53,6 @@ export class ParentForgotPasswordController {
     description: 'Passwords do not match or validation failed',
   })
   @ApiUnauthorizedResponse({ description: 'Invalid or expired reset token' })
-  @ApiTooManyRequestsResponse({ description: 'Too many attempts' })
   resetForgotPassword(
     @Body() dto: ParentForgotPasswordResetDto,
   ): Promise<ParentForgotPasswordResetResponseDto> {

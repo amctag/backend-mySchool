@@ -1,6 +1,4 @@
 import { Body, Controller, Post, Req } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
-import { AUTH_ROUTE_THROTTLE } from '../../common/guards/auth-route-throttle';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -8,7 +6,6 @@ import {
   ApiOperation,
   ApiResponse,
   ApiTags,
-  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Request } from 'express';
@@ -23,14 +20,12 @@ import { ParentService } from './parent.service';
 export class ParentPasswordController {
   constructor(private readonly parentService: ParentService) {}
 
-  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('me/change-password/request-otp')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Send email OTP to change password' })
   @ApiOkResponse({ type: ParentChangePasswordRequestOtpResponseDto })
   @ApiBadRequestResponse({ description: 'Email not found on account' })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
-  @ApiTooManyRequestsResponse({ description: 'Too many OTP requests' })
   @ApiResponse({ status: 503, description: 'Unable to send verification email' })
   requestChangePasswordOtp(
     @Req() request: Request & { user: AuthenticatedParent },
@@ -38,7 +33,6 @@ export class ParentPasswordController {
     return this.parentService.requestChangePasswordOtp(request.user);
   }
 
-  @Throttle(AUTH_ROUTE_THROTTLE)
   @Post('me/change-password')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Change password using email OTP' })
@@ -49,7 +43,6 @@ export class ParentPasswordController {
   @ApiUnauthorizedResponse({
     description: 'Missing, invalid, expired token, or invalid OTP',
   })
-  @ApiTooManyRequestsResponse({ description: 'Too many attempts' })
   changePassword(
     @Req() request: Request & { user: AuthenticatedParent },
     @Body() changePasswordDto: ParentChangePasswordDto,
