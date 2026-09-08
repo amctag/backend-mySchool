@@ -46,3 +46,8 @@ export class DashboardTeachesResponseDto {
   @ApiProperty({ type: PaginationMetaDto })
   pagination!: PaginationMetaDto;
 }
+
+export class DashboardTeachCreateResponseDto {
+  @ApiProperty({ type: [DashboardTeachItemDto] })
+  items!: DashboardTeachItemDto[];
+}

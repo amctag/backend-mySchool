@@ -11,6 +11,7 @@ import { personNameContainsFilter } from './person-name-search';
 import { CreateDashboardTeachDto } from './dto/create-dashboard-teach.dto';
 import { DashboardTeachesQueryDto } from './dto/dashboard-teaches-query.dto';
 import {
+  DashboardTeachCreateResponseDto,
   DashboardTeachItemDto,
   DashboardTeachesResponseDto,
 } from './dto/dashboard-teaches-response.dto';
@@ -111,7 +112,8 @@ export class DashboardTeachesService {
   async createTeach(
     user: AuthenticatedSchool,
     dto: CreateDashboardTeachDto,
-  ): Promise<DashboardTeachItemDto> {
+  ): Promise<DashboardTeachCreateResponseDto> {
+    const courseIds = this.resolveCourseIds(dto);
     const section = await this.assertSection(user.schoolId, dto.sectionId);
     const yearId = dto.yearId ?? section.yearId;
     if (yearId !== section.yearId) {
@@ -121,19 +123,28 @@ export class DashboardTeachesService {
     }
     await this.assertYear(user.schoolId, yearId);
     await this.assertTeacher(user.schoolId, dto.teacherId);
-    await this.assertCourse(user.schoolId, dto.courseId);
-    await this.assertUnique(dto.sectionId, dto.courseId, yearId);
+    await this.assertCourses(user.schoolId, courseIds);
+    for (const courseId of courseIds) {
+      await this.assertUnique(dto.sectionId, courseId, yearId);
+    }
 
-    const row = await this.prisma.teach.create({
-      data: {
-        teacherId: dto.teacherId,
-        sectionId: dto.sectionId,
-        courseId: dto.courseId,
-        yearId,
-      },
-      include: teachInclude,
-    });
-    return this.toItem(row as unknown as TeachRecord);
+    const rows = await this.prisma.$transaction(
+      courseIds.map((courseId) =>
+        this.prisma.teach.create({
+          data: {
+            teacherId: dto.teacherId,
+            sectionId: dto.sectionId,
+            courseId,
+            yearId,
+          },
+          include: teachInclude,
+        }),
+      ),
+    );
+
+    return {
+      items: rows.map((row) => this.toItem(row as unknown as TeachRecord)),
+    };
   }
 
   async updateTeach(
@@ -247,16 +258,37 @@ export class DashboardTeachesService {
     return item;
   }
 
+  private resolveCourseIds(dto: CreateDashboardTeachDto): number[] {
+    const ids = [
+      ...(dto.courseIds ?? []),
+      ...(dto.courseId ? [dto.courseId] : []),
+    ];
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) {
+      throw new BadRequestException(
+        'Provide courseId or courseIds so the teacher can be assigned to courses',
+      );
+    }
+    return unique;
+  }
+
   private async assertCourse(
     schoolId: number,
     courseId: number,
   ): Promise<void> {
-    const item = await this.prisma.course.findFirst({
-      where: { id: courseId, schoolId },
+    await this.assertCourses(schoolId, [courseId]);
+  }
+
+  private async assertCourses(
+    schoolId: number,
+    courseIds: number[],
+  ): Promise<void> {
+    const items = await this.prisma.course.findMany({
+      where: { id: { in: courseIds }, schoolId },
       select: { id: true },
     });
-    if (!item) {
-      throw new BadRequestException('Course not found');
+    if (items.length !== courseIds.length) {
+      throw new BadRequestException('One or more courses were not found');
     }
   }
 

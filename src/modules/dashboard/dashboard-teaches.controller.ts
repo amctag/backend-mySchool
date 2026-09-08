@@ -24,6 +24,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateDashboardTeachDto } from './dto/create-dashboard-teach.dto';
 import { DashboardTeachesQueryDto } from './dto/dashboard-teaches-query.dto';
 import {
+  DashboardTeachCreateResponseDto,
   DashboardTeachItemDto,
   DashboardTeachesResponseDto,
 } from './dto/dashboard-teaches-response.dto';
@@ -51,13 +52,14 @@ export class DashboardTeachesController {
 
   @Post()
   @ApiOperation({
-    summary: 'Assign a teacher to a section and course for a year',
+    summary:
+      'Assign a teacher to one or more courses in a section for a year',
   })
-  @ApiCreatedResponse({ type: DashboardTeachItemDto })
+  @ApiCreatedResponse({ type: DashboardTeachCreateResponseDto })
   createTeach(
     @Req() request: Request & { user: AuthenticatedSchool },
     @Body() dto: CreateDashboardTeachDto,
-  ): Promise<DashboardTeachItemDto> {
+  ): Promise<DashboardTeachCreateResponseDto> {
     return this.dashboardTeachesService.createTeach(request.user, dto);
   }
 
