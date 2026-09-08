@@ -37,12 +37,50 @@ type GradeSectionSeed = {
   sectionCode: 'a' | 'b';
 };
 
+type TeacherLoad = {
+  teacherId: number;
+  personId: number;
+  remainingHours: number;
+  busySlots: Set<string>;
+};
+
+function slotKey(dayId: number, sessionId: number): string {
+  return `${dayId}:${sessionId}`;
+}
+
+function findFreeSlot(
+  days: Array<{ id: number }>,
+  sessions: Array<{ id: number }>,
+  sectionOccupied: Set<string>,
+  teacherBusy: Set<string>,
+): { dayId: number; sessionId: number; key: string } | null {
+  for (const session of sessions) {
+    for (const day of days) {
+      const key = slotKey(day.id, session.id);
+      if (!sectionOccupied.has(key) && !teacherBusy.has(key)) {
+        return { dayId: day.id, sessionId: session.id, key };
+      }
+    }
+  }
+  return null;
+}
+
+function pickTeacherForHours(
+  candidates: TeacherLoad[],
+  hoursNeeded: number,
+): TeacherLoad | undefined {
+  return candidates
+    .filter((item) => item.remainingHours >= hoursNeeded)
+    .sort((left, right) => right.remainingHours - left.remainingHours)[0];
+}
+
 async function seedWeeklyScheduleForSection(
   section: GradeSectionSeed,
   yearId: number,
   schoolId: number,
   days: Array<{ id: number }>,
   sessions: Array<{ id: number }>,
+  loadsByTeacherId: Map<number, TeacherLoad>,
 ): Promise<number> {
   const classCourses = await prisma.classCourse.findMany({
     where: {
@@ -58,8 +96,14 @@ async function seedWeeklyScheduleForSection(
     data: { sectionId: section.sectionId },
   });
 
-  const maxSlots = days.length * sessions.length;
-  let slotIndex = 0;
+  const sectionOccupied = new Set<string>();
+  const details: Array<{
+    scheduleId: number;
+    dayId: number;
+    sessionId: number;
+    courseId: number;
+    personId: number;
+  }> = [];
   let totalHours = 0;
 
   for (const classCourse of classCourses) {
@@ -69,33 +113,46 @@ async function seedWeeklyScheduleForSection(
         courseId: classCourse.courseId,
         yearId,
       },
-      include: { teacher: true },
     });
     if (!teach) continue;
 
+    const load = loadsByTeacherId.get(teach.teacherId);
+    if (!load) continue;
+
     const courseHours = classCourse.numberOfHours ?? 0;
     for (let hour = 0; hour < courseHours; hour += 1) {
-      if (totalHours >= MAX_WEEKLY_HOURS || slotIndex >= maxSlots) {
-        return totalHours;
+      if (totalHours >= MAX_WEEKLY_HOURS) {
+        break;
+      }
+      if (load.busySlots.size >= MAX_WEEKLY_HOURS) {
+        break;
       }
 
-      const day = days[slotIndex % days.length];
-      const session =
-        sessions[Math.floor(slotIndex / days.length) % sessions.length];
+      const slot = findFreeSlot(
+        days,
+        sessions,
+        sectionOccupied,
+        load.busySlots,
+      );
+      if (!slot) {
+        break;
+      }
 
-      await prisma.weeklyScheduleDetail.create({
-        data: {
-          scheduleId: schedule.id,
-          dayId: day.id,
-          sessionId: session.id,
-          courseId: classCourse.courseId,
-          personId: teach.teacher.personId,
-        },
+      details.push({
+        scheduleId: schedule.id,
+        dayId: slot.dayId,
+        sessionId: slot.sessionId,
+        courseId: classCourse.courseId,
+        personId: load.personId,
       });
-
-      slotIndex += 1;
+      sectionOccupied.add(slot.key);
+      load.busySlots.add(slot.key);
       totalHours += 1;
     }
+  }
+
+  if (details.length > 0) {
+    await prisma.weeklyScheduleDetail.createMany({ data: details });
   }
 
   return totalHours;
@@ -274,15 +331,33 @@ const GRADE_FORM_CLASS_NAMES = [
   'Grade 10',
 ] as const;
 
+/** Specialists sized so assigned weekly hours stay ≤ MAX_WEEKLY_HOURS */
 const TEACHERS = [
-  { username: 'nabil.haddad', firstName: 'Nabil', middleName: 'Georges', lastName: 'Haddad', email: 'nabil.haddad@greenvalley.edu', gender: 0 },
-  { username: 'sara.mansour', firstName: 'Sara', middleName: 'Michel', lastName: 'Mansour', email: 'sara.mansour@greenvalley.edu', gender: 1 },
-  { username: 'karim.khoury', firstName: 'Karim', middleName: 'Antoine', lastName: 'Khoury', email: 'karim.khoury@greenvalley.edu', gender: 0 },
-  { username: 'layla.fares', firstName: 'Layla', middleName: 'Joseph', lastName: 'Fares', email: 'layla.fares@greenvalley.edu', gender: 1 },
-  { username: 'omar.saad', firstName: 'Omar', middleName: 'Hassan', lastName: 'Saad', email: 'omar.saad@greenvalley.edu', gender: 0 },
-  { username: 'rania.gemayel', firstName: 'Rania', middleName: 'Fadi', lastName: 'Gemayel', email: 'rania.gemayel@greenvalley.edu', gender: 1 },
-  { username: 'fadi.aboukhalil', firstName: 'Fadi', middleName: 'Elias', lastName: 'Abou Khalil', email: 'fadi.aboukhalil@greenvalley.edu', gender: 0 },
-  { username: 'maha.yammine', firstName: 'Maha', middleName: 'Nabil', lastName: 'Yammine', email: 'maha.yammine@greenvalley.edu', gender: 1 },
+  { username: 'nabil.haddad', firstName: 'Nabil', middleName: 'Georges', lastName: 'Haddad', email: 'nabil.haddad@greenvalley.edu', gender: 0, course: 'Mathematics' },
+  { username: 'sara.mansour', firstName: 'Sara', middleName: 'Michel', lastName: 'Mansour', email: 'sara.mansour@greenvalley.edu', gender: 1, course: 'Mathematics' },
+  { username: 'karim.khoury', firstName: 'Karim', middleName: 'Antoine', lastName: 'Khoury', email: 'karim.khoury@greenvalley.edu', gender: 0, course: 'Mathematics' },
+  { username: 'layla.fares', firstName: 'Layla', middleName: 'Joseph', lastName: 'Fares', email: 'layla.fares@greenvalley.edu', gender: 1, course: 'Mathematics' },
+  { username: 'omar.saad', firstName: 'Omar', middleName: 'Hassan', lastName: 'Saad', email: 'omar.saad@greenvalley.edu', gender: 0, course: 'Arabic' },
+  { username: 'rania.gemayel', firstName: 'Rania', middleName: 'Fadi', lastName: 'Gemayel', email: 'rania.gemayel@greenvalley.edu', gender: 1, course: 'Arabic' },
+  { username: 'fadi.aboukhalil', firstName: 'Fadi', middleName: 'Elias', lastName: 'Abou Khalil', email: 'fadi.aboukhalil@greenvalley.edu', gender: 0, course: 'Arabic' },
+  { username: 'maha.yammine', firstName: 'Maha', middleName: 'Nabil', lastName: 'Yammine', email: 'maha.yammine@greenvalley.edu', gender: 1, course: 'Arabic' },
+  { username: 'rita.nassar', firstName: 'Rita', middleName: 'Sami', lastName: 'Nassar', email: 'rita.nassar@greenvalley.edu', gender: 1, course: 'English' },
+  { username: 'elie.habib', firstName: 'Elie', middleName: 'Maroun', lastName: 'Habib', email: 'elie.habib@greenvalley.edu', gender: 0, course: 'English' },
+  { username: 'nadine.karam', firstName: 'Nadine', middleName: 'Tony', lastName: 'Karam', email: 'nadine.karam@greenvalley.edu', gender: 1, course: 'English' },
+  { username: 'hassan.saleh', firstName: 'Hassan', middleName: 'Ali', lastName: 'Saleh', email: 'hassan.saleh@greenvalley.edu', gender: 0, course: 'Science' },
+  { username: 'lina.boukhalil', firstName: 'Lina', middleName: 'Georges', lastName: 'Bou Khalil', email: 'lina.boukhalil@greenvalley.edu', gender: 1, course: 'Science' },
+  { username: 'marc.tannous', firstName: 'Marc', middleName: 'Elias', lastName: 'Tannous', email: 'marc.tannous@greenvalley.edu', gender: 0, course: 'Science' },
+  { username: 'jonas.abed', firstName: 'Jonas', middleName: 'Michel', lastName: 'Abed', email: 'jonas.abed@greenvalley.edu', gender: 0, course: 'Physics' },
+  { username: 'dany.saab', firstName: 'Dany', middleName: 'Fadi', lastName: 'Saab', email: 'dany.saab@greenvalley.edu', gender: 0, course: 'Physics' },
+  { username: 'rana.saab', firstName: 'Rana', middleName: 'Joseph', lastName: 'Saab', email: 'rana.saab@greenvalley.edu', gender: 1, course: 'Chemistry' },
+  { username: 'wissam.hajj', firstName: 'Wissam', middleName: 'Nabil', lastName: 'Hajj', email: 'wissam.hajj@greenvalley.edu', gender: 0, course: 'Chemistry' },
+  { username: 'pierre.nakhle', firstName: 'Pierre', middleName: 'Antoine', lastName: 'Nakhle', email: 'pierre.nakhle@greenvalley.edu', gender: 0, course: 'History' },
+  { username: 'maya.rahme', firstName: 'Maya', middleName: 'Sami', lastName: 'Rahme', email: 'maya.rahme@greenvalley.edu', gender: 1, course: 'History' },
+  { username: 'samer.diab', firstName: 'Samer', middleName: 'Karim', lastName: 'Diab', email: 'samer.diab@greenvalley.edu', gender: 0, course: 'Geography' },
+  { username: 'tala.farah', firstName: 'Tala', middleName: 'Bassam', lastName: 'Farah', email: 'tala.farah@greenvalley.edu', gender: 1, course: 'Geography' },
+  { username: 'joe.sfeir', firstName: 'Joe', middleName: 'Michel', lastName: 'Sfeir', email: 'joe.sfeir@greenvalley.edu', gender: 0, course: 'Computer Science' },
+  { username: 'aya.kassem', firstName: 'Aya', middleName: 'Walid', lastName: 'Kassem', email: 'aya.kassem@greenvalley.edu', gender: 1, course: 'Computer Science' },
+  { username: 'walid.hammoud', firstName: 'Walid', middleName: 'Hassan', lastName: 'Hammoud', email: 'walid.hammoud@greenvalley.edu', gender: 0, course: 'Physical Education' },
 ] as const;
 
 const PARENTS = [
@@ -351,6 +426,7 @@ type ParentPersonRow = {
 
 type TeacherPersonRow = {
   id: number;
+  courseTitle: string;
   teacher: { id: number; personId: number } | null;
 };
 
@@ -789,6 +865,7 @@ async function seedSchoolOnePeople({
     });
     teacherRows.push({
       id: person.id,
+      courseTitle: teacher.course,
       teacher: person.teacher,
     });
   }
@@ -856,21 +933,56 @@ async function seedSchoolOnePeople({
     }
   }
 
-  let teacherCursor = 0;
-  for (const section of gradeSections) {
-    for (let c = 0; c < courses.length; c += 1) {
-      const teacher = teacherRows[teacherCursor % teacherRows.length];
-      teacherCursor += 1;
+  const loadsByTeacherId = new Map<number, TeacherLoad>();
+  const loadsByCourse = new Map<string, TeacherLoad[]>();
+  for (const row of teacherRows) {
+    const teacherId = row.teacher!.id;
+    const load: TeacherLoad = {
+      teacherId,
+      personId: row.id,
+      remainingHours: MAX_WEEKLY_HOURS,
+      busySlots: new Set<string>(),
+    };
+    loadsByTeacherId.set(teacherId, load);
+    const courseLoads = loadsByCourse.get(row.courseTitle) ?? [];
+    courseLoads.push(load);
+    loadsByCourse.set(row.courseTitle, courseLoads);
+  }
 
-      await prisma.teach.create({
-        data: {
-          teacherId: teacher.teacher!.id,
-          sectionId: section.sectionId,
-          courseId: courses[c].id,
-          yearId,
-        },
+  const hoursByCourseTitle = Object.fromEntries(
+    COURSES.map((course) => [course.title, course.hours]),
+  );
+
+  for (const section of gradeSections) {
+    const teachRows: Array<{
+      teacherId: number;
+      sectionId: number;
+      courseId: number;
+      yearId: number;
+    }> = [];
+
+    for (const course of courses) {
+      const hours = hoursByCourseTitle[course.title] ?? 0;
+      const load = pickTeacherForHours(
+        loadsByCourse.get(course.title) ?? [],
+        hours,
+      );
+      if (!load) {
+        throw new Error(
+          `No teacher under ${MAX_WEEKLY_HOURS}h available for ${course.title} in section ${section.sectionId}`,
+        );
+      }
+
+      teachRows.push({
+        teacherId: load.teacherId,
+        sectionId: section.sectionId,
+        courseId: course.id,
+        yearId,
       });
+      load.remainingHours -= hours;
     }
+
+    await prisma.teach.createMany({ data: teachRows });
 
     const scheduledHours = await seedWeeklyScheduleForSection(
       section,
@@ -878,6 +990,7 @@ async function seedSchoolOnePeople({
       schoolId,
       days,
       sessions,
+      loadsByTeacherId,
     );
 
     if (scheduledHours > MAX_WEEKLY_HOURS) {
@@ -886,6 +999,23 @@ async function seedSchoolOnePeople({
       );
     }
   }
+
+  for (const load of loadsByTeacherId.values()) {
+    if (load.busySlots.size > MAX_WEEKLY_HOURS) {
+      throw new Error(
+        `Teacher ${load.teacherId} exceeds ${MAX_WEEKLY_HOURS} weekly hours (${load.busySlots.size})`,
+      );
+    }
+  }
+
+  const teacherHourSummary = [...loadsByTeacherId.values()]
+    .map((load) => load.busySlots.size)
+    .sort((left, right) => right - left);
+  const minTeacherHours =
+    teacherHourSummary[teacherHourSummary.length - 1] ?? 0;
+  console.log(
+    `  Teacher weekly hours: max ${teacherHourSummary[0] ?? 0}, min ${minTeacherHours} (cap ${MAX_WEEKLY_HOURS})`,
+  );
 
   console.log(`  Seeding grades for school ${schoolId}...`);
   await seedGradesForSchool(schoolId, yearId);
@@ -919,7 +1049,8 @@ async function main(): Promise<void> {
   console.log(`  Preserved schools: ${schools.map((s) => s.id).join(', ')}`);
   console.log('  Preserved: grade_form, grade_form_detail, grade_form_percentage');
   console.log(`  Year: ${CURRENT_YEAR_TITLE}`);
-  console.log(`  Weekly hours cap: ${MAX_WEEKLY_HOURS} per section`);
+  console.log(`  Weekly hours cap: ${MAX_WEEKLY_HOURS} per section and per teacher`);
+  console.log(`  Teachers: ${TEACHERS.length} specialists (school 1)`);
   console.log('  Sections A & B: teach + schedule for Grade 1–10 (school 1)');
   console.log('  Students: 20 parents × 3 children (60), one class/section each');
   console.log('  Grades: all courses × grade-form columns for every student');
