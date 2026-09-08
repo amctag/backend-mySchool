@@ -359,7 +359,7 @@ export class DashboardWeeklySchedulesService {
       slotKeys.add(key);
     }
 
-    const [days, sessions, courses, classCourses] = await Promise.all([
+    const [days, sessions, courses, classCourses, teaches] = await Promise.all([
       this.prisma.day.findMany({
         where: { schoolId: user.schoolId },
         select: { id: true },
@@ -380,12 +380,22 @@ export class DashboardWeeklySchedulesService {
         },
         select: { courseId: true },
       }),
+      this.prisma.teach.findMany({
+        where: { sectionId: section.id, yearId },
+        select: {
+          courseId: true,
+          teacher: { select: { personId: true } },
+        },
+      }),
     ]);
 
     const dayIds = new Set(days.map((day) => day.id));
     const sessionIds = new Set(sessions.map((session) => session.id));
     const courseIds = new Set(courses.map((course) => course.id));
     const classCourseIds = new Set(classCourses.map((item) => item.courseId));
+    const personIdByCourseId = new Map(
+      teaches.map((row) => [row.courseId, row.teacher.personId]),
+    );
 
     for (const entry of body.entries) {
       if (!dayIds.has(entry.dayId)) {
@@ -426,6 +436,7 @@ export class DashboardWeeklySchedulesService {
             dayId: entry.dayId,
             sessionId: entry.sessionId,
             courseId: entry.courseId,
+            personId: personIdByCourseId.get(entry.courseId) ?? null,
           })),
         });
       }

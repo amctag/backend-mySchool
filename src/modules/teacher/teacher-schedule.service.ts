@@ -31,10 +31,11 @@ export class TeacherScheduleService {
 
   async getSchedule(
     user: AuthenticatedTeacher,
+    yearId?: number,
   ): Promise<TeacherScheduleResponseDto> {
     this.teacherAccess.ensureTeacherRole(user);
 
-    const [person, days, details] = await Promise.all([
+    const [person, days, assignments] = await Promise.all([
       this.prisma.person.findFirst({
         where: { id: user.id },
         select: { firstName: true, middleName: true, lastName: true },
@@ -44,66 +45,105 @@ export class TeacherScheduleService {
         select: { id: true, dayName: true, position: true },
         orderBy: { position: 'asc' },
       }),
-      this.prisma.weeklyScheduleDetail.findMany({
+      this.prisma.teach.findMany({
         where: {
-          personId: user.id,
-          schedule: { section: { schoolId: user.schoolId } },
+          teacherId: user.teacherId,
+          section: {
+            schoolId: user.schoolId,
+            ...(yearId
+              ? { yearId }
+              : { year: { isCurrent: true } }),
+          },
+          ...(yearId ? { yearId } : {}),
         },
         select: {
-          note: true,
-          course: { select: { id: true, title: true } },
-          day: { select: { id: true, dayName: true, position: true } },
-          session: { select: { sessionName: true, position: true } },
-          schedule: { select: { sectionId: true } },
+          id: true,
+          sectionId: true,
+          courseId: true,
+          section: {
+            select: {
+              class: { select: { className: true } },
+              sectionTitle: { select: { title: true } },
+            },
+          },
         },
       }),
     ]);
 
-    const assignmentByKey = await this.loadAssignmentMap(
-      user,
-      details.map((detail) => ({
-        sectionId: detail.schedule.sectionId,
-        courseId: detail.course.id,
-      })),
+    const assignmentByKey = new Map(
+      assignments.map((row) => [
+        this.assignmentKey(row.sectionId, row.courseId),
+        row,
+      ]),
     );
+    const sectionIds = [...new Set(assignments.map((row) => row.sectionId))];
+    const courseIds = [...new Set(assignments.map((row) => row.courseId))];
+
+    const details =
+      sectionIds.length === 0 || courseIds.length === 0
+        ? []
+        : await this.prisma.weeklyScheduleDetail.findMany({
+            where: {
+              courseId: { in: courseIds },
+              schedule: {
+                sectionId: { in: sectionIds },
+                section: { schoolId: user.schoolId },
+              },
+            },
+            select: {
+              note: true,
+              courseId: true,
+              personId: true,
+              course: { select: { title: true } },
+              day: { select: { id: true } },
+              session: { select: { sessionName: true, position: true } },
+              schedule: { select: { sectionId: true } },
+            },
+          });
 
     const entriesByDay = new Map<number, TeacherScheduleEntryDto[]>();
     for (const detail of details) {
       const assignment = assignmentByKey.get(
-        this.assignmentKey(detail.schedule.sectionId, detail.course.id),
+        this.assignmentKey(detail.schedule.sectionId, detail.courseId),
       );
+      if (!assignment) {
+        continue;
+      }
+      if (detail.personId != null && detail.personId !== user.id) {
+        continue;
+      }
+
       const clock = periodClock(detail.session.position);
-      const entry: TeacherScheduleEntryDto = {
-        assignmentId: assignment?.id ?? 0,
-        classId: detail.schedule.sectionId,
-        classLabel: assignment
-          ? formatClassLabel(
-              assignment.section.class.className,
-              assignment.section.sectionTitle.title,
-            )
-          : `Class ${detail.schedule.sectionId}`,
+      const bucket = entriesByDay.get(detail.day.id) ?? [];
+      bucket.push({
+        assignmentId: assignment.id,
+        classId: assignment.sectionId,
+        classLabel: formatClassLabel(
+          assignment.section.class.className,
+          assignment.section.sectionTitle.title,
+        ),
         courseTitle: detail.course.title,
         periodNumber: Math.max(1, detail.session.position),
         periodLabel: detail.session.sessionName,
         startTime: clock.startTime,
         endTime: clock.endTime,
         room: detail.note?.trim() || '',
-      };
-
-      const bucket = entriesByDay.get(detail.day.id) ?? [];
-      bucket.push(entry);
+      });
       entriesByDay.set(detail.day.id, bucket);
     }
 
+    const mappedDays = days.map((day) => ({
+      dayName: day.dayName,
+      position: day.position,
+      entries: (entriesByDay.get(day.id) ?? []).sort(
+        (left, right) => left.periodNumber - right.periodNumber,
+      ),
+    }));
+    const hasLessons = mappedDays.some((day) => day.entries.length > 0);
+
     return {
       ownerLabel: person ? formatFullName(person) : user.username,
-      days: days.map((day) => ({
-        dayName: day.dayName,
-        position: day.position,
-        entries: (entriesByDay.get(day.id) ?? []).sort(
-          (left, right) => left.periodNumber - right.periodNumber,
-        ),
-      })),
+      days: hasLessons ? mappedDays : [],
     };
   }
 
@@ -183,30 +223,6 @@ export class TeacherScheduleService {
       endTime: mapped ? clock.endTime : '',
       room: mapped?.room ?? '',
     };
-  }
-
-  private async loadAssignmentMap(
-    user: AuthenticatedTeacher,
-    pairs: Array<{ sectionId: number; courseId: number }>,
-  ) {
-    if (pairs.length === 0) {
-      return new Map<string, { id: number; section: { class: { className: string }; sectionTitle: { title: string } } }>();
-    }
-
-    const rows = await this.prisma.teach.findMany({
-      where: {
-        teacherId: user.teacherId,
-        OR: pairs.map((pair) => ({
-          sectionId: pair.sectionId,
-          courseId: pair.courseId,
-        })),
-      },
-      include: assignmentInclude,
-    });
-
-    return new Map(
-      rows.map((row) => [this.assignmentKey(row.sectionId, row.courseId), row]),
-    );
   }
 
   private async loadScheduleSlots(

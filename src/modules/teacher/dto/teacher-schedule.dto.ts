@@ -1,8 +1,22 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsInt, IsOptional, Min } from 'class-validator';
 import { PaginationMetaDto } from '../../../common/dto/pagination-meta.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 export class TeacherAssignmentsQueryDto extends PaginationQueryDto {}
+
+export class TeacherScheduleQueryDto {
+  @ApiPropertyOptional({
+    example: 1,
+    description: 'School year id. Defaults to the current year.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  yearId?: number;
+}
 
 export class TeacherAssignmentItemDto {
   @ApiProperty({ example: 12, description: 'Teach assignment id' })

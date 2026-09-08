@@ -12,6 +12,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import {
   TeacherAssignmentsQueryDto,
   TeacherAssignmentsResponseDto,
+  TeacherScheduleQueryDto,
   TeacherScheduleResponseDto,
 } from './dto/teacher-schedule.dto';
 import { TeacherScheduleService } from './teacher-schedule.service';
@@ -25,16 +26,17 @@ export class TeacherScheduleController {
 
   @Get('me/schedule')
   @ApiOperation({
-    summary: 'Get the logged-in teacher weekly timetable',
+    summary: 'Get my weekly schedule',
     description:
-      'Returns school days with period entries for courses this teacher teaches.',
+      'Fast current-year timetable for the logged-in teacher. Built from Teach assignments and weekly schedule cells for those courses/classes.',
   })
   @ApiOkResponse({ type: TeacherScheduleResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
   getSchedule(
     @Req() request: Request & { user: AuthenticatedTeacher },
+    @Query() query: TeacherScheduleQueryDto,
   ): Promise<TeacherScheduleResponseDto> {
-    return this.teacherScheduleService.getSchedule(request.user);
+    return this.teacherScheduleService.getSchedule(request.user, query.yearId);
   }
 
   @Get('me/assignments')

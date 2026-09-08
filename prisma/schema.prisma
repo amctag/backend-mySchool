@@ -454,6 +454,7 @@ model WeeklyScheduleDetail {
 
   @@index([personId])
   @@index([scheduleId, dayId])
+  @@index([scheduleId, courseId])
   @@index([courseId, personId])
   @@map("weekly_schedule_details")
 }
