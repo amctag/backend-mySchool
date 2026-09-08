@@ -53,7 +53,7 @@ export class DashboardTeachesController {
   @Post()
   @ApiOperation({
     summary:
-      'Assign a teacher to one or more courses in a section for a year',
+      'Assign a teacher to one or more courses in the same class',
   })
   @ApiCreatedResponse({ type: DashboardTeachCreateResponseDto })
   createTeach(

@@ -15,11 +15,27 @@ export class CreateDashboardTeachDto {
   @Min(1)
   teacherId!: number;
 
-  @ApiProperty({ example: 1 })
+  @ApiPropertyOptional({
+    example: 1,
+    description:
+      'Assign the teacher across every section of this class. Required when sectionId is omitted.',
+  })
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  sectionId!: number;
+  classId?: number;
+
+  @ApiPropertyOptional({
+    example: 1,
+    description:
+      'Limit the assignment to one section. Omit to apply to all sections of the class.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  sectionId?: number;
 
   @ApiPropertyOptional({
     example: 1,
@@ -34,7 +50,7 @@ export class CreateDashboardTeachDto {
   @ApiPropertyOptional({
     type: [Number],
     example: [1, 2, 3],
-    description: 'Assign the teacher to multiple courses in this section',
+    description: 'Assign the teacher to multiple courses in the same class',
   })
   @IsOptional()
   @IsArray()

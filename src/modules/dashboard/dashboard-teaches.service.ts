@@ -114,27 +114,64 @@ export class DashboardTeachesService {
     dto: CreateDashboardTeachDto,
   ): Promise<DashboardTeachCreateResponseDto> {
     const courseIds = this.resolveCourseIds(dto);
-    const section = await this.assertSection(user.schoolId, dto.sectionId);
-    const yearId = dto.yearId ?? section.yearId;
-    if (yearId !== section.yearId) {
+    const sections = await this.resolveTargetSections(user.schoolId, dto);
+    const yearId = dto.yearId ?? sections[0].yearId;
+    const classId = sections[0].classId;
+    if (sections.some((section) => section.yearId !== yearId)) {
+      throw new BadRequestException(
+        'Year must match the selected class sections',
+      );
+    }
+    if (dto.yearId && dto.yearId !== yearId) {
       throw new BadRequestException(
         'Year must match the selected section year',
       );
     }
     await this.assertYear(user.schoolId, yearId);
     await this.assertTeacher(user.schoolId, dto.teacherId);
-    await this.assertCourses(user.schoolId, courseIds);
-    for (const courseId of courseIds) {
-      await this.assertUnique(dto.sectionId, courseId, yearId);
+    await this.assertCoursesForClass(
+      user.schoolId,
+      classId,
+      yearId,
+      courseIds,
+    );
+
+    const toCreate: { sectionId: number; courseId: number }[] = [];
+    for (const section of sections) {
+      for (const courseId of courseIds) {
+        const clash = await this.prisma.teach.findFirst({
+          where: {
+            sectionId: section.id,
+            courseId,
+            yearId,
+          },
+          select: { id: true, teacherId: true },
+        });
+        if (!clash) {
+          toCreate.push({ sectionId: section.id, courseId });
+          continue;
+        }
+        if (clash.teacherId !== dto.teacherId) {
+          throw new ConflictException(
+            'This class already has another teacher for that course this year',
+          );
+        }
+      }
+    }
+
+    if (toCreate.length === 0) {
+      throw new BadRequestException(
+        'This teacher already teaches the selected courses in this class',
+      );
     }
 
     const rows = await this.prisma.$transaction(
-      courseIds.map((courseId) =>
+      toCreate.map((item) =>
         this.prisma.teach.create({
           data: {
             teacherId: dto.teacherId,
-            sectionId: dto.sectionId,
-            courseId,
+            sectionId: item.sectionId,
+            courseId: item.courseId,
             yearId,
           },
           include: teachInclude,
@@ -256,6 +293,64 @@ export class DashboardTeachesService {
       throw new BadRequestException('Section not found');
     }
     return item;
+  }
+
+  private async resolveTargetSections(
+    schoolId: number,
+    dto: CreateDashboardTeachDto,
+  ): Promise<{ id: number; yearId: number; classId: number }[]> {
+    if (dto.sectionId) {
+      const section = await this.assertSection(schoolId, dto.sectionId);
+      if (dto.classId && dto.classId !== section.classId) {
+        throw new BadRequestException(
+          'Section does not belong to the selected class',
+        );
+      }
+      return [{ id: dto.sectionId, yearId: section.yearId, classId: section.classId }];
+    }
+    if (!dto.classId) {
+      throw new BadRequestException('Provide classId or sectionId');
+    }
+    const yearId =
+      dto.yearId ?? (await this.currentYearId(schoolId)) ?? undefined;
+    if (!yearId) {
+      throw new BadRequestException('Year is required');
+    }
+    const sections = await this.prisma.section.findMany({
+      where: { schoolId, classId: dto.classId, yearId },
+      select: { id: true, yearId: true, classId: true },
+      orderBy: { id: 'asc' },
+    });
+    if (sections.length === 0) {
+      throw new BadRequestException('No sections found for this class');
+    }
+    return sections;
+  }
+
+  private async assertCoursesForClass(
+    schoolId: number,
+    classId: number,
+    yearId: number,
+    courseIds: number[],
+  ): Promise<void> {
+    await this.assertCourses(schoolId, courseIds);
+    const classCourses = await this.prisma.classCourse.findMany({
+      where: {
+        classId,
+        yearId,
+        class: { stage: { schoolId } },
+      },
+      select: { courseId: true },
+    });
+    if (classCourses.length === 0) {
+      return;
+    }
+    const allowed = new Set(classCourses.map((item) => item.courseId));
+    if (courseIds.some((courseId) => !allowed.has(courseId))) {
+      throw new BadRequestException(
+        'One or more courses are not assigned to this class',
+      );
+    }
   }
 
   private resolveCourseIds(dto: CreateDashboardTeachDto): number[] {
