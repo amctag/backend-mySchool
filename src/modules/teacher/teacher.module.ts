@@ -5,6 +5,8 @@ import { TeacherAccessService } from './teacher-access.service';
 import { TeacherAuthController } from './teacher-auth.controller';
 import { TeacherAuthService } from './teacher-auth.service';
 import { TeacherProfileController } from './teacher-profile.controller';
+import { TeacherClassesController } from './teacher-classes.controller';
+import { TeacherClassesService } from './teacher-classes.service';
 import { TeacherScheduleController } from './teacher-schedule.controller';
 import { TeacherScheduleService } from './teacher-schedule.service';
 
@@ -14,7 +16,13 @@ import { TeacherScheduleService } from './teacher-schedule.service';
     TeacherAuthController,
     TeacherProfileController,
     TeacherScheduleController,
+    TeacherClassesController,
   ],
-  providers: [TeacherAuthService, TeacherAccessService, TeacherScheduleService],
+  providers: [
+    TeacherAuthService,
+    TeacherAccessService,
+    TeacherScheduleService,
+    TeacherClassesService,
+  ],
 })
 export class TeacherModule {}

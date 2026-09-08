@@ -11,6 +11,7 @@ import {
   TeacherClassRosterEntryDto,
   TeacherClassesQueryDto,
   TeacherClassesResponseDto,
+  TeacherClassStudentsResponseDto,
   TeacherClassSummaryDto,
   TeacherStudentSummaryDto,
 } from './dto/teacher-classes.dto';
@@ -28,7 +29,8 @@ export class TeacherClassesService {
     query: TeacherClassesQueryDto,
   ): Promise<TeacherClassesResponseDto> {
     this.teacherAccess.ensureTeacherRole(user);
-    const yearId = await this.teacherAccess.currentYearId(user.schoolId);
+    const yearId =
+      query.yearId ?? (await this.teacherAccess.currentYearId(user.schoolId));
     return this.listSections(user, query, true, yearId);
   }
 
@@ -37,8 +39,34 @@ export class TeacherClassesService {
     query: TeacherClassesQueryDto,
   ): Promise<TeacherClassesResponseDto> {
     this.teacherAccess.ensureTeacherRole(user);
-    const yearId = await this.teacherAccess.currentYearId(user.schoolId);
+    const yearId =
+      query.yearId ?? (await this.teacherAccess.currentYearId(user.schoolId));
     return this.listSections(user, query, false, yearId);
+  }
+
+  async listClassStudents(
+    user: AuthenticatedTeacher,
+    classId: number,
+  ): Promise<TeacherClassStudentsResponseDto> {
+    this.teacherAccess.ensureTeacherRole(user);
+    const yearId = await this.teacherAccess.currentYearId(user.schoolId);
+    await this.teacherAccess.assertAssignedSection(user, classId, yearId);
+
+    const section = await this.teacherAccess.findSectionInSchool(
+      user.schoolId,
+      classId,
+    );
+    const students = await this.loadStudents(user.schoolId, classId);
+
+    return {
+      classId,
+      classLabel: formatClassLabel(
+        section.class.className,
+        section.sectionTitle.title,
+      ),
+      studentCount: students.length,
+      students,
+    };
   }
 
   async getClassDetails(
@@ -53,9 +81,9 @@ export class TeacherClassesService {
     );
     const yearId = await this.teacherAccess.currentYearId(user.schoolId);
 
-    const [assignedTeach, primaryTeach, registrations, rosterRows, days, details, assignmentRows] =
+    const [assignedTeaches, primaryTeach, students, rosterRows, days, details, assignmentRows] =
       await Promise.all([
-        this.prisma.teach.findFirst({
+        this.prisma.teach.findMany({
           where: {
             teacherId: user.teacherId,
             sectionId: classId,
@@ -72,28 +100,7 @@ export class TeacherClassesService {
           include: { course: { select: { title: true } } },
           orderBy: { id: 'asc' },
         }),
-        this.prisma.registration.findMany({
-          where: { sectionId: classId, schoolId: user.schoolId, status: true },
-          select: {
-            student: {
-              select: {
-                id: true,
-                person: {
-                  select: {
-                    firstName: true,
-                    middleName: true,
-                    lastName: true,
-                  },
-                },
-              },
-            },
-          },
-          orderBy: [
-            { student: { person: { firstName: 'asc' } } },
-            { student: { person: { lastName: 'asc' } } },
-            { id: 'asc' },
-          ],
-        }),
+        this.loadStudents(user.schoolId, classId),
         this.prisma.teach.findMany({
           where: {
             sectionId: classId,
@@ -150,6 +157,7 @@ export class TeacherClassesService {
       entriesByDay.set(detail.day.id, bucket);
     }
 
+    const courseTitles = assignedTeaches.map((row) => row.course.title);
     const summary: TeacherClassSummaryDto = {
       id: section.id,
       className: section.class.className,
@@ -157,17 +165,11 @@ export class TeacherClassesService {
       yearTitle: section.year.title,
       stage: section.class.stage.title,
       primaryCourseTitle:
-        assignedTeach?.course.title ?? primaryTeach?.course.title ?? '',
-      isAssignedToCurrentTeacher: Boolean(assignedTeach),
+        courseTitles.join(', ') || primaryTeach?.course.title || '',
+      courseTitles,
+      studentCount: students.length,
+      isAssignedToCurrentTeacher: assignedTeaches.length > 0,
     };
-
-    const students: TeacherStudentSummaryDto[] = registrations.map(
-      (registration, index) => ({
-        id: registration.student.id,
-        fullName: formatFullName(registration.student.person),
-        seatNumber: index + 1,
-      }),
-    );
 
     const roster: TeacherClassRosterEntryDto[] = rosterRows.map((row) => ({
       teacherName: formatFullName(row.teacher.person),
@@ -214,13 +216,18 @@ export class TeacherClassesService {
     assignedOnly: boolean,
     yearId: number | null,
   ): Promise<TeacherClassesResponseDto> {
-    const { page, limit, skip } = resolvePagination(query);
+    const { page, limit, skip } = resolvePagination({
+      page: query.page,
+      limit: query.limit ?? 100,
+    });
+    const teachFilter = {
+      teacherId: user.teacherId,
+      ...(yearId ? { yearId } : {}),
+    };
     const where = {
       schoolId: user.schoolId,
       ...(yearId ? { yearId } : {}),
-      ...(assignedOnly
-        ? { teaches: { some: { teacherId: user.teacherId } } }
-        : {}),
+      ...(assignedOnly ? { teaches: { some: teachFilter } } : {}),
     };
 
     const [total, sections] = await this.prisma.$transaction([
@@ -245,6 +252,11 @@ export class TeacherClassesService {
             },
             orderBy: { id: 'asc' },
           },
+          _count: {
+            select: {
+              registrations: { where: { status: true } },
+            },
+          },
         },
         orderBy: [{ class: { className: 'asc' } }, { id: 'asc' }],
         skip,
@@ -254,9 +266,10 @@ export class TeacherClassesService {
 
     return {
       items: sections.map((section) => {
-        const assigned = section.teaches.find(
+        const assigned = section.teaches.filter(
           (teach) => teach.teacherId === user.teacherId,
         );
+        const courseTitles = assigned.map((teach) => teach.course.title);
         return {
           id: section.id,
           className: section.class.className,
@@ -264,11 +277,47 @@ export class TeacherClassesService {
           yearTitle: section.year.title,
           stage: section.class.stage.title,
           primaryCourseTitle:
-            assigned?.course.title ?? section.teaches[0]?.course.title ?? '',
-          isAssignedToCurrentTeacher: Boolean(assigned),
+            courseTitles.join(', ') || section.teaches[0]?.course.title || '',
+          courseTitles,
+          studentCount: section._count.registrations,
+          isAssignedToCurrentTeacher: assigned.length > 0,
         };
       }),
       pagination: buildPaginationMeta(page, limit, total),
     };
+  }
+
+  private async loadStudents(
+    schoolId: number,
+    classId: number,
+  ): Promise<TeacherStudentSummaryDto[]> {
+    const registrations = await this.prisma.registration.findMany({
+      where: { sectionId: classId, schoolId, status: true },
+      select: {
+        student: {
+          select: {
+            id: true,
+            person: {
+              select: {
+                firstName: true,
+                middleName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [
+        { student: { person: { firstName: 'asc' } } },
+        { student: { person: { lastName: 'asc' } } },
+        { id: 'asc' },
+      ],
+    });
+
+    return registrations.map((registration, index) => ({
+      id: registration.student.id,
+      fullName: formatFullName(registration.student.person),
+      seatNumber: index + 1,
+    }));
   }
 }

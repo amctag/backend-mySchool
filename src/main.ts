@@ -69,6 +69,7 @@ async function bootstrap() {
     .addTag('Teacher Auth v1', 'Login, refresh, and logout')
     .addTag('Teacher Profile v1', 'Teacher profile and change password')
     .addTag('Teacher Schedule v1', 'Weekly timetable and teaching assignments')
+    .addTag('Teacher Classes v1', 'Assigned classes and class students')
     .build();
 
   const teacherDocument = SwaggerModule.createDocument(
