@@ -39,7 +39,7 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('My School API')
     .setDescription(
-      'Parent, teacher, and school public API v1. Dashboard admin APIs are documented separately at /api/docs/dashboard',
+      'Parent and school public API v1. Teacher APIs are documented at /api/docs/teachers. Dashboard admin APIs are documented at /api/docs/dashboard',
     )
     .setVersion('1.0')
     .addBearerAuth()
@@ -50,15 +50,33 @@ async function bootstrap() {
     .addTag('Parent Activities v1', 'School activities and events for parents')
     .addTag('Parent Attendance v1', 'Student absence days for parents')
     .addTag('Parent Notices v1', 'Notices for parent children')
-    .addTag('Teacher v1', 'Teacher endpoints')
     .addTag('School Auth v1', 'School admin login, refresh, logout, and profile')
     .addTag('School v1', 'School information and details')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig, {
-    include: [ParentModule, TeacherModule, SchoolModule],
+    include: [ParentModule, SchoolModule],
   });
   SwaggerModule.setup('api/docs', app, document);
+
+  const teacherSwaggerConfig = new DocumentBuilder()
+    .setTitle('My School Teacher API')
+    .setDescription(
+      'Teacher API v1. Login with email and password to receive an access token and refresh token.',
+    )
+    .setVersion('1.0')
+    .addBearerAuth()
+    .addTag('Teacher Auth v1', 'Login, refresh, and logout')
+    .addTag('Teacher Profile v1', 'Teacher profile and change password')
+    .addTag('Teacher Schedule v1', 'Weekly timetable and teaching assignments')
+    .build();
+
+  const teacherDocument = SwaggerModule.createDocument(
+    app,
+    teacherSwaggerConfig,
+    { include: [TeacherModule] },
+  );
+  SwaggerModule.setup('api/docs/teachers', app, teacherDocument);
 
   const dashboardSwaggerConfig = new DocumentBuilder()
     .setTitle('My School Dashboard API')

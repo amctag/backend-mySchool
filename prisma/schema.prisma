@@ -26,14 +26,15 @@ model School {
   courses       Course[]
   days          Day[]
   sessions      Session[]
-  teacherSchools TeacherSchool[]
-  details        SchoolDetail?
-  notices        Notice[]
-  albums         Album[]
-  grades         Grade[]
-  gradeForms     GradeForm[]
-  gradeTypes     GradeType[]
-  registrations  Registration[]
+  teacherSchools   TeacherSchool[]
+  teacherSessions  TeacherSession[]
+  details          SchoolDetail?
+  notices          Notice[]
+  albums           Album[]
+  grades           Grade[]
+  gradeForms       GradeForm[]
+  gradeTypes       GradeType[]
+  registrations    Registration[]
 
   @@map("school")
 }
@@ -78,6 +79,7 @@ model Person {
   weeklyScheduleDetails WeeklyScheduleDetail[]
   registrations         Registration[]
   parentSessions        ParentSession[]
+  teacherSessions       TeacherSession[]
   passwordChangeOtp     PasswordChangeOtp?
   passwordResetOtp      PasswordResetOtp?
   announcements         Announcement[]
@@ -122,6 +124,8 @@ model TeacherSchool {
   school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@unique([teacherId, schoolId])
+  @@index([teacherId, isActive])
+  @@index([schoolId, isActive])
   @@map("teacher_schools")
 }
 
@@ -381,6 +385,9 @@ model Teach {
   course  Course  @relation(fields: [courseId], references: [id], onDelete: Restrict)
   year    Year    @relation(fields: [yearId], references: [id], onDelete: Restrict)
 
+  @@index([teacherId, yearId])
+  @@index([teacherId, sectionId, courseId])
+  @@index([sectionId, yearId])
   @@map("teach")
 }
 
@@ -395,6 +402,7 @@ model Day {
   school                School                 @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   weeklyScheduleDetails WeeklyScheduleDetail[]
 
+  @@index([schoolId, position])
   @@map("days")
 }
 
@@ -410,6 +418,7 @@ model Session {
   school                School                 @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   weeklyScheduleDetails WeeklyScheduleDetail[]
 
+  @@index([schoolId, position])
   @@map("sessions")
 }
 
@@ -422,6 +431,7 @@ model WeeklySchedule {
   section Section                @relation(fields: [sectionId], references: [id], onDelete: Restrict)
   details WeeklyScheduleDetail[]
 
+  @@index([sectionId])
   @@map("weekly_schedules")
 }
 
@@ -442,6 +452,9 @@ model WeeklyScheduleDetail {
   course   Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
   person   Person?          @relation(fields: [personId], references: [id], onDelete: SetNull)
 
+  @@index([personId])
+  @@index([scheduleId, dayId])
+  @@index([courseId, personId])
   @@map("weekly_schedule_details")
 }
 
@@ -479,6 +492,23 @@ model ParentSession {
 
   @@unique([personId])
   @@map("parent_sessions")
+}
+
+model TeacherSession {
+  id               String   @id @default(uuid()) @db.Uuid
+  personId         Int      @map("person_id")
+  schoolId         Int      @map("school_id")
+  refreshTokenHash String   @unique @map("refresh_token_hash") @db.VarChar(64)
+  refreshExpiresAt DateTime @map("refresh_expires_at") @db.Timestamptz(6)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([personId])
+  @@index([schoolId])
+  @@map("teacher_sessions")
 }
 
 model PasswordChangeOtp {
@@ -676,6 +706,7 @@ model Notice {
   id           Int       @id @default(autoincrement())
   schoolId     Int       @map("school_id")
   noticeTypeId Int?      @map("notice_type_id")
+  title        String    @default("") @db.VarChar(255)
   description  String    @db.Text
   personId     Int       @map("person_id")
   date         DateTime  @db.Date
@@ -691,6 +722,7 @@ model Notice {
   sections   NoticeSection[]
 
   @@index([schoolId, status, date])
+  @@index([personId, schoolId, date])
   @@map("notices")
 }
 
@@ -728,6 +760,7 @@ model NoticeSection {
 
 model Agenda {
   id            Int       @id @default(autoincrement())
+  title         String    @default("") @db.VarChar(255)
   description   String    @db.Text
   agendaDate    DateTime  @map("agenda_date") @db.Date
   time          String    @db.VarChar(10)
@@ -745,6 +778,8 @@ model Agenda {
   sections AgendaSection[]
 
   @@index([agendaDate, status, publishedDate])
+  @@index([personId, agendaDate, status])
+  @@index([courseId, status])
   @@map("agendas")
 }
 

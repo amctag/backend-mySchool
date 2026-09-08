@@ -1,7 +1,20 @@
 import { Module } from '@nestjs/common';
-import { TeacherController } from './teacher.controller';
+import { AuthModule } from '../../auth/auth.module';
+import { PrismaModule } from '../../database/prisma/prisma.module';
+import { TeacherAccessService } from './teacher-access.service';
+import { TeacherAuthController } from './teacher-auth.controller';
+import { TeacherAuthService } from './teacher-auth.service';
+import { TeacherProfileController } from './teacher-profile.controller';
+import { TeacherScheduleController } from './teacher-schedule.controller';
+import { TeacherScheduleService } from './teacher-schedule.service';
 
 @Module({
-  controllers: [TeacherController],
+  imports: [AuthModule, PrismaModule],
+  controllers: [
+    TeacherAuthController,
+    TeacherProfileController,
+    TeacherScheduleController,
+  ],
+  providers: [TeacherAuthService, TeacherAccessService, TeacherScheduleService],
 })
 export class TeacherModule {}

@@ -1261,7 +1261,7 @@ async function main(): Promise<void> {
   console.log('  School parent (school_id = A):   maya.hassan  → rana');
   console.log('  Student school A: layla.khalil, rana.hassan');
   console.log('  Student school B: omar.khalil');
-  console.log('  Teacher (global): sara.nasser');
+  console.log('  Teacher (global): sara.nasser@example.com');
   console.log('  Admin school A:   admin.green');
   console.log('  Admin school B:   admin.blue');
 }

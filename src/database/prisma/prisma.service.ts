@@ -13,6 +13,10 @@ export class PrismaService
     return super.parentSession;
   }
 
+  override get teacherSession(): PrismaClient['teacherSession'] {
+    return super.teacherSession;
+  }
+
   override get parent(): PrismaClient['parent'] {
     return super.parent;
   }
