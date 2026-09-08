@@ -34,7 +34,7 @@
     "prisma:seed:lookups": "node dist/database/seed/seed-lookups.cli.js",
     "seed:fake": "node dist/database/seed/seed-fake-data.js",
     "prisma:seed:reseed-core": "node dist/database/seed/reseed-preserve-core.js",
-    "prisma:seed:reseed-core:dev": "ts-node src/database/seed/reseed-preserve-core.ts",
+    "prisma:seed:reseed-core:dev": "node dist/database/seed/reseed-preserve-core.js",
     "mail:test": "node scripts/test-mail.mjs",
     "postinstall": "prisma generate"
   },
