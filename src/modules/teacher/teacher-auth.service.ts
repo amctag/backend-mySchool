@@ -56,6 +56,14 @@ export class TeacherAuthService {
     const person = await this.validateCredentials(loginDto);
     const school = await this.resolveSchool(person.teacher.id, loginDto.schoolId);
     const tokens = await this.createSession(person, school.id);
+    const fcmToken = loginDto.fcmToken?.trim();
+    if (fcmToken) {
+      await this.prisma.fcmToken.upsert({
+        where: { personId: person.id },
+        create: { personId: person.id, token: fcmToken },
+        update: { token: fcmToken },
+      });
+    }
 
     return {
       ...tokens,
@@ -126,6 +134,7 @@ export class TeacherAuthService {
   async logout(user: AuthenticatedTeacher): Promise<TeacherLogoutResponseDto> {
     this.teacherAccess.ensureTeacherRole(user);
     await this.revokeTeacherSessions(user.id);
+    await this.prisma.fcmToken.deleteMany({ where: { personId: user.id } });
     return { message: 'Logged out successfully' };
   }
 
@@ -216,7 +225,7 @@ export class TeacherAuthService {
   ): Promise<LoginTeacherPerson> {
     const candidates = await this.prisma.person.findMany({
       where: {
-        email: { equals: loginDto.email, mode: 'insensitive' },
+        username: { equals: loginDto.username, mode: 'insensitive' },
         status: true,
         teacher: { isNot: null },
       },
@@ -226,7 +235,7 @@ export class TeacherAuthService {
     });
 
     if (candidates.length === 0) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid username or password');
     }
 
     for (const candidate of candidates) {
@@ -245,7 +254,7 @@ export class TeacherAuthService {
       }
     }
 
-    throw new UnauthorizedException('Invalid email or password');
+    throw new UnauthorizedException('Invalid username or password');
   }
 
   private async resolveSchool(teacherId: number, schoolId?: number) {

@@ -1,26 +1,25 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
-  IsEmail,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 export class TeacherLoginDto {
   @ApiProperty({
-    example: 'sara.nasser@example.com',
-    description: 'Teacher email',
+    example: 'sara.nasser',
+    description: 'Teacher username',
   })
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim().toLowerCase() : value,
-  )
-  @IsEmail()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
   @IsNotEmpty()
-  email!: string;
+  username!: string;
 
   @ApiProperty({ example: 'password123' })
   @IsString()
@@ -37,6 +36,18 @@ export class TeacherLoginDto {
   @IsInt()
   @Min(1)
   schoolId?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Firebase Cloud Messaging device token. Optional — omit when the device has no token yet.',
+    example: 'dXNlci1kZXZpY2UtdG9rZW4',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined && value !== null && value !== '')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(4096)
+  fcmToken?: string;
 }
 
 export class TeacherRefreshDto {

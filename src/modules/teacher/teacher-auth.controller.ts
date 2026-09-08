@@ -31,11 +31,11 @@ export class TeacherAuthController {
   @ApiOperation({
     summary: 'Teacher login',
     description:
-      'Authenticates a teacher by email and password. Returns an access token and refresh token. If the teacher belongs to multiple schools, pass schoolId to choose one; otherwise the first active school is used.',
+      'Authenticates a teacher by username and password. Optional fcmToken is stored when sent (one row per person). Returns an access token and refresh token. If the teacher belongs to multiple schools, pass schoolId to choose one; otherwise the first active school is used.',
   })
   @ApiOkResponse({ type: TeacherLoginResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
-  @ApiUnauthorizedResponse({ description: 'Invalid email or password' })
+  @ApiUnauthorizedResponse({ description: 'Invalid username or password' })
   login(@Body() loginDto: TeacherLoginDto): Promise<TeacherLoginResponseDto> {
     return this.teacherAuthService.login(loginDto);
   }
