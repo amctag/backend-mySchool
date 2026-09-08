@@ -72,7 +72,10 @@ export class TeacherNoticesService {
     query: TeacherNoticesQueryDto,
   ): Promise<TeacherNoticesResponseDto> {
     this.teacherAccess.ensureTeacherRole(user);
-    const { page, limit, skip } = resolvePagination(query);
+    const { page, limit, skip } = resolvePagination({
+      page: query.page,
+      limit: query.limit ?? 100,
+    });
 
     const where: Prisma.NoticeWhereInput = {
       deletedAt: null,
@@ -123,6 +126,31 @@ export class TeacherNoticesService {
       items: rows.map((row) => this.toItem(row, assignmentIds)),
       pagination: buildPaginationMeta(page, limit, total),
     };
+  }
+
+  async getNotice(
+    user: AuthenticatedTeacher,
+    noticeId: number,
+  ): Promise<TeacherNoticeItemDto> {
+    this.teacherAccess.ensureTeacherRole(user);
+    const row = await this.prisma.notice.findFirst({
+      where: {
+        id: noticeId,
+        personId: user.id,
+        schoolId: user.schoolId,
+        deletedAt: null,
+      },
+      include: noticeInclude,
+    });
+    if (!row) {
+      throw new NotFoundException('Notice not found');
+    }
+
+    const assignmentIds = await this.resolveAssignmentIds(
+      user,
+      [this.sectionIdOf(row)].filter((id): id is number => id !== null),
+    );
+    return this.toItem(row, assignmentIds);
   }
 
   async createNotice(
