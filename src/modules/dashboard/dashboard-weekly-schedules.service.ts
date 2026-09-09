@@ -414,6 +414,17 @@ export class DashboardWeeklySchedulesService {
       }
     }
 
+    await this.assertTeacherIsFreeAtSlots({
+      schoolId: user.schoolId,
+      yearId,
+      sectionId: section.id,
+      entries: body.entries.map((entry) => ({
+        dayId: entry.dayId,
+        sessionId: entry.sessionId,
+        personId: personIdByCourseId.get(entry.courseId) ?? null,
+      })),
+    });
+
     await this.prisma.$transaction(async (tx) => {
       let schedule = await tx.weeklySchedule.findFirst({
         where: { sectionId: section.id },
@@ -551,6 +562,66 @@ export class DashboardWeeklySchedulesService {
       default:
         return [{ id: direction }];
     }
+  }
+
+  private async assertTeacherIsFreeAtSlots({
+    schoolId,
+    yearId,
+    sectionId,
+    entries,
+  }: {
+    schoolId: number;
+    yearId: number;
+    sectionId: number;
+    entries: Array<{ dayId: number; sessionId: number; personId: number | null }>;
+  }): Promise<void> {
+    const checks = entries.filter(
+      (
+        entry,
+      ): entry is { dayId: number; sessionId: number; personId: number } =>
+        entry.personId != null,
+    );
+    if (checks.length === 0) {
+      return;
+    }
+
+    const conflict = await this.prisma.weeklyScheduleDetail.findFirst({
+      where: {
+        schedule: {
+          sectionId: { not: sectionId },
+          section: { schoolId, yearId },
+        },
+        OR: checks.map((entry) => ({
+          personId: entry.personId,
+          dayId: entry.dayId,
+          sessionId: entry.sessionId,
+        })),
+      },
+      select: {
+        course: { select: { title: true } },
+        day: { select: { dayName: true } },
+        session: { select: { sessionName: true } },
+        schedule: {
+          select: {
+            section: {
+              select: {
+                class: { select: { className: true } },
+                sectionTitle: { select: { title: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!conflict) {
+      return;
+    }
+
+    const classLabel = `${conflict.schedule.section.class.className} - Section ${conflict.schedule.section.sectionTitle.title}`;
+    throw new BadRequestException(
+      `This teacher is already teaching ${conflict.course.title} in ${classLabel} on ${conflict.day.dayName} (${conflict.session.sessionName}). A teacher cannot be in two classes at the same time.`,
+    );
   }
 
   private formatPersonName(person: {

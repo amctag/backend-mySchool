@@ -76,42 +76,56 @@ export class TeacherScheduleService {
         row,
       ]),
     );
-    const sectionIds = [...new Set(assignments.map((row) => row.sectionId))];
-    const courseIds = [...new Set(assignments.map((row) => row.courseId))];
 
     const details =
-      sectionIds.length === 0 || courseIds.length === 0
+      assignments.length === 0
         ? []
         : await this.prisma.weeklyScheduleDetail.findMany({
             where: {
-              courseId: { in: courseIds },
-              schedule: {
-                sectionId: { in: sectionIds },
-                section: { schoolId: user.schoolId },
-              },
+              personId: user.id,
+              OR: assignments.map((row) => ({
+                courseId: row.courseId,
+                schedule: {
+                  sectionId: row.sectionId,
+                  section: { schoolId: user.schoolId },
+                },
+              })),
             },
             select: {
               note: true,
               courseId: true,
-              personId: true,
               course: { select: { title: true } },
               day: { select: { id: true } },
-              session: { select: { sessionName: true, position: true } },
+              session: { select: { id: true, sessionName: true, position: true } },
               schedule: { select: { sectionId: true } },
             },
           });
 
+    const ranked = details
+      .map((detail) => ({
+        detail,
+        assignment: assignmentByKey.get(
+          this.assignmentKey(detail.schedule.sectionId, detail.courseId),
+        ),
+      }))
+      .filter(
+        (
+          row,
+        ): row is {
+          detail: (typeof details)[number];
+          assignment: (typeof assignments)[number];
+        } => row.assignment != null,
+      )
+      .sort((left, right) => left.assignment.id - right.assignment.id);
+
+    const usedSlots = new Set<string>();
     const entriesByDay = new Map<number, TeacherScheduleEntryDto[]>();
-    for (const detail of details) {
-      const assignment = assignmentByKey.get(
-        this.assignmentKey(detail.schedule.sectionId, detail.courseId),
-      );
-      if (!assignment) {
+    for (const { detail, assignment } of ranked) {
+      const slotKey = `${detail.day.id}:${detail.session.id}`;
+      if (usedSlots.has(slotKey)) {
         continue;
       }
-      if (detail.personId != null && detail.personId !== user.id) {
-        continue;
-      }
+      usedSlots.add(slotKey);
 
       const clock = periodClock(detail.session.position);
       const bucket = entriesByDay.get(detail.day.id) ?? [];
