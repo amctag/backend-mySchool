@@ -187,6 +187,16 @@ export class DashboardAnnouncementsService {
       );
     }
 
+    if (uniqueTargets.includes('teacher')) {
+      await this.notifyTeacherAudience(
+        user.schoolId,
+        sectionLink?.sectionId,
+        announcement.id,
+        announcement.title,
+        announcement.content,
+      );
+    }
+
     return this.toItem(announcement);
   }
 
@@ -221,6 +231,44 @@ export class DashboardAnnouncementsService {
       {
         type: 'announcement',
         announcementId: String(announcementId),
+      },
+    );
+  }
+
+  private async notifyTeacherAudience(
+    schoolId: number,
+    sectionId: number | undefined,
+    announcementId: number,
+    title: string | null,
+    content: string,
+  ): Promise<void> {
+    const teachers = await this.prisma.teacher.findMany({
+      where: {
+        person: { status: true },
+        schools: {
+          some: {
+            schoolId,
+            isActive: true,
+          },
+        },
+        ...(sectionId ? { teaches: { some: { sectionId } } } : {}),
+      },
+      select: { personId: true },
+    });
+
+    const pushTitle = title?.trim() || 'Announcement';
+    const pushBody =
+      content.length > 180 ? `${content.slice(0, 177)}...` : content;
+    await this.parentFcmNotify.sendToPersonIds(
+      teachers.map((teacher) => teacher.personId),
+      pushTitle,
+      content,
+      {
+        type: 'announcement',
+        announcementId: String(announcementId),
+        title: pushTitle,
+        body: pushBody,
+        route: 'announcements',
       },
     );
   }
