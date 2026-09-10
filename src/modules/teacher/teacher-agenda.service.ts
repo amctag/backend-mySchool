@@ -56,7 +56,10 @@ export class TeacherAgendaService {
     query: TeacherAgendasQueryDto,
   ): Promise<TeacherAgendasResponseDto> {
     this.teacherAccess.ensureTeacherRole(user);
-    const { page, limit, skip } = resolvePagination(query);
+    const { page, limit, skip } = resolvePagination({
+      page: query.page,
+      limit: query.limit ?? 100,
+    });
 
     const where: Prisma.AgendaWhereInput = {
       deletedAt: null,
@@ -119,6 +122,33 @@ export class TeacherAgendaService {
     });
 
     return this.toItem(created, new Map([[this.key(assignment.courseId, assignment.sectionId), assignment.id]]));
+  }
+
+  async getAgenda(
+    user: AuthenticatedTeacher,
+    agendaId: number,
+  ): Promise<TeacherAgendaItemDto> {
+    this.teacherAccess.ensureTeacherRole(user);
+    const row = await this.prisma.agenda.findFirst({
+      where: {
+        id: agendaId,
+        personId: user.id,
+        deletedAt: null,
+        course: { schoolId: user.schoolId },
+      },
+      include: agendaInclude,
+    });
+    if (!row) {
+      throw new NotFoundException('Agenda not found');
+    }
+
+    const assignmentIds = await this.resolveAssignmentIds(user, [
+      {
+        courseId: row.courseId,
+        sectionId: row.sections[0]?.section.id,
+      },
+    ]);
+    return this.toItem(row, assignmentIds);
   }
 
   async updateAgenda(

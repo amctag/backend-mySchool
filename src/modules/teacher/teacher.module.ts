@@ -7,6 +7,8 @@ import { TeacherAuthService } from './teacher-auth.service';
 import { TeacherProfileController } from './teacher-profile.controller';
 import { TeacherClassesController } from './teacher-classes.controller';
 import { TeacherClassesService } from './teacher-classes.service';
+import { TeacherAgendaController } from './teacher-agenda.controller';
+import { TeacherAgendaService } from './teacher-agenda.service';
 import { TeacherNoticesController } from './teacher-notices.controller';
 import { TeacherNoticesService } from './teacher-notices.service';
 import { TeacherScheduleController } from './teacher-schedule.controller';
@@ -20,6 +22,7 @@ import { TeacherScheduleService } from './teacher-schedule.service';
     TeacherScheduleController,
     TeacherClassesController,
     TeacherNoticesController,
+    TeacherAgendaController,
   ],
   providers: [
     TeacherAuthService,
@@ -27,6 +30,7 @@ import { TeacherScheduleService } from './teacher-schedule.service';
     TeacherScheduleService,
     TeacherClassesService,
     TeacherNoticesService,
+    TeacherAgendaService,
   ],
 })
 export class TeacherModule {}
