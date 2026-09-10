@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsInt,
   IsOptional,
@@ -65,10 +66,22 @@ export class TeacherAgendaItemDto {
   time!: string;
 
   @ApiProperty({
+    example: 'https://cdn.example.com/agendas/math-homework.jpg',
+    nullable: true,
+  })
+  imageLink!: string | null;
+
+  @ApiProperty({
     example: 'https://cdn.example.com/agendas/worksheet.pdf',
     nullable: true,
   })
-  attachmentUrl!: string | null;
+  fileLink!: string | null;
+
+  @ApiProperty({
+    example: true,
+    description: 'When true, parents can see this agenda.',
+  })
+  published!: boolean;
 }
 
 export class TeacherAgendasResponseDto {
@@ -118,10 +131,26 @@ export class UpsertTeacherAgendaDto {
   time?: string;
 
   @ApiPropertyOptional({
+    example: 'https://cdn.example.com/agendas/math-homework.jpg',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  imageLink?: string;
+
+  @ApiPropertyOptional({
     example: 'https://cdn.example.com/agendas/worksheet.pdf',
   })
   @IsOptional()
   @IsString()
   @MaxLength(2000)
-  attachmentUrl?: string;
+  fileLink?: string;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Publish so parents can see this agenda. Defaults to draft.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  published?: boolean;
 }

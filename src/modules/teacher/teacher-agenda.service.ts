@@ -112,10 +112,10 @@ export class TeacherAgendaService {
         time: dto.time?.trim() || '08:00',
         personId: user.id,
         courseId: assignment.courseId,
-        imageLink: '',
-        fileLink: dto.attachmentUrl?.trim() || '',
+        imageLink: dto.imageLink?.trim() || '',
+        fileLink: dto.fileLink?.trim() || '',
         publishedDate: new Date(),
-        status: 1,
+        status: dto.published ? 1 : 0,
         sections: { create: { sectionId: assignment.sectionId } },
       },
       include: agendaInclude,
@@ -151,6 +151,25 @@ export class TeacherAgendaService {
     return this.toItem(row, assignmentIds);
   }
 
+  async publishAgenda(
+    user: AuthenticatedTeacher,
+    agendaId: number,
+  ): Promise<TeacherAgendaItemDto> {
+    await this.findOwnAgenda(user, agendaId);
+    const published = await this.prisma.agenda.update({
+      where: { id: agendaId },
+      data: { status: 1, publishedDate: new Date() },
+      include: agendaInclude,
+    });
+    const assignmentIds = await this.resolveAssignmentIds(user, [
+      {
+        courseId: published.courseId,
+        sectionId: published.sections[0]?.section.id,
+      },
+    ]);
+    return this.toItem(published, assignmentIds);
+  }
+
   async updateAgenda(
     user: AuthenticatedTeacher,
     agendaId: number,
@@ -173,7 +192,11 @@ export class TeacherAgendaService {
           agendaDate: parseDateOnly(dto.date),
           time: dto.time?.trim() || '08:00',
           courseId: assignment.courseId,
-          fileLink: dto.attachmentUrl?.trim() || '',
+          imageLink: dto.imageLink?.trim() || '',
+          fileLink: dto.fileLink?.trim() || '',
+          ...(dto.published !== undefined
+            ? { status: dto.published ? 1 : 0 }
+            : {}),
         },
         include: agendaInclude,
       });
@@ -279,7 +302,9 @@ export class TeacherAgendaService {
       date: formatDateOnly(row.agendaDate),
       publishDate: formatDateTime(row.publishedDate),
       time: row.time,
-      attachmentUrl: row.fileLink || null,
+      imageLink: row.imageLink || null,
+      fileLink: row.fileLink || null,
+      published: row.status === 1,
     };
   }
 

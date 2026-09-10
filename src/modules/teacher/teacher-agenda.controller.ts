@@ -56,7 +56,7 @@ export class TeacherAgendaController {
   @ApiOperation({
     summary: 'Create an agenda',
     description:
-      'Creates a course agenda for an assigned class (section) the logged-in teacher teaches.',
+      'Creates a course agenda for an assigned class. Unpublished drafts are hidden from parents.',
   })
   @ApiCreatedResponse({ type: TeacherAgendaItemDto })
   @ApiBadRequestResponse({
@@ -81,5 +81,21 @@ export class TeacherAgendaController {
     @Param('agendaId', ParseIntPipe) agendaId: number,
   ): Promise<TeacherAgendaItemDto> {
     return this.teacherAgendaService.getAgenda(request.user, agendaId);
+  }
+
+  @Post('me/agendas/:agendaId/publish')
+  @ApiOperation({
+    summary: 'Publish an agenda',
+    description:
+      'Makes an agenda visible to parents of the assigned class.',
+  })
+  @ApiOkResponse({ type: TeacherAgendaItemDto })
+  @ApiNotFoundResponse({ description: 'Agenda not found' })
+  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  publishAgenda(
+    @Req() request: Request & { user: AuthenticatedTeacher },
+    @Param('agendaId', ParseIntPipe) agendaId: number,
+  ): Promise<TeacherAgendaItemDto> {
+    return this.teacherAgendaService.publishAgenda(request.user, agendaId);
   }
 }
