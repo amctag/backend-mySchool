@@ -77,7 +77,7 @@ export class TeacherGradesController {
   @ApiOperation({
     summary: 'List my grade sheets',
     description:
-      'Grade sheets for courses the logged-in teacher teaches. Not school-wide.',
+      'Grade sheets for courses the logged-in teacher teaches. Filter by class, section, course, and grade type. Not school-wide.',
   })
   @ApiOkResponse({ type: TeacherGradeSheetsResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })

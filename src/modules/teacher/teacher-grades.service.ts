@@ -103,8 +103,10 @@ export class TeacherGradesService {
         sectionId: pair.sectionId,
         courseId: pair.courseId,
       })),
+      ...(query.classId ? { section: { classId: query.classId } } : {}),
       ...(query.sectionId ? { sectionId: query.sectionId } : {}),
       ...(query.courseId ? { courseId: query.courseId } : {}),
+      ...(query.gradeTypeId ? { gradeTypeId: query.gradeTypeId } : {}),
     };
 
     const [total, rows] = await this.prisma.$transaction([

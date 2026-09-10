@@ -16,6 +16,13 @@ import { PaginationMetaDto } from '../../../common/dto/pagination-meta.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 export class TeacherGradesQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ example: 2, description: 'Class id (not section id)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  classId?: number;
+
   @ApiPropertyOptional({ example: 5, description: 'Section id' })
   @IsOptional()
   @Type(() => Number)
@@ -29,6 +36,13 @@ export class TeacherGradesQueryDto extends PaginationQueryDto {
   @IsInt()
   @Min(1)
   courseId?: number;
+
+  @ApiPropertyOptional({ example: 3, description: 'Grade type id' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  gradeTypeId?: number;
 }
 
 export class TeacherGradeEntryQueryDto {
