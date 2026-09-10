@@ -36,6 +36,7 @@
     "prisma:seed:reseed-core": "node dist/database/seed/reseed-preserve-core.js",
     "prisma:seed:reseed-core:dev": "node dist/database/seed/reseed-preserve-core.js",
     "mail:test": "node scripts/test-mail.mjs",
+    "clear:schedule-teach-class-courses": "node scripts/clear-schedule-teach-class-courses.mjs --confirm",
     "postinstall": "prisma generate"
   },
   "prisma": {

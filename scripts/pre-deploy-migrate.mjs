@@ -32,3 +32,12 @@ for (const name of FAILED_MIGRATIONS_TO_RETRY) {
 
 console.log('Running prisma migrate deploy...');
 run('npx prisma migrate deploy', { inherit: true });
+
+if (process.env.CLEAR_SCHEDULE_TEACH_CLASS_COURSES === 'true') {
+  console.log(
+    'CLEAR_SCHEDULE_TEACH_CLASS_COURSES=true — wiping weekly schedules, class-courses, and teach...',
+  );
+  run('node scripts/clear-schedule-teach-class-courses.mjs --confirm', {
+    inherit: true,
+  });
+}
