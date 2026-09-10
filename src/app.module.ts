@@ -7,6 +7,7 @@ import databaseConfig from './config/database.config';
 import mailConfig from './config/mail.config';
 import fcmConfig from './config/fcm.config';
 import jwtConfig from './config/jwt.config';
+import uploadConfig from './config/upload.config';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -30,6 +31,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
         corsConfig,
         mailConfig,
         fcmConfig,
+        uploadConfig,
       ],
     }),
     PrismaModule,

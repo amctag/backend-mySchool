@@ -9,10 +9,12 @@ import { TeacherClassesController } from './teacher-classes.controller';
 import { TeacherClassesService } from './teacher-classes.service';
 import { TeacherAgendaController } from './teacher-agenda.controller';
 import { TeacherAgendaService } from './teacher-agenda.service';
+import { TeacherUploadsController } from './teacher-uploads.controller';
 import { TeacherNoticesController } from './teacher-notices.controller';
 import { TeacherNoticesService } from './teacher-notices.service';
 import { TeacherScheduleController } from './teacher-schedule.controller';
 import { TeacherScheduleService } from './teacher-schedule.service';
+import { MediaUploadService } from '../../upload/media-upload.service';
 
 @Module({
   imports: [AuthModule, PrismaModule],
@@ -23,6 +25,7 @@ import { TeacherScheduleService } from './teacher-schedule.service';
     TeacherClassesController,
     TeacherNoticesController,
     TeacherAgendaController,
+    TeacherUploadsController,
   ],
   providers: [
     TeacherAuthService,
@@ -31,6 +34,7 @@ import { TeacherScheduleService } from './teacher-schedule.service';
     TeacherClassesService,
     TeacherNoticesService,
     TeacherAgendaService,
+    MediaUploadService,
   ],
 })
 export class TeacherModule {}
