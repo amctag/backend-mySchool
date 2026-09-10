@@ -51,6 +51,8 @@ import { DashboardNoticeTypesController } from './dashboard-notice-types.control
 import { DashboardNoticeTypesService } from './dashboard-notice-types.service';
 import { DashboardActivitiesController } from './dashboard-activities.controller';
 import { DashboardActivitiesService } from './dashboard-activities.service';
+import { DashboardUploadsController } from './dashboard-uploads.controller';
+import { MediaUploadService } from '../../upload/media-upload.service';
 
 @Module({
   imports: [PrismaModule, AuthModule],
@@ -80,6 +82,7 @@ import { DashboardActivitiesService } from './dashboard-activities.service';
     DashboardNoticesController,
     DashboardNoticeTypesController,
     DashboardActivitiesController,
+    DashboardUploadsController,
   ],
   providers: [
     DashboardParentsService,
@@ -107,6 +110,7 @@ import { DashboardActivitiesService } from './dashboard-activities.service';
     DashboardNoticesService,
     DashboardNoticeTypesService,
     DashboardActivitiesService,
+    MediaUploadService,
   ],
 })
 export class DashboardModule {}
