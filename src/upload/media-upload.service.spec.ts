@@ -23,9 +23,12 @@ describe('MediaUploadService', () => {
     );
   });
 
-  it('maps a PDF document path to /document/', () => {
+  it('maps a PDF onto the same /images/ route as photos', () => {
     expect(service.publicUrl(base, 'document/notes.pdf', 'document')).toBe(
-      `${base}/document/notes.pdf`,
+      `${base}/images/notes.pdf`,
+    );
+    expect(service.publicUrl(base, 'notes.pdf', 'file')).toBe(
+      `${base}/images/notes.pdf`,
     );
   });
 

@@ -38,13 +38,10 @@ export class MediaUploadService {
 
     const filename = file.originalname || 'upload.bin';
     const mime = this.mimeFor(filename, kind, file.mimetype);
-    const folder = kind === 'image' ? 'images' : undefined;
 
     const form = new FormData();
     form.append('token', apiToken);
-    if (folder) {
-      form.append('folder', folder);
-    }
+    form.append('folder', 'images');
     form.append(
       'file',
       new Blob([new Uint8Array(file.buffer)], { type: mime }),
@@ -88,7 +85,7 @@ export class MediaUploadService {
       );
     }
 
-    const category = payload.category || kind;
+    const category = kind === 'file' ? 'image' : payload.category || kind;
     return {
       url: this.publicUrl(publicBase, payload.path, category),
       path: payload.path,
@@ -114,8 +111,12 @@ export class MediaUploadService {
     if (normalized === 'voice' || normalized === 'voices') {
       return 'voice';
     }
-    if (normalized === 'document' || normalized === 'documents') {
-      return 'document';
+    if (
+      normalized === 'file' ||
+      normalized === 'document' ||
+      normalized === 'documents'
+    ) {
+      return 'images';
     }
     const parts = path.split('/').filter(Boolean);
     const prefix = parts.length > 1 ? parts[0].toLowerCase() : '';
@@ -128,8 +129,8 @@ export class MediaUploadService {
     if (prefix === 'voice' || prefix === 'voices') {
       return 'voice';
     }
-    if (prefix === 'document' || prefix === 'documents') {
-      return 'document';
+    if (prefix === 'document' || prefix === 'documents' || prefix === 'file') {
+      return 'images';
     }
     return prefix || 'images';
   }
