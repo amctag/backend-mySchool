@@ -1,6 +1,6 @@
-// @ts-nocheck
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -14,19 +14,37 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 import { TeacherAccessService } from './teacher-access.service';
 import { TeacherMessageResponseDto } from './dto/teacher-auth.dto';
 import {
-  TeacherGradeAssessmentDetailsDto,
-  TeacherGradeAssessmentsResponseDto,
+  SaveTeacherGradeSheetDto,
+  TeacherGradeClassOptionDto,
   TeacherGradeEntryContextDto,
+  TeacherGradeEntryQueryDto,
+  TeacherGradeOptionsResponseDto,
+  TeacherGradeSheetItemDto,
+  TeacherGradeSheetsResponseDto,
   TeacherGradesQueryDto,
-  TeacherGradeTypesResponseDto,
-  UpsertTeacherGradeAssessmentDto,
 } from './dto/teacher-grades.dto';
 import {
   formatClassLabel,
-  formatDateTime,
+  formatDateOnly,
   formatFullName,
   parseDateOnly,
 } from './teacher.util';
+
+const DEFAULT_MAX_GRADE = 100;
+
+type AssignedTeach = {
+  id: number;
+  courseId: number;
+  sectionId: number;
+  course: { id: number; title: string };
+  section: {
+    id: number;
+    classId: number;
+    yearId: number;
+    class: { id: number; className: string };
+    sectionTitle: { title: string };
+  };
+};
 
 @Injectable()
 export class TeacherGradesService {
@@ -35,44 +53,59 @@ export class TeacherGradesService {
     private readonly teacherAccess: TeacherAccessService,
   ) {}
 
-  async listGradeTypes(
+  async listOptions(
     user: AuthenticatedTeacher,
-  ): Promise<TeacherGradeTypesResponseDto> {
+  ): Promise<TeacherGradeOptionsResponseDto> {
     this.teacherAccess.ensureTeacherRole(user);
+    const yearId = await this.teacherAccess.currentYearId(user.schoolId);
+    const [teaches, gradeTypes] = await Promise.all([
+      this.loadAssignedTeaches(user, yearId),
+      this.prisma.gradeType.findMany({
+        where: {
+          status: true,
+          OR: [{ schoolId: user.schoolId }, { schoolId: null }],
+        },
+        select: { id: true, title: true },
+        orderBy: [{ position: 'asc' }, { title: 'asc' }],
+      }),
+    ]);
 
-    const items = await this.prisma.gradeType.findMany({
-      where: {
-        status: true,
-        OR: [{ schoolId: user.schoolId }, { schoolId: null }],
-      },
-      select: { id: true, title: true },
-      orderBy: [{ position: 'asc' }, { title: 'asc' }],
-    });
+    const coefficientByKey = await this.loadCoefficients(yearId, teaches);
 
-    return { items };
+    return {
+      classes: this.groupOptions(teaches, coefficientByKey, yearId),
+      gradeTypes,
+    };
   }
 
-  async listAssessments(
+  async listSheets(
     user: AuthenticatedTeacher,
     query: TeacherGradesQueryDto,
-  ): Promise<TeacherGradeAssessmentsResponseDto> {
+  ): Promise<TeacherGradeSheetsResponseDto> {
     this.teacherAccess.ensureTeacherRole(user);
-    const { page, limit, skip } = resolvePagination(query);
-
-    const where: Prisma.GradeWhereInput = {
-      personId: user.id,
-      schoolId: user.schoolId,
-      ...(query.classId ? { sectionId: query.classId } : {}),
-    };
-
-    if (query.assignmentId) {
-      const assignment = await this.teacherAccess.getAssignment(
-        user,
-        query.assignmentId,
-      );
-      where.sectionId = assignment.sectionId;
-      where.courseId = assignment.courseId;
+    const { page, limit, skip } = resolvePagination({
+      page: query.page,
+      limit: query.limit ?? 20,
+    });
+    const yearId = await this.teacherAccess.currentYearId(user.schoolId);
+    const teaches = await this.loadAssignedTeaches(user, yearId);
+    if (teaches.length === 0) {
+      return {
+        items: [],
+        pagination: buildPaginationMeta(page, limit, 0),
+      };
     }
+
+    const pairs = this.uniquePairs(teaches);
+    const where: Prisma.GradeWhereInput = {
+      schoolId: user.schoolId,
+      OR: pairs.map((pair) => ({
+        sectionId: pair.sectionId,
+        courseId: pair.courseId,
+      })),
+      ...(query.sectionId ? { sectionId: query.sectionId } : {}),
+      ...(query.courseId ? { courseId: query.courseId } : {}),
+    };
 
     const [total, rows] = await this.prisma.$transaction([
       this.prisma.grade.count({ where }),
@@ -80,12 +113,14 @@ export class TeacherGradesService {
         where,
         include: {
           course: { select: { id: true, title: true } },
-          gradeType: { select: { title: true } },
+          gradeType: { select: { id: true, title: true } },
           section: {
             select: {
               id: true,
-              class: { select: { className: true } },
+              classId: true,
+              class: { select: { id: true, className: true } },
               sectionTitle: { select: { title: true } },
+              yearId: true,
             },
           },
           _count: { select: { details: true } },
@@ -96,357 +131,507 @@ export class TeacherGradesService {
       }),
     ]);
 
-    const assignmentIds = await this.resolveAssignmentIds(
-      user,
+    const coefficientByKey = await this.loadCoefficients(
+      yearId,
       rows.map((row) => ({
-        sectionId: row.sectionId,
+        section: {
+          classId: row.section.classId,
+          yearId: row.section.yearId,
+        },
         courseId: row.courseId,
       })),
     );
 
     return {
-      items: rows.map((row) => ({
-        id: row.id,
-        assignmentId:
-          assignmentIds.get(this.key(row.sectionId, row.courseId)) ?? 0,
-        classId: row.sectionId,
-        classLabel: formatClassLabel(
-          row.section.class.className,
-          row.section.sectionTitle.title,
-        ),
-        courseTitle: row.course.title,
-        title: row.title || row.gradeType.title,
-        gradeTypeTitle: row.gradeType.title,
-        maxGrade: Number(row.maxGrade),
-        publishDate: row.publishDate ? formatDateTime(row.publishDate) : null,
-        entriesCount: row._count.details,
-      })),
+      items: rows.map((row) =>
+        this.toSheetItem(row, coefficientByKey, yearId),
+      ),
       pagination: buildPaginationMeta(page, limit, total),
     };
   }
 
-  async getEntryContext(
+  async getEntry(
     user: AuthenticatedTeacher,
-    assignmentId: number,
+    query: TeacherGradeEntryQueryDto,
   ): Promise<TeacherGradeEntryContextDto> {
-    const assignment = await this.teacherAccess.getAssignment(
+    const assignment = await this.assertAssignedCourse(
       user,
-      assignmentId,
+      query.sectionId,
+      query.courseId,
     );
+    const gradeType = await this.assertGradeType(user.schoolId, query.gradeTypeId);
 
-    const registrations = await this.prisma.registration.findMany({
-      where: {
-        sectionId: assignment.sectionId,
-        schoolId: user.schoolId,
-        status: true,
-      },
-      select: {
-        student: {
-          select: {
-            id: true,
-            person: {
-              select: { firstName: true, middleName: true, lastName: true },
+    const [registrations, existing, classCourse] = await Promise.all([
+      this.prisma.registration.findMany({
+        where: {
+          sectionId: query.sectionId,
+          schoolId: user.schoolId,
+          status: true,
+        },
+        select: {
+          id: true,
+          student: {
+            select: {
+              id: true,
+              person: {
+                select: { firstName: true, middleName: true, lastName: true },
+              },
             },
           },
         },
-      },
-      orderBy: [
-        { student: { person: { firstName: 'asc' } } },
-        { student: { person: { lastName: 'asc' } } },
-        { id: 'asc' },
-      ],
-    });
+        orderBy: [
+          { student: { person: { firstName: 'asc' } } },
+          { student: { person: { lastName: 'asc' } } },
+          { id: 'asc' },
+        ],
+      }),
+      this.prisma.grade.findFirst({
+        where: {
+          schoolId: user.schoolId,
+          sectionId: query.sectionId,
+          courseId: query.courseId,
+          gradeTypeId: query.gradeTypeId,
+        },
+        select: {
+          id: true,
+          maxGrade: true,
+          publishDate: true,
+          details: {
+            select: { registrationId: true, grade: true, comment: true },
+          },
+        },
+      }),
+      this.prisma.classCourse.findFirst({
+        where: {
+          classId: assignment.section.classId,
+          courseId: query.courseId,
+          yearId: assignment.section.yearId,
+          status: true,
+        },
+        select: { coefficient: true },
+      }),
+    ]);
+
+    const detailByRegistration = new Map(
+      (existing?.details ?? []).map((detail) => [detail.registrationId, detail]),
+    );
 
     return {
+      gradeSheetId: existing?.id ?? null,
       assignmentId: assignment.id,
-      classId: assignment.sectionId,
+      classId: assignment.section.class.id,
+      className: assignment.section.class.className,
+      sectionId: assignment.section.id,
+      sectionTitle: assignment.section.sectionTitle.title,
       classLabel: formatClassLabel(
         assignment.section.class.className,
         assignment.section.sectionTitle.title,
       ),
+      courseId: assignment.course.id,
       courseTitle: assignment.course.title,
-      students: registrations.map((registration, index) => ({
-        id: registration.student.id,
-        fullName: formatFullName(registration.student.person),
-        seatNumber: index + 1,
-      })),
+      gradeTypeId: gradeType.id,
+      gradeTypeTitle: gradeType.title,
+      coefficient: classCourse ? Number(classCourse.coefficient) : 1,
+      maxGrade: existing ? Number(existing.maxGrade) : DEFAULT_MAX_GRADE,
+      publishDate: existing?.publishDate
+        ? formatDateOnly(existing.publishDate)
+        : formatDateOnly(new Date()),
+      students: registrations.map((registration, index) => {
+        const detail = detailByRegistration.get(registration.id);
+        return {
+          registrationId: registration.id,
+          studentId: registration.student.id,
+          fullName: formatFullName(registration.student.person),
+          seatNumber: index + 1,
+          score: detail?.grade == null ? null : Number(detail.grade),
+          comment: detail?.comment ?? null,
+        };
+      }),
     };
   }
 
-  async getAssessment(
+  async saveSheet(
     user: AuthenticatedTeacher,
-    assessmentId: number,
-  ): Promise<TeacherGradeAssessmentDetailsDto> {
-    const row = await this.findOwnAssessment(user, assessmentId);
-    const assignmentId =
-      (
-        await this.prisma.teach.findFirst({
-          where: {
-            teacherId: user.teacherId,
-            sectionId: row.sectionId,
-            courseId: row.courseId,
-          },
-          select: { id: true },
-        })
-      )?.id ?? 0;
+    dto: SaveTeacherGradeSheetDto,
+  ): Promise<TeacherGradeEntryContextDto> {
+    await this.assertAssignedCourse(user, dto.sectionId, dto.courseId);
+    await this.assertGradeType(user.schoolId, dto.gradeTypeId);
 
-    return {
-      assessmentId: row.id,
-      assignmentId,
-      title: row.title || row.gradeType.title,
-      gradeTypeTitle: row.gradeType.title,
-      maxGrade: Number(row.maxGrade),
-      publishDate: row.publishDate ? formatDateTime(row.publishDate) : null,
-      comment: row.comment,
-      entries: row.details.map((detail) => ({
-        studentId: detail.registration.studentId,
-        score: detail.grade == null ? 0 : Number(detail.grade),
-        comment: detail.comment ?? undefined,
-      })),
-    };
-  }
-
-  async createAssessment(
-    user: AuthenticatedTeacher,
-    dto: UpsertTeacherGradeAssessmentDto,
-  ): Promise<TeacherGradeAssessmentDetailsDto> {
-    const assignment = await this.assertWritableAssignment(user, dto);
-    const gradeType = await this.resolveGradeType(user.schoolId, dto);
-    const registrationByStudent = await this.loadSectionRegistrations(
-      user.schoolId,
-      assignment.sectionId,
-      dto.entries.map((entry) => entry.studentId),
-    );
-
-    this.assertScores(dto);
-
-    const createdId = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.grade.create({
-        data: {
-          schoolId: user.schoolId,
-          sectionId: assignment.sectionId,
-          courseId: assignment.courseId,
-          gradeTypeId: gradeType.id,
-          title: dto.title.trim(),
-          maxGrade: dto.maxGrade,
-          comment: dto.comment?.trim() || null,
-          publishDate: parseDateOnly(dto.publishDate),
-          personId: user.id,
-        },
-        select: { id: true },
-      });
-
-      await tx.gradeDetail.createMany({
-        data: dto.entries.map((entry) => ({
-          gradeId: created.id,
-          registrationId: registrationByStudent.get(entry.studentId)!,
-          grade: entry.score,
-          comment: entry.comment?.trim() || null,
-        })),
-      });
-
-      return created.id;
-    });
-
-    return this.getAssessment(user, createdId);
-  }
-
-  async updateAssessment(
-    user: AuthenticatedTeacher,
-    assessmentId: number,
-    dto: UpsertTeacherGradeAssessmentDto,
-  ): Promise<TeacherGradeAssessmentDetailsDto> {
-    await this.findOwnAssessment(user, assessmentId);
-    const assignment = await this.assertWritableAssignment(user, dto);
-    const gradeType = await this.resolveGradeType(user.schoolId, dto);
-    const registrationByStudent = await this.loadSectionRegistrations(
-      user.schoolId,
-      assignment.sectionId,
-      dto.entries.map((entry) => entry.studentId),
-    );
-    this.assertScores(dto);
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.grade.update({
-        where: { id: assessmentId },
-        data: {
-          sectionId: assignment.sectionId,
-          courseId: assignment.courseId,
-          gradeTypeId: gradeType.id,
-          title: dto.title.trim(),
-          maxGrade: dto.maxGrade,
-          comment: dto.comment?.trim() || null,
-          publishDate: parseDateOnly(dto.publishDate),
-        },
-      });
-
-      await tx.gradeDetail.deleteMany({ where: { gradeId: assessmentId } });
-      await tx.gradeDetail.createMany({
-        data: dto.entries.map((entry) => ({
-          gradeId: assessmentId,
-          registrationId: registrationByStudent.get(entry.studentId)!,
-          grade: entry.score,
-          comment: entry.comment?.trim() || null,
-        })),
-      });
-    });
-
-    return this.getAssessment(user, assessmentId);
-  }
-
-  async deleteAssessment(
-    user: AuthenticatedTeacher,
-    assessmentId: number,
-  ): Promise<TeacherMessageResponseDto> {
-    await this.findOwnAssessment(user, assessmentId);
-    await this.prisma.grade.delete({ where: { id: assessmentId } });
-    return { message: 'Grade assessment deleted successfully' };
-  }
-
-  private async findOwnAssessment(
-    user: AuthenticatedTeacher,
-    assessmentId: number,
-  ) {
-    const row = await this.prisma.grade.findFirst({
+    const registrations = await this.prisma.registration.findMany({
       where: {
-        id: assessmentId,
-        personId: user.id,
+        sectionId: dto.sectionId,
         schoolId: user.schoolId,
-      },
-      include: {
-        gradeType: { select: { title: true } },
-        details: {
-          select: {
-            grade: true,
-            comment: true,
-            registration: { select: { studentId: true } },
-          },
-        },
-      },
-    });
-
-    if (!row) {
-      throw new NotFoundException('Grade assessment not found');
-    }
-
-    return row;
-  }
-
-  private async assertWritableAssignment(
-    user: AuthenticatedTeacher,
-    dto: UpsertTeacherGradeAssessmentDto,
-  ) {
-    const assignment = await this.teacherAccess.getAssignment(
-      user,
-      dto.assignmentId,
-    );
-    if (assignment.sectionId !== dto.classId) {
-      throw new BadRequestException(
-        'classId does not match the teaching assignment',
-      );
-    }
-    return assignment;
-  }
-
-  private async resolveGradeType(
-    schoolId: number,
-    dto: UpsertTeacherGradeAssessmentDto,
-  ) {
-    if (dto.gradeTypeId) {
-      const byId = await this.prisma.gradeType.findFirst({
-        where: {
-          id: dto.gradeTypeId,
-          status: true,
-          OR: [{ schoolId }, { schoolId: null }],
-        },
-        select: { id: true, title: true },
-      });
-      if (!byId) {
-        throw new NotFoundException('Grade type not found');
-      }
-      return byId;
-    }
-
-    const title = dto.gradeTypeTitle.trim();
-    const byTitle = await this.prisma.gradeType.findFirst({
-      where: {
         status: true,
-        title: { equals: title, mode: 'insensitive' },
-        OR: [{ schoolId }, { schoolId: null }],
       },
-      select: { id: true, title: true },
-      orderBy: [{ schoolId: 'desc' }, { id: 'asc' }],
+      select: { id: true },
     });
+    const registrationIds = new Set(registrations.map((row) => row.id));
 
-    if (!byTitle) {
-      throw new BadRequestException(
-        `Unknown grade type "${title}". Use a school grade type.`,
-      );
-    }
-
-    return byTitle;
-  }
-
-  private async loadSectionRegistrations(
-    schoolId: number,
-    sectionId: number,
-    studentIds: number[],
-  ) {
-    const uniqueIds = [...new Set(studentIds)];
-    const rows = await this.prisma.registration.findMany({
-      where: {
-        schoolId,
-        sectionId,
-        status: true,
-        studentId: { in: uniqueIds },
-      },
-      select: { id: true, studentId: true },
-    });
-
-    if (rows.length !== uniqueIds.length) {
-      throw new BadRequestException(
-        'One or more students are not registered in this class',
-      );
-    }
-
-    return new Map(rows.map((row) => [row.studentId, row.id]));
-  }
-
-  private assertScores(dto: UpsertTeacherGradeAssessmentDto) {
     for (const entry of dto.entries) {
-      if (entry.score > dto.maxGrade) {
+      if (!registrationIds.has(entry.registrationId)) {
+        throw new BadRequestException(
+          'One or more students are not registered in this class',
+        );
+      }
+      if (entry.score != null && entry.score > dto.maxGrade) {
         throw new BadRequestException(
           `Score cannot be greater than max grade (${dto.maxGrade})`,
         );
       }
     }
+
+    const publishDate = dto.publishDate ? parseDateOnly(dto.publishDate) : null;
+
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.grade.findFirst({
+        where: {
+          schoolId: user.schoolId,
+          sectionId: dto.sectionId,
+          courseId: dto.courseId,
+          gradeTypeId: dto.gradeTypeId,
+        },
+        select: { id: true },
+      });
+
+      let sheetId: number;
+      if (existing) {
+        await tx.grade.update({
+          where: { id: existing.id },
+          data: {
+            maxGrade: dto.maxGrade,
+            publishDate,
+            personId: user.id,
+          },
+        });
+        sheetId = existing.id;
+      } else {
+        const created = await tx.grade.create({
+          data: {
+            schoolId: user.schoolId,
+            sectionId: dto.sectionId,
+            courseId: dto.courseId,
+            gradeTypeId: dto.gradeTypeId,
+            maxGrade: dto.maxGrade,
+            publishDate,
+            personId: user.id,
+          },
+          select: { id: true },
+        });
+        sheetId = created.id;
+      }
+
+      for (const entry of dto.entries) {
+        const hasValue =
+          entry.score != null ||
+          (entry.comment != null && entry.comment.trim().length > 0);
+
+        if (!hasValue) {
+          await tx.gradeDetail.deleteMany({
+            where: {
+              gradeId: sheetId,
+              registrationId: entry.registrationId,
+            },
+          });
+          continue;
+        }
+
+        await tx.gradeDetail.upsert({
+          where: {
+            gradeId_registrationId: {
+              gradeId: sheetId,
+              registrationId: entry.registrationId,
+            },
+          },
+          create: {
+            gradeId: sheetId,
+            registrationId: entry.registrationId,
+            grade: entry.score ?? null,
+            comment: entry.comment?.trim() || null,
+          },
+          update: {
+            grade: entry.score ?? null,
+            comment: entry.comment?.trim() || null,
+          },
+        });
+      }
+    });
+
+    return this.getEntry(user, {
+      sectionId: dto.sectionId,
+      courseId: dto.courseId,
+      gradeTypeId: dto.gradeTypeId,
+    });
   }
 
-  private async resolveAssignmentIds(
+  async deleteSheet(
     user: AuthenticatedTeacher,
-    pairs: Array<{ sectionId: number; courseId: number }>,
-  ) {
-    if (pairs.length === 0) {
-      return new Map<string, number>();
+    gradeId: number,
+  ): Promise<TeacherMessageResponseDto> {
+    this.teacherAccess.ensureTeacherRole(user);
+    const row = await this.prisma.grade.findFirst({
+      where: { id: gradeId, schoolId: user.schoolId },
+      select: { id: true, sectionId: true, courseId: true },
+    });
+    if (!row) {
+      throw new NotFoundException('Grade sheet not found');
     }
+    await this.assertAssignedCourse(user, row.sectionId, row.courseId);
+    await this.prisma.grade.delete({ where: { id: row.id } });
+    return { message: 'Grade sheet deleted successfully' };
+  }
 
-    const rows = await this.prisma.teach.findMany({
+  private async loadAssignedTeaches(
+    user: AuthenticatedTeacher,
+    yearId: number | null,
+  ): Promise<AssignedTeach[]> {
+    return this.prisma.teach.findMany({
       where: {
         teacherId: user.teacherId,
-        OR: pairs.map((pair) => ({
-          sectionId: pair.sectionId,
-          courseId: pair.courseId,
+        section: { schoolId: user.schoolId },
+        ...(yearId ? { yearId } : {}),
+      },
+      select: {
+        id: true,
+        courseId: true,
+        sectionId: true,
+        course: { select: { id: true, title: true } },
+        section: {
+          select: {
+            id: true,
+            classId: true,
+            yearId: true,
+            class: { select: { id: true, className: true } },
+            sectionTitle: { select: { title: true } },
+          },
+        },
+      },
+      orderBy: [
+        { section: { class: { className: 'asc' } } },
+        { section: { sectionTitle: { title: 'asc' } } },
+        { course: { title: 'asc' } },
+        { id: 'asc' },
+      ],
+    });
+  }
+
+  private async loadCoefficients(
+    yearId: number | null,
+    rows: Array<{ section: { classId: number; yearId: number }; courseId: number }>,
+  ): Promise<Map<string, number>> {
+    if (rows.length === 0) {
+      return new Map();
+    }
+
+    const keys = new Map<string, { classId: number; yearId: number; courseId: number }>();
+    for (const row of rows) {
+      const classYearId = yearId ?? row.section.yearId;
+      keys.set(`${row.section.classId}:${row.courseId}:${classYearId}`, {
+        classId: row.section.classId,
+        courseId: row.courseId,
+        yearId: classYearId,
+      });
+    }
+
+    const classCourses = await this.prisma.classCourse.findMany({
+      where: {
+        status: true,
+        OR: [...keys.values()].map((item) => ({
+          classId: item.classId,
+          courseId: item.courseId,
+          yearId: item.yearId,
         })),
       },
-      select: { id: true, sectionId: true, courseId: true },
+      select: { classId: true, courseId: true, yearId: true, coefficient: true },
     });
 
     return new Map(
-      rows.map((row) => [this.key(row.sectionId, row.courseId), row.id]),
+      classCourses.map((row) => [
+        `${row.classId}:${row.courseId}:${row.yearId}`,
+        Number(row.coefficient),
+      ]),
     );
   }
 
-  private key(sectionId: number, courseId: number): string {
-    return `${sectionId}:${courseId}`;
+  private groupOptions(
+    teaches: AssignedTeach[],
+    coefficientByKey: Map<string, number>,
+    yearId: number | null,
+  ): TeacherGradeClassOptionDto[] {
+    const classes = new Map<number, TeacherGradeClassOptionDto>();
+
+    for (const teach of teaches) {
+      const classId = teach.section.class.id;
+      let classOption = classes.get(classId);
+      if (!classOption) {
+        classOption = {
+          id: classId,
+          name: teach.section.class.className,
+          sections: [],
+        };
+        classes.set(classId, classOption);
+      }
+
+      let sectionOption = classOption.sections.find(
+        (section) => section.id === teach.section.id,
+      );
+      if (!sectionOption) {
+        sectionOption = {
+          id: teach.section.id,
+          title: teach.section.sectionTitle.title,
+          courses: [],
+        };
+        classOption.sections.push(sectionOption);
+      }
+
+      if (sectionOption.courses.some((course) => course.id === teach.course.id)) {
+        continue;
+      }
+
+      sectionOption.courses.push({
+        id: teach.course.id,
+        title: teach.course.title,
+        assignmentId: teach.id,
+        coefficient: this.coefficientOf(
+          coefficientByKey,
+          teach.section.classId,
+          teach.courseId,
+          teach.section.yearId,
+          yearId,
+        ),
+      });
+    }
+
+    return [...classes.values()];
+  }
+
+  private coefficientOf(
+    coefficientByKey: Map<string, number>,
+    classId: number,
+    courseId: number,
+    rowYearId: number,
+    currentYearId: number | null,
+  ): number {
+    return (
+      coefficientByKey.get(
+        `${classId}:${courseId}:${currentYearId ?? rowYearId}`,
+      ) ?? 1
+    );
+  }
+
+  private uniquePairs(teaches: AssignedTeach[]) {
+    const seen = new Set<string>();
+    const pairs: Array<{ sectionId: number; courseId: number }> = [];
+    for (const teach of teaches) {
+      const key = `${teach.sectionId}:${teach.courseId}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      pairs.push({ sectionId: teach.sectionId, courseId: teach.courseId });
+    }
+    return pairs;
+  }
+
+  private toSheetItem(
+    row: {
+      id: number;
+      courseId: number;
+      maxGrade: Prisma.Decimal;
+      publishDate: Date | null;
+      course: { id: number; title: string };
+      gradeType: { id: number; title: string };
+      section: {
+        id: number;
+        classId: number;
+        yearId: number;
+        class: { id: number; className: string };
+        sectionTitle: { title: string };
+      };
+      _count: { details: number };
+    },
+    coefficientByKey: Map<string, number>,
+    yearId: number | null,
+  ): TeacherGradeSheetItemDto {
+    return {
+      id: row.id,
+      classId: row.section.class.id,
+      className: row.section.class.className,
+      sectionId: row.section.id,
+      sectionTitle: row.section.sectionTitle.title,
+      classLabel: formatClassLabel(
+        row.section.class.className,
+        row.section.sectionTitle.title,
+      ),
+      courseId: row.course.id,
+      courseTitle: row.course.title,
+      gradeTypeId: row.gradeType.id,
+      gradeTypeTitle: row.gradeType.title,
+      maxGrade: Number(row.maxGrade),
+      coefficient: this.coefficientOf(
+        coefficientByKey,
+        row.section.classId,
+        row.courseId,
+        row.section.yearId,
+        yearId,
+      ),
+      publishDate: row.publishDate ? formatDateOnly(row.publishDate) : null,
+      entriesCount: row._count.details,
+    };
+  }
+
+  private async assertAssignedCourse(
+    user: AuthenticatedTeacher,
+    sectionId: number,
+    courseId: number,
+  ): Promise<AssignedTeach> {
+    this.teacherAccess.ensureTeacherRole(user);
+    const yearId = await this.teacherAccess.currentYearId(user.schoolId);
+    const assignment = await this.prisma.teach.findFirst({
+      where: {
+        teacherId: user.teacherId,
+        sectionId,
+        courseId,
+        section: { schoolId: user.schoolId },
+        ...(yearId ? { yearId } : {}),
+      },
+      select: {
+        id: true,
+        courseId: true,
+        sectionId: true,
+        course: { select: { id: true, title: true } },
+        section: {
+          select: {
+            id: true,
+            classId: true,
+            yearId: true,
+            class: { select: { id: true, className: true } },
+            sectionTitle: { select: { title: true } },
+          },
+        },
+      },
+    });
+
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You are not assigned to this class, section, and course',
+      );
+    }
+
+    return assignment;
+  }
+
+  private async assertGradeType(schoolId: number, gradeTypeId: number) {
+    const gradeType = await this.prisma.gradeType.findFirst({
+      where: {
+        id: gradeTypeId,
+        status: true,
+        OR: [{ schoolId }, { schoolId: null }],
+      },
+      select: { id: true, title: true },
+    });
+    if (!gradeType) {
+      throw new NotFoundException('Grade type not found');
+    }
+    return gradeType;
   }
 }
