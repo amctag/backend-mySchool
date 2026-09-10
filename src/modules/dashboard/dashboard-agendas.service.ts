@@ -37,6 +37,7 @@ const agendaInclude = {
 
 type AgendaRecord = {
   id: number;
+  title: string;
   description: string;
   agendaDate: Date;
   time: string;
@@ -111,6 +112,7 @@ export class DashboardAgendasService {
 
     const created = await this.prisma.agenda.create({
       data: {
+        title: dto.title.trim(),
         description: dto.description.trim(),
         agendaDate: day,
         time: dto.time.trim(),
@@ -160,6 +162,7 @@ export class DashboardAgendasService {
       return tx.agenda.update({
         where: { id },
         data: {
+          ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
           ...(dto.description !== undefined
             ? { description: dto.description.trim() }
             : {}),
@@ -256,10 +259,11 @@ export class DashboardAgendasService {
       where.agendaDate = this.parseDateOnly(query.agendaDate);
     }
     if (query.search?.trim()) {
-      where.description = {
-        contains: query.search.trim(),
-        mode: 'insensitive',
-      };
+      const search = query.search.trim();
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
     if (query.sectionId || query.classId || query.yearId) {
@@ -310,6 +314,7 @@ export class DashboardAgendasService {
 
     return {
       id: row.id,
+      title: row.title,
       description: row.description,
       agendaDate: this.formatDate(row.agendaDate),
       time: row.time,

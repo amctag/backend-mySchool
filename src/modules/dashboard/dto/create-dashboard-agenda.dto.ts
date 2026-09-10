@@ -18,6 +18,13 @@ function trimString({ value }: { value: unknown }): unknown {
 }
 
 export class CreateDashboardAgendaDto {
+  @ApiProperty({ example: 'Fractions practice' })
+  @Transform(trimString)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(255)
+  title!: string;
+
   @ApiProperty({ example: 'Complete exercises 1–10 on page 42.' })
   @Transform(trimString)
   @IsString()

@@ -24,6 +24,9 @@ export class DashboardAgendaItemDto {
   @ApiProperty({ example: 1 })
   id!: number;
 
+  @ApiProperty({ example: 'Fractions practice' })
+  title!: string;
+
   @ApiProperty({ example: 'Complete exercises 1–10 on page 42.' })
   description!: string;
 
