@@ -41,7 +41,7 @@ export class TeacherAgendaController {
   @ApiOperation({
     summary: 'List my agendas',
     description:
-      'Agendas created by the logged-in teacher. Optional classId filters by assigned section.',
+      'Agendas created by the logged-in teacher. Optional classId, agendaDate (YYYY-MM-DD), or month (YYYY-MM) filters.',
   })
   @ApiOkResponse({ type: TeacherAgendasResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })

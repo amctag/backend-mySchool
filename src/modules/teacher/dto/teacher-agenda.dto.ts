@@ -32,6 +32,15 @@ export class TeacherAgendasQueryDto extends PaginationQueryDto {
   @IsOptional()
   @Matches(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/)
   agendaDate?: string;
+
+  @ApiPropertyOptional({
+    example: '2026-09',
+    description:
+      'Filter by calendar month YYYY-MM. Ignored when agendaDate is set.',
+  })
+  @IsOptional()
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/)
+  month?: string;
 }
 
 export class TeacherAgendaItemDto {

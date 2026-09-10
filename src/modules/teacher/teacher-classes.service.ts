@@ -218,7 +218,7 @@ export class TeacherClassesService {
   ): Promise<TeacherClassesResponseDto> {
     const { page, limit, skip } = resolvePagination({
       page: query.page,
-      limit: query.limit ?? 100,
+      limit: query.limit ?? 20,
     });
     const teachFilter = {
       teacherId: user.teacherId,

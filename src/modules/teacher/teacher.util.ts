@@ -19,6 +19,14 @@ export function parseDateOnly(value: string): Date {
   return new Date(`${value.slice(0, 10)}T00:00:00.000Z`);
 }
 
+export function monthDateRange(month: string): { gte: Date; lte: Date } {
+  const [year, monthNum] = month.split('-').map(Number);
+  return {
+    gte: new Date(Date.UTC(year, monthNum - 1, 1)),
+    lte: new Date(Date.UTC(year, monthNum, 0)),
+  };
+}
+
 export function formatDateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
 }

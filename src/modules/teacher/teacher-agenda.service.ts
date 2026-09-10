@@ -23,6 +23,7 @@ import {
   formatClassLabel,
   formatDateOnly,
   formatDateTime,
+  monthDateRange,
   parseDateOnly,
 } from './teacher.util';
 
@@ -70,7 +71,9 @@ export class TeacherAgendaService {
         : {}),
       ...(query.agendaDate
         ? { agendaDate: parseDateOnly(query.agendaDate) }
-        : {}),
+        : query.month
+          ? { agendaDate: monthDateRange(query.month) }
+          : {}),
     };
 
     const [total, rows] = await this.prisma.$transaction([

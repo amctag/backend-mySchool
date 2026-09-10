@@ -74,7 +74,7 @@ export class TeacherNoticesService {
     this.teacherAccess.ensureTeacherRole(user);
     const { page, limit, skip } = resolvePagination({
       page: query.page,
-      limit: query.limit ?? 100,
+      limit: query.limit ?? 20,
     });
 
     const where: Prisma.NoticeWhereInput = {
