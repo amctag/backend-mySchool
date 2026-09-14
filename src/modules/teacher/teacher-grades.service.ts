@@ -311,6 +311,12 @@ export class TeacherGradesService {
       }
     }
 
+    if (!dto.entries.some((entry) => entry.score != null)) {
+      throw new BadRequestException(
+        'Enter a score for at least one student',
+      );
+    }
+
     const publishDate = dto.publishDate ? parseDateOnly(dto.publishDate) : null;
 
     await this.prisma.$transaction(async (tx) => {
