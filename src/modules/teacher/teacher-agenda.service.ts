@@ -26,6 +26,7 @@ import {
   monthDateRange,
   parseDateOnly,
 } from './teacher.util';
+import { normalizePublicMediaUrl } from '../../upload/media-upload.service';
 
 const agendaInclude = {
   course: { select: { id: true, title: true } },
@@ -116,7 +117,7 @@ export class TeacherAgendaService {
         personId: user.id,
         courseId: assignment.courseId,
         imageLink: dto.imageLink?.trim() || '',
-        fileLink: dto.fileLink?.trim() || '',
+        fileLink: normalizePublicMediaUrl(dto.fileLink) ?? '',
         publishedDate: new Date(),
         status: dto.published ? 1 : 0,
         sections: { create: { sectionId: assignment.sectionId } },
@@ -196,7 +197,7 @@ export class TeacherAgendaService {
           time: dto.time?.trim() || '08:00',
           courseId: assignment.courseId,
           imageLink: dto.imageLink?.trim() || '',
-          fileLink: dto.fileLink?.trim() || '',
+          fileLink: normalizePublicMediaUrl(dto.fileLink) ?? '',
           ...(dto.published !== undefined
             ? { status: dto.published ? 1 : 0 }
             : {}),
@@ -306,7 +307,7 @@ export class TeacherAgendaService {
       publishDate: formatDateTime(row.publishedDate),
       time: row.time,
       imageLink: row.imageLink || null,
-      fileLink: row.fileLink || null,
+      fileLink: normalizePublicMediaUrl(row.fileLink),
       published: row.status === 1,
     };
   }

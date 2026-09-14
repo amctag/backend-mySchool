@@ -18,6 +18,7 @@ import {
 } from '../../auth/interfaces/jwt-payload.interface';
 import { SessionService } from '../../auth/services/session.service';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { normalizePublicMediaUrl } from '../../upload/media-upload.service';
 import { MailService } from '../../mail/mail.service';
 import { ParentChangePasswordRequestOtpResponseDto } from './dto/parent-change-password-request-otp-response.dto';
 import { ParentChangePasswordResponseDto } from './dto/parent-change-password-response.dto';
@@ -1266,7 +1267,7 @@ export class ParentService {
           time: agenda.time,
           courseTitle: agenda.course.title,
           imageLink: agenda.imageLink,
-          fileLink: agenda.fileLink,
+          fileLink: normalizePublicMediaUrl(agenda.fileLink) ?? '',
           publishedDate: agenda.publishedDate.toISOString(),
           schoolName: section.school.name,
           sectionName: this.formatSectionName(section.sectionTitle.title),

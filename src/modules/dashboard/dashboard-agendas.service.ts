@@ -13,6 +13,7 @@ import {
   DashboardAgendasResponseDto,
 } from './dto/dashboard-agendas-response.dto';
 import { UpdateDashboardAgendaDto } from './dto/update-dashboard-agenda.dto';
+import { normalizePublicMediaUrl } from '../../upload/media-upload.service';
 
 const DASHBOARD_CREATOR_PERSON_ID = 1;
 
@@ -119,7 +120,7 @@ export class DashboardAgendasService {
         personId: DASHBOARD_CREATOR_PERSON_ID,
         courseId: dto.courseId,
         imageLink: dto.imageLink?.trim() || '',
-        fileLink: dto.fileLink?.trim() || '',
+        fileLink: normalizePublicMediaUrl(dto.fileLink) ?? '',
         publishedDate: new Date(),
         status: dto.status ?? 1,
         sections: {
@@ -175,7 +176,7 @@ export class DashboardAgendasService {
             ? { imageLink: dto.imageLink.trim() }
             : {}),
           ...(dto.fileLink !== undefined
-            ? { fileLink: dto.fileLink.trim() }
+            ? { fileLink: normalizePublicMediaUrl(dto.fileLink) ?? '' }
             : {}),
           ...(dto.status !== undefined ? { status: dto.status } : {}),
         },
@@ -321,7 +322,7 @@ export class DashboardAgendasService {
       courseId: row.courseId,
       courseTitle: row.course.title,
       imageLink: row.imageLink,
-      fileLink: row.fileLink,
+      fileLink: normalizePublicMediaUrl(row.fileLink) ?? '',
       publishedDate: row.publishedDate.toISOString(),
       status: row.status,
       sections,

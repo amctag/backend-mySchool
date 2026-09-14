@@ -41,7 +41,9 @@ export class MediaUploadService {
 
     const form = new FormData();
     form.append('token', apiToken);
-    form.append('folder', 'images');
+    if (kind === 'image') {
+      form.append('folder', 'images');
+    }
     form.append(
       'file',
       new Blob([new Uint8Array(file.buffer)], { type: mime }),
@@ -85,7 +87,7 @@ export class MediaUploadService {
       );
     }
 
-    const category = kind === 'file' ? 'image' : payload.category || kind;
+    const category = payload.category || kind;
     return {
       url: this.publicUrl(publicBase, payload.path, category),
       path: payload.path,
@@ -116,7 +118,7 @@ export class MediaUploadService {
       normalized === 'document' ||
       normalized === 'documents'
     ) {
-      return 'images';
+      return 'documents';
     }
     const parts = path.split('/').filter(Boolean);
     const prefix = parts.length > 1 ? parts[0].toLowerCase() : '';
@@ -130,7 +132,7 @@ export class MediaUploadService {
       return 'voice';
     }
     if (prefix === 'document' || prefix === 'documents' || prefix === 'file') {
-      return 'images';
+      return 'documents';
     }
     return prefix || 'images';
   }
@@ -163,4 +165,17 @@ export class MediaUploadService {
     const message = (decoded as { message?: unknown }).message;
     return typeof message === 'string' && message.trim() ? message : null;
   }
+}
+
+export function normalizePublicMediaUrl(
+  url: string | null | undefined,
+): string | null {
+  const value = url?.trim() ?? '';
+  if (!value) {
+    return null;
+  }
+  return value.replace(
+    /\/(?:images|document)\/([^/?#]+\.pdf)(?=$|[?#])/i,
+    '/documents/$1',
+  );
 }

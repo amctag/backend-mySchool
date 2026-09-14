@@ -1,5 +1,8 @@
 import { ConfigService } from '@nestjs/config';
-import { MediaUploadService } from './media-upload.service';
+import {
+  MediaUploadService,
+  normalizePublicMediaUrl,
+} from './media-upload.service';
 
 describe('MediaUploadService', () => {
   const service = new MediaUploadService({
@@ -23,18 +26,28 @@ describe('MediaUploadService', () => {
     );
   });
 
-  it('maps a PDF onto the same /images/ route as photos', () => {
+  it('maps a PDF onto /documents/', () => {
     expect(service.publicUrl(base, 'document/notes.pdf', 'document')).toBe(
-      `${base}/images/notes.pdf`,
+      `${base}/documents/notes.pdf`,
     );
     expect(service.publicUrl(base, 'notes.pdf', 'file')).toBe(
-      `${base}/images/notes.pdf`,
+      `${base}/documents/notes.pdf`,
     );
   });
 
-  it('falls back to images when the path has no folder', () => {
-    expect(service.publicUrl(base, 'notes.pdf', 'file')).toBe(
-      `${base}/images/notes.pdf`,
+  it('rewrites stored PDF links from /images or /document to /documents', () => {
+    expect(
+      normalizePublicMediaUrl(
+        `${base}/images/Amazon-SES-Email-Reputation-AR_1789366403_6fc76a984b09.pdf`,
+      ),
+    ).toBe(
+      `${base}/documents/Amazon-SES-Email-Reputation-AR_1789366403_6fc76a984b09.pdf`,
+    );
+    expect(
+      normalizePublicMediaUrl(`${base}/document/notes.pdf`),
+    ).toBe(`${base}/documents/notes.pdf`);
+    expect(normalizePublicMediaUrl(`${base}/images/photo.jpg`)).toBe(
+      `${base}/images/photo.jpg`,
     );
   });
 });
