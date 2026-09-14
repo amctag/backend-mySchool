@@ -11,6 +11,7 @@ import {
   resolvePagination,
 } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { ParentFcmNotifyService } from '../../fcm/parent-fcm-notify.service';
 import { TeacherAccessService } from './teacher-access.service';
 import {
   TeacherAgendaItemDto,
@@ -51,6 +52,7 @@ export class TeacherAgendaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly teacherAccess: TeacherAccessService,
+    private readonly parentFcmNotify: ParentFcmNotifyService,
   ) {}
 
   async listAgendas(
@@ -125,6 +127,8 @@ export class TeacherAgendaService {
       include: agendaInclude,
     });
 
+    await this.notifyParentsOfAgenda(created);
+
     return this.toItem(created, new Map([[this.key(assignment.courseId, assignment.sectionId), assignment.id]]));
   }
 
@@ -171,6 +175,7 @@ export class TeacherAgendaService {
         sectionId: published.sections[0]?.section.id,
       },
     ]);
+    await this.notifyParentsOfAgenda(published);
     return this.toItem(published, assignmentIds);
   }
 
@@ -179,7 +184,7 @@ export class TeacherAgendaService {
     agendaId: number,
     dto: UpsertTeacherAgendaDto,
   ): Promise<TeacherAgendaItemDto> {
-    await this.findOwnAgenda(user, agendaId);
+    const previous = await this.findOwnAgenda(user, agendaId);
     const assignment = await this.assertWritableAssignment(user, dto);
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -205,6 +210,10 @@ export class TeacherAgendaService {
         include: agendaInclude,
       });
     });
+
+    if (previous.status !== 1 && updated.status === 1) {
+      await this.notifyParentsOfAgenda(updated);
+    }
 
     return this.toItem(
       updated,
@@ -232,11 +241,55 @@ export class TeacherAgendaService {
         deletedAt: null,
         course: { schoolId: user.schoolId },
       },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (!row) {
       throw new NotFoundException('Agenda not found');
     }
+    return row;
+  }
+
+  private async notifyParentsOfAgenda(row: AgendaRecord): Promise<void> {
+    if (row.status !== 1) {
+      return;
+    }
+
+    const sectionIds = row.sections.map((item) => item.section.id);
+    if (sectionIds.length === 0) {
+      return;
+    }
+
+    const registrations = await this.prisma.registration.findMany({
+      where: {
+        sectionId: { in: sectionIds },
+        status: true,
+      },
+      select: { studentId: true },
+    });
+    const studentIds = registrations.map((item) => item.studentId);
+    if (studentIds.length === 0) {
+      return;
+    }
+
+    const students = await this.prisma.student.findMany({
+      where: { id: { in: studentIds }, parentId: { not: null } },
+      select: { parent: { select: { personId: true } } },
+    });
+
+    const personIds = students
+      .map((student) => student.parent?.personId)
+      .filter((id): id is number => id !== undefined);
+
+    await this.parentFcmNotify.sendToPersonIds(
+      personIds,
+      row.title.trim() || row.course.title || 'Agenda',
+      row.description,
+      {
+        type: 'agenda',
+        route: 'agenda',
+        agendaId: String(row.id),
+      },
+    );
   }
 
   private async assertWritableAssignment(

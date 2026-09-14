@@ -6,6 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { ParentFcmNotifyService } from '../../fcm/parent-fcm-notify.service';
 import { CreateDashboardAgendaDto } from './dto/create-dashboard-agenda.dto';
 import { DashboardAgendasQueryDto } from './dto/dashboard-agendas-query.dto';
 import {
@@ -62,7 +63,10 @@ type AgendaRecord = {
 
 @Injectable()
 export class DashboardAgendasService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly parentFcmNotify: ParentFcmNotifyService,
+  ) {}
 
   async listAgendas(
     user: AuthenticatedSchool,
@@ -130,6 +134,8 @@ export class DashboardAgendasService {
       include: agendaInclude,
     });
 
+    await this.notifyParentsOfAgenda(created);
+
     return this.toItem(created);
   }
 
@@ -138,8 +144,6 @@ export class DashboardAgendasService {
     id: number,
     dto: UpdateDashboardAgendaDto,
   ): Promise<DashboardAgendaItemDto> {
-    await this.findAgenda(user.schoolId, id);
-
     if (dto.courseId !== undefined) {
       await this.assertCourse(user.schoolId, dto.courseId);
     }
@@ -148,6 +152,8 @@ export class DashboardAgendasService {
     if (dto.sectionIds !== undefined) {
       sectionIds = await this.assertSections(user.schoolId, dto.sectionIds);
     }
+
+    const previous = await this.findAgenda(user.schoolId, id);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       if (sectionIds) {
@@ -184,6 +190,10 @@ export class DashboardAgendasService {
       });
     });
 
+    if (previous.status !== 1 && updated.status === 1) {
+      await this.notifyParentsOfAgenda(updated);
+    }
+
     return this.toItem(updated);
   }
 
@@ -196,6 +206,49 @@ export class DashboardAgendasService {
         status: 0,
       },
     });
+  }
+
+  private async notifyParentsOfAgenda(row: AgendaRecord): Promise<void> {
+    if (row.status !== 1) {
+      return;
+    }
+
+    const sectionIds = row.sections.map((item) => item.section.id);
+    if (sectionIds.length === 0) {
+      return;
+    }
+
+    const registrations = await this.prisma.registration.findMany({
+      where: {
+        sectionId: { in: sectionIds },
+        status: true,
+      },
+      select: { studentId: true },
+    });
+    const studentIds = registrations.map((item) => item.studentId);
+    if (studentIds.length === 0) {
+      return;
+    }
+
+    const students = await this.prisma.student.findMany({
+      where: { id: { in: studentIds }, parentId: { not: null } },
+      select: { parent: { select: { personId: true } } },
+    });
+
+    const personIds = students
+      .map((student) => student.parent?.personId)
+      .filter((id): id is number => id !== undefined);
+
+    await this.parentFcmNotify.sendToPersonIds(
+      personIds,
+      row.title.trim() || row.course.title || 'Agenda',
+      row.description,
+      {
+        type: 'agenda',
+        route: 'agenda',
+        agendaId: String(row.id),
+      },
+    );
   }
 
   private async findAgenda(schoolId: number, id: number) {
