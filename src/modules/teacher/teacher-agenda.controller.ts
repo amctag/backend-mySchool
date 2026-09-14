@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -28,6 +30,7 @@ import {
   TeacherAgendasResponseDto,
   UpsertTeacherAgendaDto,
 } from './dto/teacher-agenda.dto';
+import { TeacherMessageResponseDto } from './dto/teacher-auth.dto';
 import { TeacherAgendaService } from './teacher-agenda.service';
 
 @ApiTags('Teacher Agendas v1')
@@ -97,5 +100,45 @@ export class TeacherAgendaController {
     @Param('agendaId', ParseIntPipe) agendaId: number,
   ): Promise<TeacherAgendaItemDto> {
     return this.teacherAgendaService.publishAgenda(request.user, agendaId);
+  }
+
+  @Patch('me/agendas/:agendaId')
+  @ApiOperation({
+    summary: 'Update an agenda',
+    description:
+      'Updates an agenda the logged-in teacher created. Parents are notified when the saved item is published.',
+  })
+  @ApiOkResponse({ type: TeacherAgendaItemDto })
+  @ApiBadRequestResponse({
+    description: 'Validation failed or classId does not match the assignment',
+  })
+  @ApiForbiddenResponse({ description: 'Teacher is not assigned to this class' })
+  @ApiNotFoundResponse({ description: 'Agenda not found' })
+  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  updateAgenda(
+    @Req() request: Request & { user: AuthenticatedTeacher },
+    @Param('agendaId', ParseIntPipe) agendaId: number,
+    @Body() dto: UpsertTeacherAgendaDto,
+  ): Promise<TeacherAgendaItemDto> {
+    return this.teacherAgendaService.updateAgenda(
+      request.user,
+      agendaId,
+      dto,
+    );
+  }
+
+  @Delete('me/agendas/:agendaId')
+  @ApiOperation({
+    summary: 'Delete an agenda',
+    description: 'Soft-deletes an agenda the logged-in teacher created.',
+  })
+  @ApiOkResponse({ type: TeacherMessageResponseDto })
+  @ApiNotFoundResponse({ description: 'Agenda not found' })
+  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  deleteAgenda(
+    @Req() request: Request & { user: AuthenticatedTeacher },
+    @Param('agendaId', ParseIntPipe) agendaId: number,
+  ): Promise<TeacherMessageResponseDto> {
+    return this.teacherAgendaService.deleteAgenda(request.user, agendaId);
   }
 }

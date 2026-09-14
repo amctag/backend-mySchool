@@ -184,7 +184,7 @@ export class TeacherAgendaService {
     agendaId: number,
     dto: UpsertTeacherAgendaDto,
   ): Promise<TeacherAgendaItemDto> {
-    const previous = await this.findOwnAgenda(user, agendaId);
+    await this.findOwnAgenda(user, agendaId);
     const assignment = await this.assertWritableAssignment(user, dto);
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -211,7 +211,7 @@ export class TeacherAgendaService {
       });
     });
 
-    if (previous.status !== 1 && updated.status === 1) {
+    if (updated.status === 1) {
       await this.notifyParentsOfAgenda(updated);
     }
 
