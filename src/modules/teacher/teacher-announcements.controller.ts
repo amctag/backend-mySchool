@@ -30,7 +30,7 @@ export class TeacherAnnouncementsController {
   @ApiOperation({
     summary: 'List announcements for me',
     description:
-      'Published announcements targeted to teachers. Includes school-wide items and items for classes I teach.',
+      'Published announcements targeted to teachers. Optional classId and sectionId filter on the server. School-wide items are excluded when a class or section is selected.',
   })
   @ApiOkResponse({ type: TeacherAnnouncementsResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })

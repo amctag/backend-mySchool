@@ -48,7 +48,7 @@ export class TeacherAnnouncementsService {
       page: query.page,
       limit: query.limit ?? 20,
     });
-    const where = await this.buildWhere(user);
+    const where = await this.buildWhere(user, query);
     const [total, rows] = await this.prisma.$transaction([
       this.prisma.announcement.count({ where }),
       this.prisma.announcement.findMany({
@@ -88,19 +88,22 @@ export class TeacherAnnouncementsService {
 
   private async buildWhere(
     user: AuthenticatedTeacher,
+    query?: TeacherAnnouncementsQueryDto,
   ): Promise<Prisma.AnnouncementWhereInput> {
     const teaches = await this.prisma.teach.findMany({
       where: {
         teacherId: user.teacherId,
         section: { schoolId: user.schoolId },
       },
-      select: { sectionId: true },
+      select: {
+        sectionId: true,
+        section: { select: { classId: true } },
+      },
     });
-    const sectionIds = [...new Set(teaches.map((row) => row.sectionId))];
+    const taughtSectionIds = [...new Set(teaches.map((row) => row.sectionId))];
     const today = this.todayUtcDate();
     const currentTime = this.currentPublishTime();
-
-    return {
+    const published: Prisma.AnnouncementWhereInput = {
       deletedAt: null,
       targets: {
         some: {
@@ -119,19 +122,44 @@ export class TeacherAnnouncementsService {
           ],
         },
       ],
+    };
+
+    const filteredSectionIds = this.resolveFilterSectionIds(
+      teaches,
+      query?.classId,
+      query?.sectionId,
+    );
+    if (filteredSectionIds !== null) {
+      if (filteredSectionIds.length === 0) {
+        return { id: -1 };
+      }
+      return {
+        ...published,
+        sections: {
+          some: {
+            deletedAt: null,
+            sectionId: { in: filteredSectionIds },
+            section: { schoolId: user.schoolId },
+          },
+        },
+      };
+    }
+
+    return {
+      ...published,
       OR: [
         {
           sections: {
             none: { deletedAt: null },
           },
         },
-        ...(sectionIds.length > 0
+        ...(taughtSectionIds.length > 0
           ? [
               {
                 sections: {
                   some: {
                     deletedAt: null,
-                    sectionId: { in: sectionIds },
+                    sectionId: { in: taughtSectionIds },
                     section: { schoolId: user.schoolId },
                   },
                 },
@@ -140,6 +168,26 @@ export class TeacherAnnouncementsService {
           : []),
       ],
     };
+  }
+
+  private resolveFilterSectionIds(
+    teaches: Array<{ sectionId: number; section: { classId: number } }>,
+    classId?: number,
+    sectionId?: number,
+  ): number[] | null {
+    if (sectionId == null && classId == null) {
+      return null;
+    }
+    let allowed = teaches.map((row) => row.sectionId);
+    if (classId != null) {
+      allowed = teaches
+        .filter((row) => row.section.classId === classId)
+        .map((row) => row.sectionId);
+    }
+    if (sectionId != null) {
+      allowed = allowed.filter((id) => id === sectionId);
+    }
+    return [...new Set(allowed)];
   }
 
   private toItem(row: AnnouncementRecord): TeacherAnnouncementItemDto {
