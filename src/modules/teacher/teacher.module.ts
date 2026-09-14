@@ -16,6 +16,10 @@ import { TeacherScheduleController } from './teacher-schedule.controller';
 import { TeacherScheduleService } from './teacher-schedule.service';
 import { TeacherAnnouncementsController } from './teacher-announcements.controller';
 import { TeacherAnnouncementsService } from './teacher-announcements.service';
+import { TeacherActivitiesController } from './teacher-activities.controller';
+import { TeacherActivitiesService } from './teacher-activities.service';
+import { TeacherAlbumsController } from './teacher-albums.controller';
+import { TeacherAlbumsService } from './teacher-albums.service';
 import { TeacherGradesController } from './teacher-grades.controller';
 import { TeacherGradesService } from './teacher-grades.service';
 import { MediaUploadService } from '../../upload/media-upload.service';
@@ -32,6 +36,8 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     TeacherUploadsController,
     TeacherGradesController,
     TeacherAnnouncementsController,
+    TeacherActivitiesController,
+    TeacherAlbumsController,
   ],
   providers: [
     TeacherAuthService,
@@ -42,6 +48,8 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     TeacherAgendaService,
     TeacherGradesService,
     TeacherAnnouncementsService,
+    TeacherActivitiesService,
+    TeacherAlbumsService,
     MediaUploadService,
   ],
 })

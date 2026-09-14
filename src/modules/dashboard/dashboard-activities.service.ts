@@ -155,6 +155,13 @@ export class DashboardActivitiesService {
       activity.title,
       activity.content,
     );
+    await this.notifyTeachers(
+      user.schoolId,
+      yearId,
+      activity.id,
+      activity.title,
+      activity.content,
+    );
 
     return this.toItem(activity);
   }
@@ -190,6 +197,41 @@ export class DashboardActivitiesService {
       {
         type: 'activity',
         activityId: String(activityId),
+        route: 'activities',
+      },
+    );
+  }
+
+  private async notifyTeachers(
+    schoolId: number,
+    yearId: number | undefined,
+    activityId: number,
+    title: string,
+    content: string,
+  ): Promise<void> {
+    const teachers = await this.prisma.teacher.findMany({
+      where: {
+        person: { status: true },
+        schools: {
+          some: {
+            schoolId,
+            isActive: true,
+          },
+        },
+        ...(yearId ? { teaches: { some: { yearId } } } : {}),
+      },
+      select: { personId: true },
+    });
+
+    const pushTitle = title.trim() || 'Activity';
+    await this.parentFcmNotify.sendToPersonIds(
+      teachers.map((teacher) => teacher.personId),
+      pushTitle,
+      content,
+      {
+        type: 'activity',
+        activityId: String(activityId),
+        route: 'activities',
       },
     );
   }

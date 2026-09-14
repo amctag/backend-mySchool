@@ -51,6 +51,8 @@ import { DashboardNoticeTypesController } from './dashboard-notice-types.control
 import { DashboardNoticeTypesService } from './dashboard-notice-types.service';
 import { DashboardActivitiesController } from './dashboard-activities.controller';
 import { DashboardActivitiesService } from './dashboard-activities.service';
+import { DashboardAlbumsController } from './dashboard-albums.controller';
+import { DashboardAlbumsService } from './dashboard-albums.service';
 import { DashboardUploadsController } from './dashboard-uploads.controller';
 import { MediaUploadService } from '../../upload/media-upload.service';
 
@@ -82,6 +84,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     DashboardNoticesController,
     DashboardNoticeTypesController,
     DashboardActivitiesController,
+    DashboardAlbumsController,
     DashboardUploadsController,
   ],
   providers: [
@@ -110,6 +113,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     DashboardNoticesService,
     DashboardNoticeTypesService,
     DashboardActivitiesService,
+    DashboardAlbumsService,
     MediaUploadService,
   ],
 })
