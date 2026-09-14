@@ -71,6 +71,9 @@ export class TeacherGradeTypeItemDto {
 
   @ApiProperty({ example: 'Quiz' })
   title!: string;
+
+  @ApiProperty({ example: true })
+  isMain!: boolean;
 }
 
 export class TeacherGradeCourseOptionDto {
@@ -222,6 +225,9 @@ export class TeacherGradeEntryContextDto {
 
   @ApiProperty({ example: 'Quiz' })
   gradeTypeTitle!: string;
+
+  @ApiProperty({ example: true })
+  isMain!: boolean;
 
   @ApiProperty({ example: 2 })
   coefficient!: number;

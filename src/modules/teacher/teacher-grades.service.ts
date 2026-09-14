@@ -65,8 +65,8 @@ export class TeacherGradesService {
           status: true,
           OR: [{ schoolId: user.schoolId }, { schoolId: null }],
         },
-        select: { id: true, title: true },
-        orderBy: [{ position: 'asc' }, { title: 'asc' }],
+        select: { id: true, title: true, isMain: true },
+        orderBy: [{ isMain: 'desc' }, { position: 'asc' }, { title: 'asc' }],
       }),
     ]);
 
@@ -74,7 +74,11 @@ export class TeacherGradesService {
 
     return {
       classes: this.groupOptions(teaches, coefficientByKey, yearId),
-      gradeTypes,
+      gradeTypes: gradeTypes.map((item) => ({
+        id: item.id,
+        title: item.title,
+        isMain: item.isMain,
+      })),
     };
   }
 
@@ -218,6 +222,14 @@ export class TeacherGradesService {
       (existing?.details ?? []).map((detail) => [detail.registrationId, detail]),
     );
 
+    const coefficient = classCourse ? Number(classCourse.coefficient) : 1;
+    const maxGrade =
+      gradeType.isMain && coefficient > 0
+        ? coefficient
+        : existing
+          ? Number(existing.maxGrade)
+          : DEFAULT_MAX_GRADE;
+
     return {
       gradeSheetId: existing?.id ?? null,
       assignmentId: assignment.id,
@@ -233,8 +245,9 @@ export class TeacherGradesService {
       courseTitle: assignment.course.title,
       gradeTypeId: gradeType.id,
       gradeTypeTitle: gradeType.title,
-      coefficient: classCourse ? Number(classCourse.coefficient) : 1,
-      maxGrade: existing ? Number(existing.maxGrade) : DEFAULT_MAX_GRADE,
+      isMain: gradeType.isMain,
+      coefficient,
+      maxGrade,
       publishDate: existing?.publishDate
         ? formatDateOnly(existing.publishDate)
         : formatDateOnly(new Date()),
@@ -256,8 +269,24 @@ export class TeacherGradesService {
     user: AuthenticatedTeacher,
     dto: SaveTeacherGradeSheetDto,
   ): Promise<TeacherGradeEntryContextDto> {
-    await this.assertAssignedCourse(user, dto.sectionId, dto.courseId);
-    await this.assertGradeType(user.schoolId, dto.gradeTypeId);
+    const assignment = await this.assertAssignedCourse(
+      user,
+      dto.sectionId,
+      dto.courseId,
+    );
+    const gradeType = await this.assertGradeType(user.schoolId, dto.gradeTypeId);
+    const classCourse = await this.prisma.classCourse.findFirst({
+      where: {
+        classId: assignment.section.classId,
+        courseId: dto.courseId,
+        yearId: assignment.section.yearId,
+        status: true,
+      },
+      select: { coefficient: true },
+    });
+    const coefficient = classCourse ? Number(classCourse.coefficient) : 0;
+    const maxGrade =
+      gradeType.isMain && coefficient > 0 ? coefficient : dto.maxGrade;
 
     const registrations = await this.prisma.registration.findMany({
       where: {
@@ -275,9 +304,9 @@ export class TeacherGradesService {
           'One or more students are not registered in this class',
         );
       }
-      if (entry.score != null && entry.score > dto.maxGrade) {
+      if (entry.score != null && entry.score > maxGrade) {
         throw new BadRequestException(
-          `Score cannot be greater than max grade (${dto.maxGrade})`,
+          `Score cannot be greater than max grade (${maxGrade})`,
         );
       }
     }
@@ -300,7 +329,7 @@ export class TeacherGradesService {
         await tx.grade.update({
           where: { id: existing.id },
           data: {
-            maxGrade: dto.maxGrade,
+            maxGrade,
             publishDate,
             personId: user.id,
           },
@@ -313,7 +342,7 @@ export class TeacherGradesService {
             sectionId: dto.sectionId,
             courseId: dto.courseId,
             gradeTypeId: dto.gradeTypeId,
-            maxGrade: dto.maxGrade,
+            maxGrade,
             publishDate,
             personId: user.id,
           },
@@ -629,7 +658,7 @@ export class TeacherGradesService {
         status: true,
         OR: [{ schoolId }, { schoolId: null }],
       },
-      select: { id: true, title: true },
+      select: { id: true, title: true, isMain: true },
     });
     if (!gradeType) {
       throw new NotFoundException('Grade type not found');
