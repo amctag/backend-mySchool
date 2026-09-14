@@ -16,7 +16,7 @@ const albumInclude = {
     where: { deletedAt: null },
     orderBy: [{ position: 'asc' as const }, { id: 'asc' as const }],
   },
-} as const;
+};
 
 type AlbumRecord = Prisma.AlbumGetPayload<{ include: typeof albumInclude }>;
 
