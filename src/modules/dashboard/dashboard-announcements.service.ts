@@ -231,6 +231,7 @@ export class DashboardAnnouncementsService {
       {
         type: 'announcement',
         announcementId: String(announcementId),
+        route: 'announcements',
       },
     );
   }
