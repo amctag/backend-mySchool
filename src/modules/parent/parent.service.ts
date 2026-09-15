@@ -624,15 +624,12 @@ export class ParentService {
       },
     });
 
-    // Prefer the person's school_id, then add schools from children's
-    // registrations (deduped). Previously school_id was only a fallback
-    // when there were no registrations, which showed the wrong school.
-    const schoolIds = [
-      ...new Set([
-        ...(person.schoolId != null ? [person.schoolId] : []),
-        ...this.collectSchoolIdsFromStudents(students),
-      ]),
-    ];
+    // Use the person's school_id when set; only fall back to children's
+    // registration schools if the person has no school linked.
+    const schoolIds =
+      person.schoolId != null
+        ? [person.schoolId]
+        : this.collectSchoolIdsFromStudents(students);
 
     if (schoolIds.length === 0) {
       throw new NotFoundException(
@@ -2367,11 +2364,19 @@ export class ParentService {
   private async createSession(person: LoginParentPerson) {
     const refreshToken = this.generateRefreshToken();
     const refreshExpiresAt = this.getRefreshExpiryDate();
+    const refreshTokenHash = this.hashToken(refreshToken);
 
-    const session = await this.prisma.parentSession.create({
-      data: {
+    // parent_sessions has @@unique([personId]) — replace the existing
+    // session instead of inserting a second row for the same parent.
+    const session = await this.prisma.parentSession.upsert({
+      where: { personId: person.id },
+      create: {
         personId: person.id,
-        refreshTokenHash: this.hashToken(refreshToken),
+        refreshTokenHash,
+        refreshExpiresAt,
+      },
+      update: {
+        refreshTokenHash,
         refreshExpiresAt,
       },
     });
