@@ -2,6 +2,7 @@ import { Body, Controller, Post, Req } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiForbiddenResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -32,6 +33,9 @@ export class ParentAuthController {
   @ApiOkResponse({ type: ParentLoginResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   @ApiUnauthorizedResponse({ description: 'Invalid ID or password' })
+  @ApiForbiddenResponse({
+    description: 'Account or school is inactive — contact support',
+  })
   login(@Body() loginDto: ParentLoginDto): Promise<ParentLoginResponseDto> {
     return this.parentService.login(loginDto);
   }

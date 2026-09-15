@@ -605,10 +605,6 @@ export class ParentService {
       throw new NotFoundException('No parent account found for this ID.');
     }
 
-    if (!person.status) {
-      throw new NotFoundException('This parent account is inactive.');
-    }
-
     const students = await this.prisma.student.findMany({
       where: { parentId: person.parent.id },
       include: {
@@ -2367,15 +2363,19 @@ export class ParentService {
     loginDto: ParentLoginDto,
   ): Promise<LoginParentPerson> {
     // Accept either persons.id or parents.id (same as support lookup).
+    // Do not require status/school active here — after password check we return
+    // a distinct 403 so the app can prompt the parent to contact support.
     let person = await this.prisma.person.findFirst({
       where: {
         id: loginDto.id,
-        status: true,
         parent: { isNot: null },
       },
       include: {
         parent: {
           select: { id: true },
+        },
+        school: {
+          select: { id: true, isActive: true },
         },
       },
     });
@@ -2385,11 +2385,17 @@ export class ParentService {
         where: { id: loginDto.id },
         select: {
           id: true,
-          person: true,
+          person: {
+            include: {
+              school: {
+                select: { id: true, isActive: true },
+              },
+            },
+          },
         },
       });
 
-      if (parentById?.person?.status) {
+      if (parentById?.person) {
         person = {
           ...parentById.person,
           parent: { id: parentById.id },
@@ -2413,6 +2419,14 @@ export class ParentService {
 
     if (!passwordMatches) {
       throw new UnauthorizedException('Invalid ID or password');
+    }
+
+    const schoolInactive =
+      person.schoolId != null && person.school?.isActive === false;
+    if (!person.status || schoolInactive) {
+      throw new ForbiddenException(
+        'This account is inactive. Contact support for help.',
+      );
     }
 
     return person as LoginParentPerson;
