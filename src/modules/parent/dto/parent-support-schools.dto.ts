@@ -1,10 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, Min } from 'class-validator';
 
 export class ParentSupportSchoolsDto {
-  @ApiProperty({ example: 'ahmad.khalil', description: 'Parent username' })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  username!: string;
+  @ApiProperty({ example: 42, description: 'Person ID of the parent' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  id!: number;
 }

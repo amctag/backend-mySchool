@@ -561,14 +561,9 @@ export class ParentService {
   async getSupportSchools(
     dto: ParentSupportSchoolsDto,
   ): Promise<ParentSchoolDetailsResponseDto> {
-    const username = dto.username.trim();
-    if (!username) {
-      throw new BadRequestException('Username is required');
-    }
-
     const person = await this.prisma.person.findFirst({
       where: {
-        username,
+        id: dto.id,
         status: true,
         parent: { isNot: null },
       },
@@ -579,7 +574,7 @@ export class ParentService {
 
     if (!person?.parent) {
       throw new NotFoundException(
-        'Could not find support information for this username.',
+        'Could not find support information for this ID.',
       );
     }
 
@@ -602,7 +597,7 @@ export class ParentService {
     const schoolIds = this.collectSchoolIdsFromStudents(students);
     if (schoolIds.length === 0) {
       throw new NotFoundException(
-        'Could not find support information for this username.',
+        'Could not find support information for this ID.',
       );
     }
 
