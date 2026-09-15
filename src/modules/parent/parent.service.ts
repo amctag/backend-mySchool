@@ -561,21 +561,51 @@ export class ParentService {
   async getSupportSchools(
     dto: ParentSupportSchoolsDto,
   ): Promise<ParentSchoolDetailsResponseDto> {
-    const person = await this.prisma.person.findFirst({
+    // Accept either persons.id or parents.id (UI often shows person id).
+    let person = await this.prisma.person.findFirst({
       where: {
         id: dto.id,
-        status: true,
         parent: { isNot: null },
       },
       select: {
+        id: true,
+        status: true,
+        schoolId: true,
         parent: { select: { id: true } },
       },
     });
 
     if (!person?.parent) {
-      throw new NotFoundException(
-        'Could not find support information for this ID.',
-      );
+      const parentById = await this.prisma.parent.findUnique({
+        where: { id: dto.id },
+        select: {
+          id: true,
+          person: {
+            select: {
+              id: true,
+              status: true,
+              schoolId: true,
+            },
+          },
+        },
+      });
+
+      if (parentById?.person) {
+        person = {
+          id: parentById.person.id,
+          status: parentById.person.status,
+          schoolId: parentById.person.schoolId,
+          parent: { id: parentById.id },
+        };
+      }
+    }
+
+    if (!person?.parent) {
+      throw new NotFoundException('No parent account found for this ID.');
+    }
+
+    if (!person.status) {
+      throw new NotFoundException('This parent account is inactive.');
     }
 
     const students = await this.prisma.student.findMany({
@@ -594,16 +624,31 @@ export class ParentService {
       },
     });
 
-    const schoolIds = this.collectSchoolIdsFromStudents(students);
+    // Prefer the person's school_id, then add schools from children's
+    // registrations (deduped). Previously school_id was only a fallback
+    // when there were no registrations, which showed the wrong school.
+    const schoolIds = [
+      ...new Set([
+        ...(person.schoolId != null ? [person.schoolId] : []),
+        ...this.collectSchoolIdsFromStudents(students),
+      ]),
+    ];
+
     if (schoolIds.length === 0) {
       throw new NotFoundException(
-        'Could not find support information for this ID.',
+        'No school is linked to this parent account yet.',
       );
     }
 
     const schools = await this.schoolService.getSchoolDetailsForSchoolIds(
       schoolIds,
     );
+
+    if (schools.length === 0) {
+      throw new NotFoundException(
+        'No school contact details were found for this ID.',
+      );
+    }
 
     return { schools };
   }

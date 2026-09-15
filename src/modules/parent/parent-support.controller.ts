@@ -21,7 +21,7 @@ export class ParentSupportController {
   @ApiOperation({
     summary: 'Look up school contact details for parent support',
     description:
-      'Resolves a parent person ID to their children’s schools without requiring a password.',
+      'Resolves a person ID or parent ID to their children’s schools without requiring a password.',
   })
   @ApiOkResponse({ type: ParentSchoolDetailsResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
