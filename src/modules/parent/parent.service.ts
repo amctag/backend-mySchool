@@ -2366,9 +2366,10 @@ export class ParentService {
   private async validateCredentials(
     loginDto: ParentLoginDto,
   ): Promise<LoginParentPerson> {
-    const candidates = await this.prisma.person.findMany({
+    // Accept either persons.id or parents.id (same as support lookup).
+    let person = await this.prisma.person.findFirst({
       where: {
-        username: loginDto.username,
+        id: loginDto.id,
         status: true,
         parent: { isNot: null },
       },
@@ -2379,28 +2380,42 @@ export class ParentService {
       },
     });
 
-    if (candidates.length === 0) {
-      throw new UnauthorizedException('Invalid username or password');
-    }
+    if (!person?.parent) {
+      const parentById = await this.prisma.parent.findUnique({
+        where: { id: loginDto.id },
+        select: {
+          id: true,
+          person: true,
+        },
+      });
 
-    for (const candidate of candidates) {
-      let passwordMatches = false;
-
-      try {
-        passwordMatches = await bcrypt.compare(
-          loginDto.password,
-          candidate.password,
-        );
-      } catch {
-        continue;
-      }
-
-      if (passwordMatches && candidate.parent) {
-        return candidate as LoginParentPerson;
+      if (parentById?.person?.status) {
+        person = {
+          ...parentById.person,
+          parent: { id: parentById.id },
+        };
       }
     }
 
-    throw new UnauthorizedException('Invalid username or password');
+    if (!person?.parent) {
+      throw new UnauthorizedException('Invalid ID or password');
+    }
+
+    let passwordMatches = false;
+    try {
+      passwordMatches = await bcrypt.compare(
+        loginDto.password,
+        person.password,
+      );
+    } catch {
+      passwordMatches = false;
+    }
+
+    if (!passwordMatches) {
+      throw new UnauthorizedException('Invalid ID or password');
+    }
+
+    return person as LoginParentPerson;
   }
 
   private async createSession(person: LoginParentPerson) {

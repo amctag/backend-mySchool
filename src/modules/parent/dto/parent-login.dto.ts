@@ -1,23 +1,30 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
+  Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
 
 export class ParentLoginDto {
-  @ApiProperty({ example: 'ahmad.khalil', description: 'Parent username' })
-  @IsString()
-  @IsNotEmpty()
-  username: string;
+  @ApiProperty({
+    example: 42,
+    description: 'Person ID or parent ID used to sign in',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  id!: number;
 
   @ApiProperty({ example: 'password123', description: 'Account password' })
   @IsString()
   @MinLength(6)
-  password: string;
+  password!: string;
 
   @ApiPropertyOptional({
     description:

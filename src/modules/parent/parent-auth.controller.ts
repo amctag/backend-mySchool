@@ -27,11 +27,11 @@ export class ParentAuthController {
   @ApiOperation({
     summary: 'Parent login',
     description:
-      'Authenticates the parent. Optional fcmToken is stored when sent (one row per person).',
+      'Authenticates the parent by person ID (or parent ID) and password. Optional fcmToken is stored when sent (one row per person).',
   })
   @ApiOkResponse({ type: ParentLoginResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
-  @ApiUnauthorizedResponse({ description: 'Invalid username or password' })
+  @ApiUnauthorizedResponse({ description: 'Invalid ID or password' })
   login(@Body() loginDto: ParentLoginDto): Promise<ParentLoginResponseDto> {
     return this.parentService.login(loginDto);
   }
