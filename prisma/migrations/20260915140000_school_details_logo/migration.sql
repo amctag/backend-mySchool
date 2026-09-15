@@ -1,0 +1,2 @@
+ALTER TABLE "school_details"
+ADD COLUMN IF NOT EXISTS "logo" TEXT NOT NULL DEFAULT '';

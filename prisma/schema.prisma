@@ -621,6 +621,7 @@ model SchoolDetail {
   email     String    @db.VarChar(255)
   website   String    @db.VarChar(255)
   about     String    @db.Text
+  logo      String    @default("") @db.Text
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)

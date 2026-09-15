@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { normalizePublicMediaUrl } from '../../upload/media-upload.service';
 import { SchoolDetailsResponseDto } from './dto/school-details-response.dto';
 
 @Injectable()
@@ -67,6 +68,7 @@ export class SchoolService {
     email: string;
     website: string;
     about: string;
+    logo: string;
     school: { name: string };
   }): SchoolDetailsResponseDto {
     return {
@@ -80,6 +82,7 @@ export class SchoolService {
       email: details.email,
       website: details.website,
       about: details.about,
+      logo: normalizePublicMediaUrl(details.logo) ?? '',
     };
   }
 }

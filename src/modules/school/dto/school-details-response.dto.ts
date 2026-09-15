@@ -30,4 +30,10 @@ export class SchoolDetailsResponseDto {
 
   @ApiProperty({ example: 'Green Valley School provides quality education for all students.' })
   about!: string;
+
+  @ApiProperty({
+    example: 'https://cdn.example.com/images/green-valley-logo.png',
+    description: 'Public URL for the school logo. Empty string when unset.',
+  })
+  logo!: string;
 }
