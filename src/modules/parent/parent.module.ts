@@ -7,6 +7,7 @@ import { ParentProfileController } from './parent-profile.controller';
 import { ParentAnnouncementController } from './parent-announcement.controller';
 import { ParentActivityController } from './parent-activity.controller';
 import { ParentForgotPasswordController } from './parent-forgot-password.controller';
+import { ParentSupportController } from './parent-support.controller';
 import { ParentPasswordController } from './parent-password.controller';
 import { ParentAttendanceController } from './parent-attendance.controller';
 import { ParentNoticeController } from './parent-notice.controller';
@@ -25,6 +26,7 @@ import { ParentService } from './parent.service';
   controllers: [
     ParentAuthController,
     ParentForgotPasswordController,
+    ParentSupportController,
     ParentProfileController,
     ParentPasswordController,
     ParentSchoolDetailsController,

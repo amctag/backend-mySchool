@@ -46,6 +46,7 @@ import {
 import { ParentAnnouncementsResponseDto } from './dto/parent-announcements-response.dto';
 import { ParentActivitiesResponseDto } from './dto/parent-activities-response.dto';
 import { ParentSchoolDetailsResponseDto } from './dto/parent-school-details-response.dto';
+import { ParentSupportSchoolsDto } from './dto/parent-support-schools.dto';
 import { ParentAttendanceAbsencesResponseDto } from './dto/parent-attendance-absences-response.dto';
 import { ParentNoticesResponseDto } from './dto/parent-notices-response.dto';
 import { ParentAgendasResponseDto } from './dto/parent-agendas-response.dto';
@@ -548,13 +549,62 @@ export class ParentService {
       throw new NotFoundException('Child not found');
     }
 
-    const schoolIds = [
-      ...new Set(
-        students
-          .map((student) => student.registrations[0]?.section.schoolId)
-          .filter((id): id is number => id !== undefined),
-      ),
-    ];
+    const schoolIds = this.collectSchoolIdsFromStudents(students);
+
+    const schools = await this.schoolService.getSchoolDetailsForSchoolIds(
+      schoolIds,
+    );
+
+    return { schools };
+  }
+
+  async getSupportSchools(
+    dto: ParentSupportSchoolsDto,
+  ): Promise<ParentSchoolDetailsResponseDto> {
+    const username = dto.username.trim();
+    if (!username) {
+      throw new BadRequestException('Username is required');
+    }
+
+    const person = await this.prisma.person.findFirst({
+      where: {
+        username,
+        status: true,
+        parent: { isNot: null },
+      },
+      select: {
+        parent: { select: { id: true } },
+      },
+    });
+
+    if (!person?.parent) {
+      throw new NotFoundException(
+        'Could not find support information for this username.',
+      );
+    }
+
+    const students = await this.prisma.student.findMany({
+      where: { parentId: person.parent.id },
+      include: {
+        registrations: {
+          where: { status: true },
+          include: {
+            section: {
+              select: { schoolId: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    const schoolIds = this.collectSchoolIdsFromStudents(students);
+    if (schoolIds.length === 0) {
+      throw new NotFoundException(
+        'Could not find support information for this username.',
+      );
+    }
 
     const schools = await this.schoolService.getSchoolDetailsForSchoolIds(
       schoolIds,
@@ -1549,7 +1599,9 @@ export class ParentService {
   async logout(user: AuthenticatedParent): Promise<ParentLogoutResponseDto> {
     this.ensureParentRole(user);
 
-    await this.revokeParentSessions(user.id);
+    await this.prisma.parentSession.deleteMany({
+      where: { id: user.sessionId, personId: user.id },
+    });
     await this.fcmTokenService.deleteForPerson(user.id);
 
     return { message: 'Logged out successfully' };
@@ -2145,6 +2197,20 @@ export class ParentService {
     }
   }
 
+  private collectSchoolIdsFromStudents(
+    students: Array<{
+      registrations: Array<{ section: { schoolId: number } }>;
+    }>,
+  ): number[] {
+    return [
+      ...new Set(
+        students
+          .map((student) => student.registrations[0]?.section.schoolId)
+          .filter((id): id is number => id !== undefined),
+      ),
+    ];
+  }
+
   private async findParentAccountByUsername(username: string) {
     return this.prisma.person.findFirst({
       where: {
@@ -2261,10 +2327,6 @@ export class ParentService {
   private async createSession(person: LoginParentPerson) {
     const refreshToken = this.generateRefreshToken();
     const refreshExpiresAt = this.getRefreshExpiryDate();
-
-    await this.prisma.parentSession.deleteMany({
-      where: { personId: person.id },
-    });
 
     const session = await this.prisma.parentSession.create({
       data: {
