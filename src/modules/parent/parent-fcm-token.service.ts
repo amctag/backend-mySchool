@@ -69,6 +69,20 @@ export class ParentFcmTokenService {
     const body = dto.body?.trim() || DEFAULT_BODY;
 
     try {
+      await this.prisma.parentNotification.create({
+        data: {
+          personId: user.id,
+          title: title.slice(0, 255),
+          body,
+          type: 'test',
+          route: null,
+          data: JSON.stringify({
+            type: 'test',
+            personId: String(user.id),
+          }),
+        },
+      });
+
       const messageId = await this.fcmService.sendNotification(
         row.token,
         title,

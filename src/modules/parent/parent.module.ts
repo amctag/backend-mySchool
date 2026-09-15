@@ -19,6 +19,7 @@ import { ParentScheduleController } from './parent-schedule.controller';
 import { ParentSchoolDetailsController } from './parent-school-details.controller';
 import { ParentFcmTokenController } from './parent-fcm-token.controller';
 import { ParentFcmTokenService } from './parent-fcm-token.service';
+import { ParentNotificationController } from './parent-notification.controller';
 import { ParentService } from './parent.service';
 
 @Module({
@@ -40,6 +41,7 @@ import { ParentService } from './parent.service';
     ParentGradeController,
     ParentScheduleController,
     ParentFcmTokenController,
+    ParentNotificationController,
   ],
   providers: [ParentService, ParentFcmTokenService],
 })

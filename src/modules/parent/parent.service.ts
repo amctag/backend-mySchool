@@ -44,6 +44,7 @@ import {
   WeeklyScheduleDayDto,
 } from './dto/parent-weekly-schedule-response.dto';
 import { ParentAnnouncementsResponseDto } from './dto/parent-announcements-response.dto';
+import { ParentNotificationsResponseDto } from './dto/parent-notifications-response.dto';
 import { ParentActivitiesResponseDto } from './dto/parent-activities-response.dto';
 import { ParentSchoolDetailsResponseDto } from './dto/parent-school-details-response.dto';
 import { ParentSupportSchoolsDto } from './dto/parent-support-schools.dto';
@@ -1633,6 +1634,30 @@ export class ParentService {
     return this.buildTokenResponse(person, session.id, newRefreshToken);
   }
 
+  async getNotifications(
+    user: AuthenticatedParent,
+  ): Promise<ParentNotificationsResponseDto> {
+    this.ensureParentRole(user);
+
+    const rows = await this.prisma.parentNotification.findMany({
+      where: { personId: user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    return {
+      notifications: rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        body: row.body,
+        type: row.type,
+        route: row.route,
+        data: this.parseNotificationData(row.data),
+        createdAt: row.createdAt.toISOString(),
+      })),
+    };
+  }
+
   async logout(user: AuthenticatedParent): Promise<ParentLogoutResponseDto> {
     this.ensureParentRole(user);
 
@@ -2231,6 +2256,23 @@ export class ParentService {
   private ensureParentRole(user: AuthenticatedParent): void {
     if (user.role !== 'parent') {
       throw new ForbiddenException('Only parents can use this endpoint');
+    }
+  }
+
+  private parseNotificationData(raw: string): Record<string, string> {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
+      }
+      const data: Record<string, string> = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        if (value == null) continue;
+        data[key] = String(value);
+      }
+      return data;
+    } catch {
+      return {};
     }
   }
 

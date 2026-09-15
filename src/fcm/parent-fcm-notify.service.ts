@@ -22,18 +22,32 @@ export class ParentFcmNotifyService {
       return;
     }
 
+    const pushTitle = (title.trim() || 'Notification').slice(0, 255);
+    const pushBody =
+      body.length > 180 ? `${body.slice(0, 177)}...` : body;
+    const type = data.type?.trim() || null;
+    const route = data.route?.trim() || null;
+    const dataJson = JSON.stringify(data);
+
+    await this.prisma.parentNotification.createMany({
+      data: uniquePersonIds.map((personId) => ({
+        personId,
+        title: pushTitle,
+        body: pushBody,
+        type,
+        route,
+        data: dataJson,
+      })),
+    });
+
     if (!this.fcmService.isReady()) {
-      this.logger.warn('Skipped parent FCM: FCM is not configured');
+      this.logger.warn('Saved parent notifications; FCM is not configured');
       return;
     }
 
     const tokens = await this.prisma.fcmToken.findMany({
       where: { personId: { in: uniquePersonIds } },
     });
-
-    const pushTitle = title.trim() || 'Notification';
-    const pushBody =
-      body.length > 180 ? `${body.slice(0, 177)}...` : body;
 
     for (const row of tokens) {
       const result = await this.fcmService.trySendNotification(
