@@ -28,6 +28,7 @@ const teacherDetailInclude = { person: true } as const;
 type TeacherDetailRecord = {
   id: number;
   personId: number;
+  createdAt: Date;
   person: {
     firstName: string;
     middleName: string;
@@ -388,6 +389,7 @@ export class DashboardTeachersService {
       placeOfBirth: teacher.person.placeOfBirth,
       birthday: this.formatDate(teacher.person.birthday),
       status: teacher.person.status,
+      createdAt: this.formatDate(teacher.createdAt) ?? '',
     };
   }
 

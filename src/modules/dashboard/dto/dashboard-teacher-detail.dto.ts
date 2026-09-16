@@ -57,4 +57,7 @@ export class DashboardTeacherDetailDto {
 
   @ApiProperty({ example: true })
   status!: boolean;
+
+  @ApiProperty({ example: '2026-03-16' })
+  createdAt!: string;
 }

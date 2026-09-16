@@ -202,6 +202,10 @@ export class DashboardRegistrationsService {
   ): Prisma.RegistrationWhereInput {
     const search = query.search?.trim();
     const nameMatch = personNameContainsFilter(search);
+    const firstName = query.firstName?.trim();
+    const middleName = query.middleName?.trim();
+    const lastName = query.lastName?.trim();
+
     return {
       status: true,
       ...(query.sectionId ? { sectionId: query.sectionId } : {}),
@@ -210,16 +214,45 @@ export class DashboardRegistrationsService {
         ...(query.classId ? { classId: query.classId } : {}),
         ...(query.yearId ? { yearId: query.yearId } : {}),
       },
-      ...(search
-        ? {
-            OR: [
-              ...(nameMatch ? [{ student: { person: nameMatch } }] : []),
-              ...(/^\d+$/.test(search)
-                ? [{ studentId: Number(search) }]
-                : []),
-            ],
-          }
-        : {}),
+      AND: [
+        search
+          ? {
+              OR: [
+                ...(nameMatch ? [{ student: { person: nameMatch } }] : []),
+                ...(/^\d+$/.test(search)
+                  ? [{ studentId: Number(search) }]
+                  : []),
+              ],
+            }
+          : {},
+        firstName
+          ? {
+              student: {
+                person: {
+                  firstName: { contains: firstName, mode: 'insensitive' },
+                },
+              },
+            }
+          : {},
+        middleName
+          ? {
+              student: {
+                person: {
+                  middleName: { contains: middleName, mode: 'insensitive' },
+                },
+              },
+            }
+          : {},
+        lastName
+          ? {
+              student: {
+                person: {
+                  lastName: { contains: lastName, mode: 'insensitive' },
+                },
+              },
+            }
+          : {},
+      ],
     };
   }
 

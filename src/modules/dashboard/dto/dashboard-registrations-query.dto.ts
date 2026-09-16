@@ -60,6 +60,36 @@ export class DashboardRegistrationsQueryDto {
   search?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter by student first name (contains, case-insensitive)',
+    example: 'Layla',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(100)
+  firstName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by student middle name (contains, case-insensitive)',
+    example: 'Ahmad',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(100)
+  middleName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by student last / family name (contains, case-insensitive)',
+    example: 'Khalil',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(100)
+  lastName?: string;
+
+  @ApiPropertyOptional({
     enum: ['id', 'student', 'class', 'section', 'year', 'date'],
     example: 'id',
   })
