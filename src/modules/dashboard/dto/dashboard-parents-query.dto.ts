@@ -51,6 +51,36 @@ export class DashboardParentsQueryDto {
   name?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter by first name (contains, case-insensitive)',
+    example: 'Ahmad',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(100)
+  firstName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by middle name (contains, case-insensitive)',
+    example: 'Ali',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(100)
+  middleName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by last / family name (contains, case-insensitive)',
+    example: 'Khalil',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(100)
+  lastName?: string;
+
+  @ApiPropertyOptional({
     description: 'Search by parent name or parent id',
     example: 'Ahmad',
   })
@@ -114,6 +144,28 @@ export class DashboardParentsQueryDto {
   )
   @IsIn(['paid', 'unpaid'])
   paid?: 'paid' | 'unpaid';
+
+  @ApiPropertyOptional({
+    description:
+      'Filter by exact number of children in this school. Omit for all.',
+    example: 2,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  childrenCount?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Filter by minimum number of children in this school (inclusive). Omit for all.',
+    example: 6,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  childrenCountMin?: number;
 }
 
 export class DashboardParentOptionsQueryDto {

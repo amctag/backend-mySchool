@@ -68,7 +68,7 @@ export class DashboardParentsService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const schoolId = user.schoolId;
-    const where = this.buildWhere(schoolId, query);
+    const where = await this.buildWhere(schoolId, query);
     const orderBy = this.buildOrderBy(query.sortBy, query.sortOrder);
 
     const [total, parents] = await this.prisma.$transaction([
@@ -652,12 +652,20 @@ export class DashboardParentsService {
     return [{ id: direction }];
   }
 
-  private buildWhere(
+  private async buildWhere(
     schoolId: number,
     query: DashboardParentsQueryDto,
-  ): Prisma.ParentWhereInput {
+  ): Promise<Prisma.ParentWhereInput> {
     const nameContains = personNameContainsFilter(query.name);
     const searchContains = this.searchFilter(query.search);
+    const firstName = query.firstName?.trim();
+    const middleName = query.middleName?.trim();
+    const lastName = query.lastName?.trim();
+    const childrenCountFilter = await this.childrenCountFilter(
+      schoolId,
+      query.childrenCount,
+      query.childrenCountMin,
+    );
 
     return {
       AND: [
@@ -673,8 +681,81 @@ export class DashboardParentsService {
         query.paid === 'paid' ? { person: { paid: true } } : {},
         query.paid === 'unpaid' ? { person: { paid: false } } : {},
         nameContains ? { person: nameContains } : {},
+        firstName
+          ? {
+              person: {
+                firstName: { contains: firstName, mode: 'insensitive' },
+              },
+            }
+          : {},
+        middleName
+          ? {
+              person: {
+                middleName: { contains: middleName, mode: 'insensitive' },
+              },
+            }
+          : {},
+        lastName
+          ? {
+              person: {
+                lastName: { contains: lastName, mode: 'insensitive' },
+              },
+            }
+          : {},
+        childrenCountFilter,
         searchContains,
       ],
+    };
+  }
+
+  private async childrenCountFilter(
+    schoolId: number,
+    childrenCount?: number,
+    childrenCountMin?: number,
+  ): Promise<Prisma.ParentWhereInput> {
+    if (childrenCount === undefined && childrenCountMin === undefined) {
+      return {};
+    }
+
+    if (childrenCount === 0) {
+      return {
+        students: {
+          none: { person: { schoolId } },
+        },
+      };
+    }
+
+    const groups = await this.prisma.student.groupBy({
+      by: ['parentId'],
+      where: {
+        parentId: { not: null },
+        person: { schoolId },
+      },
+      _count: { _all: true },
+      having:
+        childrenCount !== undefined
+          ? {
+              parentId: {
+                _count: {
+                  equals: childrenCount,
+                },
+              },
+            }
+          : {
+              parentId: {
+                _count: {
+                  gte: childrenCountMin!,
+                },
+              },
+            },
+    });
+
+    const parentIds = groups
+      .map((group) => group.parentId)
+      .filter((id): id is number => id != null);
+
+    return {
+      id: { in: parentIds.length > 0 ? parentIds : [-1] },
     };
   }
 
