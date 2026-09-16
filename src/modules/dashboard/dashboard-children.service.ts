@@ -154,6 +154,9 @@ export class DashboardChildrenService {
   ): Prisma.StudentWhereInput {
     const nameContains = personNameContainsFilter(query.name);
     const searchContains = this.searchFilter(query.search);
+    const firstName = query.firstName?.trim();
+    const middleName = query.middleName?.trim();
+    const lastName = query.lastName?.trim();
 
     return {
       AND: [
@@ -174,6 +177,27 @@ export class DashboardChildrenService {
           : {},
         query.id ? { id: query.id } : {},
         nameContains ? { person: nameContains } : {},
+        firstName
+          ? {
+              person: {
+                firstName: { contains: firstName, mode: 'insensitive' },
+              },
+            }
+          : {},
+        middleName
+          ? {
+              person: {
+                middleName: { contains: middleName, mode: 'insensitive' },
+              },
+            }
+          : {},
+        lastName
+          ? {
+              person: {
+                lastName: { contains: lastName, mode: 'insensitive' },
+              },
+            }
+          : {},
         searchContains,
       ],
     };
