@@ -83,6 +83,7 @@ export class DashboardParentsService {
               lastName: true,
               address: true,
               phoneNumber: true,
+              birthday: true,
               status: true,
               paid: true,
             },
@@ -109,6 +110,9 @@ export class DashboardParentsService {
         lastName: parent.person.lastName,
         address: parent.person.address,
         phoneNumber: parent.person.phoneNumber,
+        birthday: parent.person.birthday
+          ? parent.person.birthday.toISOString().slice(0, 10)
+          : null,
         childrenCount: parent._count.students,
         status: parent.person.status,
         paid: parent.person.paid,
