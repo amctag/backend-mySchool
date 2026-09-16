@@ -69,4 +69,10 @@ export class DashboardParentDetailDto {
 
   @ApiProperty({ example: true })
   status!: boolean;
+
+  @ApiProperty({
+    example: true,
+    description: 'Payment / billing flag shown as $ in the parents table',
+  })
+  paid!: boolean;
 }

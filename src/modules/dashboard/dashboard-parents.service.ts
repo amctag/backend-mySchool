@@ -53,6 +53,7 @@ type ParentDetailRecord = {
     placeOfBirth: string | null;
     birthday: Date | null;
     status: boolean;
+    paid: boolean;
   };
 };
 
@@ -83,6 +84,7 @@ export class DashboardParentsService {
               address: true,
               phoneNumber: true,
               status: true,
+              paid: true,
             },
           },
           _count: {
@@ -109,6 +111,7 @@ export class DashboardParentsService {
         phoneNumber: parent.person.phoneNumber,
         childrenCount: parent._count.students,
         status: parent.person.status,
+        paid: parent.person.paid,
       })),
       pagination: {
         page,
@@ -225,6 +228,7 @@ export class DashboardParentsService {
             placeOfBirth: dto.placeOfBirth ?? null,
             birthday: this.parseDate(dto.birthday),
             status: dto.status ?? true,
+            paid: dto.paid ?? true,
           },
         });
 
@@ -255,6 +259,19 @@ export class DashboardParentsService {
       data: { status },
     });
     return { id: existing.id, status };
+  }
+
+  async updateParentPaid(
+    user: AuthenticatedSchool,
+    parentId: number,
+    paid: boolean,
+  ): Promise<{ id: number; paid: boolean }> {
+    const existing = await this.findVisibleParent(user.schoolId, parentId);
+    await this.prisma.person.update({
+      where: { id: existing.personId },
+      data: { paid },
+    });
+    return { id: existing.id, paid };
   }
 
   async updateParent(
@@ -354,6 +371,8 @@ export class DashboardParentsService {
               dto.status !== undefined
                 ? dto.status
                 : existing.person.status,
+            paid:
+              dto.paid !== undefined ? dto.paid : existing.person.paid,
           },
         });
 
@@ -473,6 +492,7 @@ export class DashboardParentsService {
         ? parent.person.birthday.toISOString().slice(0, 10)
         : null,
       status: parent.person.status,
+      paid: parent.person.paid,
     };
   }
 

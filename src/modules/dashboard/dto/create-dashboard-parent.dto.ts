@@ -179,4 +179,21 @@ export class CreateDashboardParentDto {
   })
   @IsBoolean()
   status?: boolean;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Payment flag ($ column). Defaults to true.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => {
+    if (value === true || value === 1 || value === '1' || value === 'true') {
+      return true;
+    }
+    if (value === false || value === 0 || value === '0' || value === 'false') {
+      return false;
+    }
+    return value;
+  })
+  @IsBoolean()
+  paid?: boolean;
 }

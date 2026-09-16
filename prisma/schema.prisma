@@ -57,6 +57,7 @@ model Person {
   gender         Int?      @db.SmallInt
   picture        String?   @db.VarChar(255)
   status         Boolean   @default(true)
+  paid           Boolean   @default(true)
   identityNumber String?   @unique @map("identity_number") @db.VarChar(50)
   nationalityId  Int?      @map("nationality_id")
   governorateId  Int?      @map("governorate_id")

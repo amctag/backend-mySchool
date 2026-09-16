@@ -40,6 +40,10 @@ import {
   DashboardParentStatusDto,
   UpdateDashboardParentStatusDto,
 } from './dto/update-dashboard-parent-status.dto';
+import {
+  DashboardParentPaidDto,
+  UpdateDashboardParentPaidDto,
+} from './dto/update-dashboard-parent-paid.dto';
 import { DashboardChildrenService } from './dashboard-children.service';
 import { DashboardParentsService } from './dashboard-parents.service';
 
@@ -132,6 +136,23 @@ export class DashboardParentsController {
       request.user,
       id,
       dto.status,
+    );
+  }
+
+  @Patch(':id/paid')
+  @ApiOperation({
+    summary: 'Set parent paid flag (person.paid) for the $ column',
+  })
+  @ApiOkResponse({ type: DashboardParentPaidDto })
+  updateParentPaid(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateDashboardParentPaidDto,
+  ): Promise<DashboardParentPaidDto> {
+    return this.dashboardParentsService.updateParentPaid(
+      request.user,
+      id,
+      dto.paid,
     );
   }
 
