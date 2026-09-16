@@ -670,6 +670,8 @@ export class DashboardParentsService {
         query.id ? { id: query.id } : {},
         query.status === 'active' ? { person: { status: true } } : {},
         query.status === 'closed' ? { person: { status: false } } : {},
+        query.paid === 'paid' ? { person: { paid: true } } : {},
+        query.paid === 'unpaid' ? { person: { paid: false } } : {},
         nameContains ? { person: nameContains } : {},
         searchContains,
       ],

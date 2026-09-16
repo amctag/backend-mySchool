@@ -100,6 +100,20 @@ export class DashboardParentsQueryDto {
   )
   @IsIn(['active', 'closed'])
   status?: 'active' | 'closed';
+
+  @ApiPropertyOptional({
+    description: 'Filter by payment flag. Omit for all.',
+    enum: ['paid', 'unpaid'],
+    example: 'paid',
+  })
+  @IsOptional()
+  @Allow()
+  @IsString()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
+  @IsIn(['paid', 'unpaid'])
+  paid?: 'paid' | 'unpaid';
 }
 
 export class DashboardParentOptionsQueryDto {
