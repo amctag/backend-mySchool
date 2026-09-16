@@ -725,34 +725,58 @@ export class DashboardParentsService {
       };
     }
 
-    const groups = await this.prisma.student.groupBy({
-      by: ['parentId'],
-      where: {
-        parentId: { not: null },
-        person: { schoolId },
-      },
-      _count: { _all: true },
-      having:
-        childrenCount !== undefined
-          ? {
-              parentId: {
-                _count: {
-                  equals: childrenCount,
-                },
-              },
-            }
-          : {
-              parentId: {
-                _count: {
-                  gte: childrenCountMin!,
-                },
-              },
-            },
-    });
+    const rows =
+      childrenCount !== undefined
+        ? await this.prisma.$queryRaw<Array<{ id: number }>>`
+            SELECT p.id
+            FROM parents p
+            LEFT JOIN students s ON s.parent_id = p.id
+            LEFT JOIN persons child_person
+              ON child_person.id = s.person_id
+             AND child_person.school_id = ${schoolId}
+            WHERE EXISTS (
+              SELECT 1
+              FROM persons parent_person
+              WHERE parent_person.id = p.person_id
+                AND parent_person.school_id = ${schoolId}
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM students school_child
+              INNER JOIN persons school_child_person
+                ON school_child_person.id = school_child.person_id
+              WHERE school_child.parent_id = p.id
+                AND school_child_person.school_id = ${schoolId}
+            )
+            GROUP BY p.id
+            HAVING COUNT(child_person.id) = ${childrenCount}
+          `
+        : await this.prisma.$queryRaw<Array<{ id: number }>>`
+            SELECT p.id
+            FROM parents p
+            LEFT JOIN students s ON s.parent_id = p.id
+            LEFT JOIN persons child_person
+              ON child_person.id = s.person_id
+             AND child_person.school_id = ${schoolId}
+            WHERE EXISTS (
+              SELECT 1
+              FROM persons parent_person
+              WHERE parent_person.id = p.person_id
+                AND parent_person.school_id = ${schoolId}
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM students school_child
+              INNER JOIN persons school_child_person
+                ON school_child_person.id = school_child.person_id
+              WHERE school_child.parent_id = p.id
+                AND school_child_person.school_id = ${schoolId}
+            )
+            GROUP BY p.id
+            HAVING COUNT(child_person.id) >= ${childrenCountMin!}
+          `;
 
-    const parentIds = groups
-      .map((group) => group.parentId)
-      .filter((id): id is number => id != null);
+    const parentIds = rows.map((row) => row.id);
 
     return {
       id: { in: parentIds.length > 0 ? parentIds : [-1] },
