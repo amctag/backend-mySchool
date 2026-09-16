@@ -157,6 +157,7 @@ export class DashboardChildrenService {
     const firstName = query.firstName?.trim();
     const middleName = query.middleName?.trim();
     const lastName = query.lastName?.trim();
+    const parentNameContains = personNameContainsFilter(query.parentName);
 
     return {
       AND: [
@@ -198,6 +199,7 @@ export class DashboardChildrenService {
               },
             }
           : {},
+        parentNameContains ? { parent: { person: parentNameContains } } : {},
         searchContains,
       ],
     };

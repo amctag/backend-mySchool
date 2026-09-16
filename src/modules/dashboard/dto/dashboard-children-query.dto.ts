@@ -101,6 +101,16 @@ export class DashboardChildrenQueryDto {
   lastName?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter by parent name (first, middle, or last name)',
+    example: 'Hassan',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(100)
+  parentName?: string;
+
+  @ApiPropertyOptional({
     description: 'Search by child name or student id',
     example: 'Omar',
   })
