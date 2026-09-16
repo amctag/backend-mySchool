@@ -116,5 +116,6 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     DashboardAlbumsService,
     MediaUploadService,
   ],
+  exports: [DashboardGradesService],
 })
 export class DashboardModule {}

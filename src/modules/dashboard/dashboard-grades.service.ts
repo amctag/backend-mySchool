@@ -205,10 +205,18 @@ export class DashboardGradesService {
     user: AuthenticatedSchool,
     query: DashboardGradeCardQueryDto,
   ): Promise<DashboardGradeCardResponseDto> {
+    return this.getGradeCardForSchool(user.schoolId, query);
+  }
+
+  /** Shared by school dashboard and parent app (caller must authorize). */
+  async getGradeCardForSchool(
+    schoolId: number,
+    query: DashboardGradeCardQueryDto,
+  ): Promise<DashboardGradeCardResponseDto> {
     const registration = await this.prisma.registration.findFirst({
       where: {
         id: query.registrationId,
-        schoolId: user.schoolId,
+        schoolId,
         status: true,
       },
       include: {
@@ -262,7 +270,7 @@ export class DashboardGradesService {
     const [gradeFormRow, classCourses] = await Promise.all([
       this.prisma.gradeForm.findFirst({
         where: {
-          schoolId: user.schoolId,
+          schoolId,
           yearId: section.yearId,
           status: true,
           classes: { some: { classId: section.classId } },
@@ -341,7 +349,7 @@ export class DashboardGradesService {
             where: {
               registrationId: registration.id,
               gradeSheet: {
-                schoolId: user.schoolId,
+                schoolId,
                 sectionId: section.id,
                 courseId: { in: courseIds },
                 ...(gradeTypeIds.length > 0

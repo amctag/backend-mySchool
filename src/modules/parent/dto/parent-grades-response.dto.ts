@@ -51,8 +51,14 @@ export class ParentStudentGradesDto {
   @ApiProperty({ example: '4A' })
   className!: string;
 
+  @ApiProperty({ example: 12 })
+  classId!: number;
+
   @ApiProperty({ example: 'A' })
   sectionName!: string;
+
+  @ApiProperty({ example: 3 })
+  sectionId!: number;
 
   @ApiProperty({ example: 1 })
   yearId!: number;

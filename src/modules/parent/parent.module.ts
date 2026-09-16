@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../../auth/auth.module';
 import { PrismaModule } from '../../database/prisma/prisma.module';
+import { DashboardModule } from '../dashboard/dashboard.module';
 import { SchoolModule } from '../school/school.module';
 import { ParentAuthController } from './parent-auth.controller';
 import { ParentProfileController } from './parent-profile.controller';
@@ -23,7 +24,7 @@ import { ParentNotificationController } from './parent-notification.controller';
 import { ParentService } from './parent.service';
 
 @Module({
-  imports: [AuthModule, PrismaModule, SchoolModule],
+  imports: [AuthModule, PrismaModule, SchoolModule, DashboardModule],
   controllers: [
     ParentAuthController,
     ParentForgotPasswordController,

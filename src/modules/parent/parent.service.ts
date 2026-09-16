@@ -63,6 +63,9 @@ import {
 } from './dto/parent-exam-schedules-response.dto';
 import { ParentGradesResponseDto } from './dto/parent-grades-response.dto';
 import { SchoolService } from '../school/school.service';
+import { DashboardGradesService } from '../dashboard/dashboard-grades.service';
+import { ParentGradeCardQueryDto } from './dto/parent-grade-card-query.dto';
+import { DashboardGradeCardResponseDto } from '../dashboard/dto/dashboard-grade-card-response.dto';
 
 type LoginParentPerson = {
   id: number;
@@ -83,6 +86,7 @@ export class ParentService {
     private readonly mailService: MailService,
     private readonly schoolService: SchoolService,
     private readonly fcmTokenService: ParentFcmTokenService,
+    private readonly dashboardGradesService: DashboardGradesService,
   ) {}
 
   async login(loginDto: ParentLoginDto): Promise<ParentLoginResponseDto> {
@@ -928,7 +932,9 @@ export class ParentService {
         schoolId: context.schoolId,
         schoolName: context.schoolName,
         className: context.className,
+        classId: context.classId,
         sectionName: context.sectionName,
+        sectionId: context.sectionId,
         yearId: context.yearId,
         yearTitle: context.yearTitle,
         grades: gradeSheets.map((sheet) => ({
@@ -947,6 +953,45 @@ export class ParentService {
     }
 
     return { students };
+  }
+
+  async getGradeCard(
+    user: AuthenticatedParent,
+    query: ParentGradeCardQueryDto,
+  ): Promise<DashboardGradeCardResponseDto> {
+    this.ensureParentRole(user);
+
+    const contexts = await this.resolveParentClassYearContexts(user.parentId);
+    const match = contexts.find(
+      (context) => context.registrationId === query.registrationId,
+    );
+
+    if (!match) {
+      throw new NotFoundException('Registration not found');
+    }
+
+    if (query.yearId !== undefined && query.yearId !== match.yearId) {
+      throw new BadRequestException(
+        'Registration does not match the selected year',
+      );
+    }
+    if (query.classId !== undefined && query.classId !== match.classId) {
+      throw new BadRequestException(
+        'Registration does not match the selected class',
+      );
+    }
+    if (query.sectionId !== undefined && query.sectionId !== match.sectionId) {
+      throw new BadRequestException(
+        'Registration does not match the selected section',
+      );
+    }
+
+    return this.dashboardGradesService.getGradeCardForSchool(match.schoolId, {
+      registrationId: match.registrationId,
+      yearId: match.yearId,
+      classId: match.classId,
+      sectionId: match.sectionId,
+    });
   }
 
   async getAttendanceAbsences(
