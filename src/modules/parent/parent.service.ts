@@ -2423,6 +2423,11 @@ export class ParentService {
 
     const schoolInactive =
       person.schoolId != null && person.school?.isActive === false;
+    if (!person.paid) {
+      throw new ForbiddenException(
+        'Payment is required. Contact support for help.',
+      );
+    }
     if (!person.status || schoolInactive) {
       throw new ForbiddenException(
         'This account is inactive. Contact support for help.',
