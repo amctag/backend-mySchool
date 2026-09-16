@@ -22,6 +22,10 @@ export class DashboardChildrenService {
       await this.assertParentVisible(schoolId, query.parentId);
     }
 
+    if (query.classId) {
+      await this.assertClassVisible(schoolId, query.classId);
+    }
+
     const where = this.buildWhere(schoolId, query);
 
     const orderBy = this.buildOrderBy(query.sortBy, query.sortOrder);
@@ -62,7 +66,7 @@ export class DashboardChildrenService {
             include: {
               section: {
                 select: {
-                  class: { select: { className: true } },
+                  class: { select: { id: true, className: true } },
                   sectionTitle: { select: { title: true } },
                   year: { select: { title: true, isCurrent: true } },
                 },
@@ -93,6 +97,7 @@ export class DashboardChildrenService {
           parentName: student.parent
             ? this.formatFullName(student.parent.person)
             : null,
+          classId: registration?.section.class.id ?? null,
           className: registration?.section.class.className ?? null,
           sectionName: registration?.section.sectionTitle.title ?? null,
           yearTitle: registration?.section.year.title ?? null,
@@ -129,6 +134,20 @@ export class DashboardChildrenService {
     }
   }
 
+  private async assertClassVisible(schoolId: number, classId: number) {
+    const item = await this.prisma.class.findFirst({
+      where: {
+        id: classId,
+        stage: { schoolId },
+      },
+      select: { id: true },
+    });
+
+    if (!item) {
+      throw new NotFoundException('Class not found');
+    }
+  }
+
   private buildWhere(
     schoolId: number,
     query: DashboardChildrenQueryDto,
@@ -140,6 +159,19 @@ export class DashboardChildrenService {
       AND: [
         { person: { schoolId } },
         query.parentId ? { parentId: query.parentId } : {},
+        query.classId
+          ? {
+              registrations: {
+                some: {
+                  status: true,
+                  section: {
+                    schoolId,
+                    classId: query.classId,
+                  },
+                },
+              },
+            }
+          : {},
         query.id ? { id: query.id } : {},
         nameContains ? { person: nameContains } : {},
         searchContains,

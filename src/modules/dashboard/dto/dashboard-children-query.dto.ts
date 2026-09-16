@@ -41,6 +41,16 @@ export class DashboardChildrenQueryDto {
   parentId?: number;
 
   @ApiPropertyOptional({
+    description: 'Filter by class id (active registration in this class)',
+    example: 3,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  classId?: number;
+
+  @ApiPropertyOptional({
     description: 'Filter by exact student id',
     example: 12,
   })

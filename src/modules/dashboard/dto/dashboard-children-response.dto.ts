@@ -23,6 +23,9 @@ export class DashboardChildItemDto {
   @ApiProperty({ example: 'Ahmad Hassan Khalil', nullable: true })
   parentName!: string | null;
 
+  @ApiProperty({ example: 3, nullable: true })
+  classId!: number | null;
+
   @ApiProperty({ example: 'Grade 4', nullable: true })
   className!: string | null;
 
