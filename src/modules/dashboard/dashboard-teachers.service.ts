@@ -542,6 +542,9 @@ export class DashboardTeachersService {
   ): Prisma.TeacherWhereInput {
     const nameContains = personNameContainsFilter(query.name);
     const searchContains = this.searchFilter(query.search);
+    const firstName = query.firstName?.trim();
+    const middleName = query.middleName?.trim();
+    const lastName = query.lastName?.trim();
 
     return {
       AND: [
@@ -550,6 +553,27 @@ export class DashboardTeachersService {
         query.status === 'active' ? { person: { status: true } } : {},
         query.status === 'closed' ? { person: { status: false } } : {},
         nameContains ? { person: nameContains } : {},
+        firstName
+          ? {
+              person: {
+                firstName: { contains: firstName, mode: 'insensitive' },
+              },
+            }
+          : {},
+        middleName
+          ? {
+              person: {
+                middleName: { contains: middleName, mode: 'insensitive' },
+              },
+            }
+          : {},
+        lastName
+          ? {
+              person: {
+                lastName: { contains: lastName, mode: 'insensitive' },
+              },
+            }
+          : {},
         searchContains,
       ],
     };

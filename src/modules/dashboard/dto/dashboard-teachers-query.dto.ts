@@ -51,6 +51,36 @@ export class DashboardTeachersQueryDto {
   name?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter by first name (contains, case-insensitive)',
+    example: 'Ahmad',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(100)
+  firstName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by middle name (contains, case-insensitive)',
+    example: 'Ali',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(100)
+  middleName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by last / family name (contains, case-insensitive)',
+    example: 'Khalil',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(100)
+  lastName?: string;
+
+  @ApiPropertyOptional({
     description: 'Search by teacher name, id, phone, or address',
     example: 'Ahmad',
   })
