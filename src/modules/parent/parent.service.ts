@@ -888,7 +888,7 @@ export class ParentService {
     }
 
     if (studentContexts.length === 0) {
-      return { students: [] };
+      return { students: [], gradeCardBaseUrl: this.getGradeCardBaseUrl() };
     }
 
     const now = new Date();
@@ -952,7 +952,16 @@ export class ParentService {
       });
     }
 
-    return { students };
+    return { students, gradeCardBaseUrl: this.getGradeCardBaseUrl() };
+  }
+
+  private getGradeCardBaseUrl(): string | null {
+    const value = this.configService.get<string | null>('app.gradeCardBaseUrl');
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
   }
 
   async getGradeCard(

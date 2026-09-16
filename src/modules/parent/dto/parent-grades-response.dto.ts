@@ -73,4 +73,13 @@ export class ParentStudentGradesDto {
 export class ParentGradesResponseDto {
   @ApiProperty({ type: [ParentStudentGradesDto] })
   students!: ParentStudentGradesDto[];
+
+  @ApiPropertyOptional({
+    example: 'https://amctag-admin-school.38f0fz.easypanel.host',
+    nullable: true,
+    description:
+      'Dashboard origin for opening the export-style grade card in a WebView. ' +
+      'Set via GRADE_CARD_BASE_URL on the API.',
+  })
+  gradeCardBaseUrl!: string | null;
 }
