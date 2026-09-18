@@ -81,77 +81,90 @@ export class TeacherClassesService {
     );
     const yearId = await this.teacherAccess.currentYearId(user.schoolId);
 
-    const [assignedTeaches, primaryTeach, students, rosterRows, days, details, assignmentRows] =
-      await Promise.all([
-        this.prisma.teach.findMany({
-          where: {
-            teacherId: user.teacherId,
-            sectionId: classId,
-            ...(yearId ? { yearId } : {}),
-          },
-          include: { course: { select: { title: true } } },
-          orderBy: { id: 'asc' },
-        }),
-        this.prisma.teach.findFirst({
-          where: {
-            sectionId: classId,
-            ...(yearId ? { yearId } : {}),
-          },
-          include: { course: { select: { title: true } } },
-          orderBy: { id: 'asc' },
-        }),
-        this.loadStudents(user.schoolId, classId),
-        this.prisma.teach.findMany({
-          where: {
-            sectionId: classId,
-            ...(yearId ? { yearId } : {}),
-          },
-          select: {
-            teacherId: true,
-            course: { select: { title: true } },
-            teacher: {
-              select: {
-                person: {
-                  select: {
-                    firstName: true,
-                    middleName: true,
-                    lastName: true,
-                  },
+    const [
+      seeAllCourses,
+      assignedTeaches,
+      primaryTeach,
+      students,
+      rosterRows,
+      days,
+      details,
+      assignmentRows,
+    ] = await Promise.all([
+      this.teachersSeeAllClassCourses(user.schoolId),
+      this.prisma.teach.findMany({
+        where: {
+          teacherId: user.teacherId,
+          sectionId: classId,
+          ...(yearId ? { yearId } : {}),
+        },
+        include: { course: { select: { title: true } } },
+        orderBy: { id: 'asc' },
+      }),
+      this.prisma.teach.findFirst({
+        where: {
+          sectionId: classId,
+          ...(yearId ? { yearId } : {}),
+        },
+        include: { course: { select: { title: true } } },
+        orderBy: { id: 'asc' },
+      }),
+      this.loadStudents(user.schoolId, classId),
+      this.prisma.teach.findMany({
+        where: {
+          sectionId: classId,
+          ...(yearId ? { yearId } : {}),
+        },
+        select: {
+          teacherId: true,
+          course: { select: { title: true } },
+          teacher: {
+            select: {
+              person: {
+                select: {
+                  firstName: true,
+                  middleName: true,
+                  lastName: true,
                 },
               },
             },
           },
-          orderBy: { id: 'asc' },
-        }),
-        this.prisma.day.findMany({
-          where: { schoolId: user.schoolId },
-          select: { id: true, dayName: true, position: true },
-          orderBy: { position: 'asc' },
-        }),
-        this.prisma.weeklyScheduleDetail.findMany({
-          where: { schedule: { sectionId: classId } },
-          select: {
-            note: true,
-            course: { select: { id: true, title: true } },
-            day: { select: { id: true } },
-            session: { select: { sessionName: true, position: true } },
-          },
-        }),
-        this.prisma.teach.findMany({
-          where: {
-            teacherId: user.teacherId,
-            sectionId: classId,
-          },
-          select: { id: true, courseId: true },
-        }),
-      ]);
+        },
+        orderBy: { id: 'asc' },
+      }),
+      this.prisma.day.findMany({
+        where: { schoolId: user.schoolId },
+        select: { id: true, dayName: true, position: true },
+        orderBy: { position: 'asc' },
+      }),
+      this.prisma.weeklyScheduleDetail.findMany({
+        where: { schedule: { sectionId: classId } },
+        select: {
+          note: true,
+          course: { select: { id: true, title: true } },
+          day: { select: { id: true } },
+          session: { select: { sessionName: true, position: true } },
+        },
+      }),
+      this.prisma.teach.findMany({
+        where: {
+          teacherId: user.teacherId,
+          sectionId: classId,
+        },
+        select: { id: true, courseId: true },
+      }),
+    ]);
 
     const assignmentByCourse = new Map(
       assignmentRows.map((row) => [row.courseId, row.id]),
     );
+    const assignedCourseIds = new Set(assignmentRows.map((row) => row.courseId));
+    const visibleDetails = seeAllCourses
+      ? details
+      : details.filter((detail) => assignedCourseIds.has(detail.course.id));
 
-    const entriesByDay = new Map<number, typeof details>();
-    for (const detail of details) {
+    const entriesByDay = new Map<number, typeof visibleDetails>();
+    for (const detail of visibleDetails) {
       const bucket = entriesByDay.get(detail.day.id) ?? [];
       bucket.push(detail);
       entriesByDay.set(detail.day.id, bucket);
@@ -165,17 +178,20 @@ export class TeacherClassesService {
       yearTitle: section.year.title,
       stage: section.class.stage.title,
       primaryCourseTitle:
-        courseTitles.join(', ') || primaryTeach?.course.title || '',
+        courseTitles.join(', ') ||
+        (seeAllCourses ? primaryTeach?.course.title || '' : ''),
       courseTitles,
       studentCount: students.length,
       isAssignedToCurrentTeacher: assignedTeaches.length > 0,
     };
 
-    const roster: TeacherClassRosterEntryDto[] = rosterRows.map((row) => ({
-      teacherName: formatFullName(row.teacher.person),
-      courseTitle: row.course.title,
-      isCurrentTeacher: row.teacherId === user.teacherId,
-    }));
+    const roster: TeacherClassRosterEntryDto[] = rosterRows
+      .filter((row) => seeAllCourses || row.teacherId === user.teacherId)
+      .map((row) => ({
+        teacherName: formatFullName(row.teacher.person),
+        courseTitle: row.course.title,
+        isCurrentTeacher: row.teacherId === user.teacherId,
+      }));
 
     return {
       summary,
@@ -216,6 +232,7 @@ export class TeacherClassesService {
     assignedOnly: boolean,
     yearId: number | null,
   ): Promise<TeacherClassesResponseDto> {
+    const seeAllCourses = await this.teachersSeeAllClassCourses(user.schoolId);
     const { page, limit, skip } = resolvePagination({
       page: query.page,
       limit: query.limit ?? 20,
@@ -277,7 +294,8 @@ export class TeacherClassesService {
           yearTitle: section.year.title,
           stage: section.class.stage.title,
           primaryCourseTitle:
-            courseTitles.join(', ') || section.teaches[0]?.course.title || '',
+            courseTitles.join(', ') ||
+            (seeAllCourses ? section.teaches[0]?.course.title || '' : ''),
           courseTitles,
           studentCount: section._count.registrations,
           isAssignedToCurrentTeacher: assigned.length > 0,
@@ -285,6 +303,14 @@ export class TeacherClassesService {
       }),
       pagination: buildPaginationMeta(page, limit, total),
     };
+  }
+
+  private async teachersSeeAllClassCourses(schoolId: number): Promise<boolean> {
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { teachersSeeAllClassCourses: true },
+    });
+    return school?.teachersSeeAllClassCourses ?? true;
   }
 
   private async loadStudents(

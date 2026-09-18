@@ -54,6 +54,8 @@ import { DashboardActivitiesService } from './dashboard-activities.service';
 import { DashboardAlbumsController } from './dashboard-albums.controller';
 import { DashboardAlbumsService } from './dashboard-albums.service';
 import { DashboardUploadsController } from './dashboard-uploads.controller';
+import { DashboardSchoolSettingsController } from './dashboard-school-settings.controller';
+import { DashboardSchoolSettingsService } from './dashboard-school-settings.service';
 import { MediaUploadService } from '../../upload/media-upload.service';
 
 @Module({
@@ -86,6 +88,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     DashboardActivitiesController,
     DashboardAlbumsController,
     DashboardUploadsController,
+    DashboardSchoolSettingsController,
   ],
   providers: [
     DashboardParentsService,
@@ -114,6 +117,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     DashboardNoticeTypesService,
     DashboardActivitiesService,
     DashboardAlbumsService,
+    DashboardSchoolSettingsService,
     MediaUploadService,
   ],
   exports: [DashboardGradesService],

@@ -2218,7 +2218,7 @@ export class ParentService {
       title: activity.title,
       content: activity.content,
       date: this.formatActivityDate(activity.date),
-      image: activity.image,
+      image: normalizePublicMediaUrl(activity.image) ?? '',
       yearTitle: activity.year?.title ?? null,
       schoolName:
         activity.year?.school.name ?? activity.person.school?.name ?? '',
