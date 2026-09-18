@@ -49,9 +49,8 @@ export class TeacherAttendanceService {
     date?: string,
   ): Promise<TeacherAttendanceOptionsDto> {
     this.teacherAccess.ensureTeacherRole(user);
-    const day = date ? parseDateOnly(date) : parseDateOnly(formatDateOnly(new Date()));
     const [scopes, reasons, policy] = await Promise.all([
-      this.eligibleScopes(user, day),
+      this.eligibleScopes(user),
       this.prisma.attendanceReason.findMany({
         where: { deletedAt: null, status: true },
         select: { id: true, title: true },
@@ -131,7 +130,7 @@ export class TeacherAttendanceService {
     const day = query.date
       ? parseDateOnly(query.date)
       : parseDateOnly(formatDateOnly(new Date()));
-    const scopes = await this.eligibleScopes(user, day);
+    const scopes = await this.eligibleScopes(user);
     const { page, limit, skip } = resolvePagination({
       page: query.page,
       limit: query.limit ?? 20,
@@ -213,16 +212,20 @@ export class TeacherAttendanceService {
       throw new BadRequestException('courseId is required for this school');
     }
     const courseId = policy.attendancePerCourse ? query.courseId : undefined;
-    const allowed = await this.teacherAccess.canTakeAttendance({
-      user,
-      sectionId: query.sectionId,
-      date: day,
-      courseId,
-    });
-    if (!allowed.allowed) {
-      throw new ForbiddenException(
-        'You cannot take attendance for this class',
-      );
+    if (policy.attendancePerCourse) {
+      const allowed = await this.teacherAccess.canTakeAttendance({
+        user,
+        sectionId: query.sectionId,
+        date: day,
+        courseId,
+      });
+      if (!allowed.allowed) {
+        throw new ForbiddenException(
+          'You cannot take attendance for this class',
+        );
+      }
+    } else {
+      await this.assertTeachesSection(user, query.sectionId);
     }
 
     const section = await this.teacherAccess.findSectionInSchool(
@@ -320,7 +323,12 @@ export class TeacherAttendanceService {
     this.teacherAccess.ensureTeacherRole(user);
     const day = parseDateOnly(dto.date);
     const policy = await this.attendancePolicy.getPolicy(user.schoolId);
-    const courseId = policy.attendancePerCourse ? dto.courseId : null;
+    if (!policy.attendancePerCourse) {
+      throw new ForbiddenException(
+        'Teachers can only view class attendance for this school',
+      );
+    }
+    const courseId = dto.courseId;
     const allowed = await this.teacherAccess.canTakeAttendance({
       user,
       sectionId: dto.sectionId,
@@ -332,7 +340,7 @@ export class TeacherAttendanceService {
         'You cannot take attendance for this class',
       );
     }
-    if (policy.attendancePerCourse && !courseId) {
+    if (!courseId) {
       throw new BadRequestException('courseId is required for this school');
     }
 
@@ -468,7 +476,6 @@ export class TeacherAttendanceService {
 
   private async eligibleScopes(
     user: AuthenticatedTeacher,
-    date: Date,
   ): Promise<EligibleScope[]> {
     const [policy, teaches] = await Promise.all([
       this.attendancePolicy.getPolicy(user.schoolId),
@@ -503,22 +510,10 @@ export class TeacherAttendanceService {
       }));
     }
 
-    const sectionIds = [...new Set(teaches.map((row) => row.sectionId))];
-    const firstSessions = await this.attendancePolicy.firstSessionsBySection(
-      user.schoolId,
-      sectionIds,
-      date,
-    );
     const seen = new Set<number>();
     const scopes: EligibleScope[] = [];
     for (const row of teaches) {
       if (seen.has(row.sectionId)) {
-        continue;
-      }
-      const first = firstSessions.get(row.sectionId);
-      const isFirstPerson = first?.personId === user.id;
-      const isFirstCourse = first?.courseId === row.courseId;
-      if (!isFirstPerson && !isFirstCourse) {
         continue;
       }
       seen.add(row.sectionId);
@@ -532,5 +527,24 @@ export class TeacherAttendanceService {
       });
     }
     return scopes;
+  }
+
+  private async assertTeachesSection(
+    user: AuthenticatedTeacher,
+    sectionId: number,
+  ): Promise<void> {
+    const assignment = await this.prisma.teach.findFirst({
+      where: {
+        teacherId: user.teacherId,
+        sectionId,
+        section: { schoolId: user.schoolId },
+      },
+      select: { id: true },
+    });
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You cannot view attendance for this class',
+      );
+    }
   }
 }

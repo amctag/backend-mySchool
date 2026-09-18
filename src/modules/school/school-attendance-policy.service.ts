@@ -81,42 +81,23 @@ export class SchoolAttendancePolicyService {
     date: Date;
     courseId?: number | null;
   }): Promise<{ allowed: boolean; courseId: number | null }> {
-    const [policy, firstSession] = await Promise.all([
-      this.getPolicy(params.schoolId),
-      this.findFirstSession(params.schoolId, params.sectionId, params.date),
-    ]);
-
-    if (policy.attendancePerCourse) {
-      const courseId = params.courseId ?? null;
-      if (!courseId) {
-        return { allowed: false, courseId: null };
-      }
-      const assignment = await this.prisma.teach.findFirst({
-        where: {
-          teacherId: params.teacherId,
-          sectionId: params.sectionId,
-          courseId,
-        },
-        select: { id: true },
-      });
-      return { allowed: assignment != null, courseId };
+    const policy = await this.getPolicy(params.schoolId);
+    if (!policy.attendancePerCourse) {
+      return { allowed: false, courseId: null };
     }
 
-    const firstCourseId = firstSession?.courseId ?? null;
-    if (firstSession?.personId === params.teacherPersonId) {
-      return { allowed: true, courseId: null };
-    }
-    if (!firstCourseId) {
+    const courseId = params.courseId ?? null;
+    if (!courseId) {
       return { allowed: false, courseId: null };
     }
     const assignment = await this.prisma.teach.findFirst({
       where: {
         teacherId: params.teacherId,
         sectionId: params.sectionId,
-        courseId: firstCourseId,
+        courseId,
       },
       select: { id: true },
     });
-    return { allowed: assignment != null, courseId: null };
+    return { allowed: assignment != null, courseId };
   }
 }

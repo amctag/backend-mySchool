@@ -36,7 +36,7 @@ export class TeacherAttendanceController {
   @ApiOperation({
     summary: 'List my attendance options',
     description:
-      'Classes the logged-in teacher can take attendance for on the given date. Honors the school attendance-per-course setting (first-session teacher vs each assigned course).',
+      'Classes the logged-in teacher can view or take attendance for. When the school does not record attendance per course, teachers can only view class attendance.',
   })
   @ApiOkResponse({ type: TeacherAttendanceOptionsDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
@@ -69,7 +69,7 @@ export class TeacherAttendanceController {
   @ApiOperation({
     summary: 'List my attendance sheets',
     description:
-      'Attendance taken for classes the logged-in teacher is allowed to mark on the selected date.',
+      'Attendance for classes the logged-in teacher teaches. Teachers may save marks only when the school records attendance per course.',
   })
   @ApiOkResponse({ type: TeacherAttendancesResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
@@ -84,7 +84,7 @@ export class TeacherAttendanceController {
   @ApiOperation({
     summary: 'Save attendance for each student',
     description:
-      'Creates or replaces the attendance sheet for one eligible section (and course when required).',
+      'Creates or replaces the attendance sheet for one assigned course. Not allowed when the school records one class attendance instead of per course.',
   })
   @ApiCreatedResponse({ type: TeacherAttendanceSheetDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
