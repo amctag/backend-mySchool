@@ -24,6 +24,8 @@ import { TeacherAlbumsController } from './teacher-albums.controller';
 import { TeacherAlbumsService } from './teacher-albums.service';
 import { TeacherGradesController } from './teacher-grades.controller';
 import { TeacherGradesService } from './teacher-grades.service';
+import { TeacherAttendanceController } from './teacher-attendance.controller';
+import { TeacherAttendanceService } from './teacher-attendance.service';
 import { MediaUploadService } from '../../upload/media-upload.service';
 
 @Module({
@@ -38,6 +40,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     TeacherAgendaController,
     TeacherUploadsController,
     TeacherGradesController,
+    TeacherAttendanceController,
     TeacherAnnouncementsController,
     TeacherActivitiesController,
     TeacherAlbumsController,
@@ -50,6 +53,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     TeacherNoticesService,
     TeacherAgendaService,
     TeacherGradesService,
+    TeacherAttendanceService,
     TeacherAnnouncementsService,
     TeacherActivitiesService,
     TeacherAlbumsService,

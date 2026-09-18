@@ -33,26 +33,44 @@ export class SchoolAttendancePolicyService {
     sectionId: number,
     date: Date,
   ): Promise<FirstSessionSlot | null> {
-    const slot = await this.prisma.weeklyScheduleDetail.findFirst({
+    const map = await this.firstSessionsBySection(schoolId, [sectionId], date);
+    return map.get(sectionId) ?? null;
+  }
+
+  async firstSessionsBySection(
+    schoolId: number,
+    sectionIds: number[],
+    date: Date,
+  ): Promise<Map<number, FirstSessionSlot>> {
+    const result = new Map<number, FirstSessionSlot>();
+    if (sectionIds.length === 0) {
+      return result;
+    }
+    const rows = await this.prisma.weeklyScheduleDetail.findMany({
       where: {
-        schedule: { sectionId },
+        schedule: { sectionId: { in: sectionIds } },
         day: { schoolId, position: this.weekdayPosition(date) },
       },
       orderBy: { session: { position: 'asc' } },
       select: {
         courseId: true,
         personId: true,
+        schedule: { select: { sectionId: true } },
         session: { select: { position: true } },
       },
     });
-    if (!slot) {
-      return null;
+    for (const row of rows) {
+      const sectionId = row.schedule.sectionId;
+      if (result.has(sectionId)) {
+        continue;
+      }
+      result.set(sectionId, {
+        courseId: row.courseId,
+        personId: row.personId,
+        sessionPosition: row.session.position,
+      });
     }
-    return {
-      courseId: slot.courseId,
-      personId: slot.personId,
-      sessionPosition: slot.session.position,
-    };
+    return result;
   }
 
   async canTeacherTakeAttendance(params: {
