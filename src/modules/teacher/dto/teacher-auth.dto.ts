@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import {
   IsInt,
   IsNotEmpty,
@@ -13,13 +13,13 @@ import {
 
 export class TeacherLoginDto {
   @ApiProperty({
-    example: 'sara.nasser',
-    description: 'Teacher username',
+    example: 42,
+    description: 'Person ID or teacher ID used to sign in',
   })
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  @IsString()
-  @IsNotEmpty()
-  username!: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  id!: number;
 
   @ApiProperty({ example: 'password123' })
   @IsString()

@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../../auth/auth.module';
 import { PrismaModule } from '../../database/prisma/prisma.module';
+import { SchoolModule } from '../school/school.module';
 import { TeacherAccessService } from './teacher-access.service';
 import { TeacherAuthController } from './teacher-auth.controller';
 import { TeacherAuthService } from './teacher-auth.service';
+import { TeacherSupportController } from './teacher-support.controller';
 import { TeacherProfileController } from './teacher-profile.controller';
 import { TeacherClassesController } from './teacher-classes.controller';
 import { TeacherClassesService } from './teacher-classes.service';
@@ -25,9 +27,10 @@ import { TeacherGradesService } from './teacher-grades.service';
 import { MediaUploadService } from '../../upload/media-upload.service';
 
 @Module({
-  imports: [AuthModule, PrismaModule],
+  imports: [AuthModule, PrismaModule, SchoolModule],
   controllers: [
     TeacherAuthController,
+    TeacherSupportController,
     TeacherProfileController,
     TeacherScheduleController,
     TeacherClassesController,

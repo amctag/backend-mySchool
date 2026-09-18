@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -16,6 +17,7 @@ import {
 } from '../../auth/interfaces/jwt-payload.interface';
 import { SessionService } from '../../auth/services/session.service';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { SchoolService } from '../school/school.service';
 import { TeacherAccessService } from './teacher-access.service';
 import {
   TeacherLoginDto,
@@ -29,6 +31,8 @@ import {
   TeacherChangePasswordResponseDto,
   TeacherMeResponseDto,
 } from './dto/teacher-profile.dto';
+import { TeacherSchoolDetailsResponseDto } from './dto/teacher-school-details-response.dto';
+import { TeacherSupportSchoolsDto } from './dto/teacher-support-schools.dto';
 import { formatFullName } from './teacher.util';
 
 type LoginTeacherPerson = {
@@ -39,6 +43,8 @@ type LoginTeacherPerson = {
   lastName: string;
   email: string | null;
   phoneNumber: string | null;
+  paid: boolean;
+  status: boolean;
   teacher: { id: number };
 };
 
@@ -50,6 +56,7 @@ export class TeacherAuthService {
     private readonly configService: ConfigService,
     private readonly sessionService: SessionService,
     private readonly teacherAccess: TeacherAccessService,
+    private readonly schoolService: SchoolService,
   ) {}
 
   async login(loginDto: TeacherLoginDto): Promise<TeacherLoginResponseDto> {
@@ -222,13 +229,83 @@ export class TeacherAuthService {
     return { message: 'Password changed successfully' };
   }
 
+  async getSupportSchools(
+    dto: TeacherSupportSchoolsDto,
+  ): Promise<TeacherSchoolDetailsResponseDto> {
+    let person = await this.prisma.person.findFirst({
+      where: {
+        id: dto.id,
+        teacher: { isNot: null },
+      },
+      select: {
+        id: true,
+        teacher: { select: { id: true } },
+      },
+    });
+
+    if (!person?.teacher) {
+      const teacherById = await this.prisma.teacher.findUnique({
+        where: { id: dto.id },
+        select: {
+          id: true,
+          person: { select: { id: true } },
+        },
+      });
+
+      if (teacherById?.person) {
+        person = {
+          id: teacherById.person.id,
+          teacher: { id: teacherById.id },
+        };
+      }
+    }
+
+    if (!person?.teacher) {
+      throw new NotFoundException('No teacher account found for this ID.');
+    }
+
+    const schoolLinks = await this.prisma.teacherSchool.findMany({
+      where: {
+        teacherId: person.teacher.id,
+        isActive: true,
+        school: { isActive: true },
+      },
+      select: { schoolId: true },
+      orderBy: { id: 'asc' },
+    });
+
+    const schoolIds = [
+      ...new Set(schoolLinks.map((link) => link.schoolId)),
+    ];
+
+    if (schoolIds.length === 0) {
+      throw new NotFoundException(
+        'No school is linked to this teacher account yet.',
+      );
+    }
+
+    const schools = await this.schoolService.getSchoolDetailsForSchoolIds(
+      schoolIds,
+    );
+
+    if (schools.length === 0) {
+      throw new NotFoundException(
+        'No school contact details were found for this ID.',
+      );
+    }
+
+    return { schools };
+  }
+
   private async validateCredentials(
     loginDto: TeacherLoginDto,
   ): Promise<LoginTeacherPerson> {
-    const candidates = await this.prisma.person.findMany({
+    // Accept either persons.id or teachers.id (same as support lookup).
+    // Do not require status here — after password check we return a distinct
+    // 403 so the app can prompt the teacher to contact support.
+    let person = await this.prisma.person.findFirst({
       where: {
-        username: { equals: loginDto.username, mode: 'insensitive' },
-        status: true,
+        id: loginDto.id,
         teacher: { isNot: null },
       },
       include: {
@@ -236,27 +313,53 @@ export class TeacherAuthService {
       },
     });
 
-    if (candidates.length === 0) {
-      throw new UnauthorizedException('Invalid username or password');
-    }
+    if (!person?.teacher) {
+      const teacherById = await this.prisma.teacher.findUnique({
+        where: { id: loginDto.id },
+        select: {
+          id: true,
+          person: true,
+        },
+      });
 
-    for (const candidate of candidates) {
-      let passwordMatches = false;
-      try {
-        passwordMatches = await bcrypt.compare(
-          loginDto.password,
-          candidate.password,
-        );
-      } catch {
-        continue;
-      }
-
-      if (passwordMatches && candidate.teacher) {
-        return candidate as LoginTeacherPerson;
+      if (teacherById?.person) {
+        person = {
+          ...teacherById.person,
+          teacher: { id: teacherById.id },
+        };
       }
     }
 
-    throw new UnauthorizedException('Invalid username or password');
+    if (!person?.teacher) {
+      throw new UnauthorizedException('Invalid ID or password');
+    }
+
+    let passwordMatches = false;
+    try {
+      passwordMatches = await bcrypt.compare(
+        loginDto.password,
+        person.password,
+      );
+    } catch {
+      passwordMatches = false;
+    }
+
+    if (!passwordMatches) {
+      throw new UnauthorizedException('Invalid ID or password');
+    }
+
+    if (!person.paid) {
+      throw new ForbiddenException(
+        'Payment is required. Contact support for help.',
+      );
+    }
+    if (!person.status) {
+      throw new ForbiddenException(
+        'This account is inactive. Contact support for help.',
+      );
+    }
+
+    return person as LoginTeacherPerson;
   }
 
   private async resolveSchool(teacherId: number, schoolId?: number) {
@@ -272,10 +375,10 @@ export class TeacherAuthService {
     });
 
     if (!schoolLink) {
-      throw new UnauthorizedException(
+      throw new ForbiddenException(
         schoolId
-          ? 'Teacher is not active in the requested school'
-          : 'Teacher is not assigned to an active school',
+          ? 'Teacher is not active in the requested school. Contact support for help.'
+          : 'This account is inactive. Contact support for help.',
       );
     }
 
