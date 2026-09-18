@@ -13,6 +13,7 @@ model School {
   password  String   @db.VarChar(255)
   isActive  Boolean  @default(true) @map("is_active")
   teachersSeeAllClassCourses Boolean @default(true) @map("teachers_see_all_class_courses")
+  attendancePerCourse Boolean @default(false) @map("attendance_per_course")
   sessionId String?  @unique @map("session_id") @db.Uuid
   refreshTokenHash String? @unique @map("refresh_token_hash") @db.VarChar(64)
   refreshExpiresAt DateTime? @map("refresh_expires_at") @db.Timestamptz(6)
@@ -349,6 +350,7 @@ model Course {
   activities            Activity[]
   examScheduleDetails   ExamScheduleDetail[]
   grades                Grade[]
+  attendances           Attendance[]
 
   @@map("courses")
 }
@@ -681,18 +683,22 @@ model AttendanceReason {
 model Attendance {
   id        Int       @id @default(autoincrement())
   date      DateTime  @db.Date
-  sectionId Int       @map("section_id")
+  sectionId Int?      @map("section_id")
+  courseId  Int?      @map("course_id")
   status    Boolean   @default(true)
   personId  Int       @map("person_id")
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  section Section            @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  section Section?           @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  course  Course?            @relation(fields: [courseId], references: [id], onDelete: Restrict)
   person  Person             @relation(fields: [personId], references: [id], onDelete: Restrict)
   details AttendanceDetail[]
 
   @@index([sectionId, date])
+  @@index([sectionId, courseId, date])
+  @@index([courseId, date])
   @@map("attendance")
 }
 

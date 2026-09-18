@@ -7,23 +7,29 @@ export class DashboardAttendanceListItemDto {
   @ApiProperty({ example: '2026-09-04' })
   date!: string;
 
-  @ApiProperty({ example: 1 })
-  sectionId!: number;
+  @ApiProperty({ example: 1, nullable: true })
+  sectionId!: number | null;
 
-  @ApiProperty({ example: 'A' })
-  sectionTitle!: string;
+  @ApiProperty({ example: 'A', nullable: true })
+  sectionTitle!: string | null;
 
-  @ApiProperty({ example: 1 })
-  classId!: number;
+  @ApiProperty({ example: 1, nullable: true })
+  classId!: number | null;
 
-  @ApiProperty({ example: 'Grade 2' })
-  className!: string;
+  @ApiProperty({ example: 'Grade 2', nullable: true })
+  className!: string | null;
 
-  @ApiProperty({ example: 1 })
-  yearId!: number;
+  @ApiPropertyOptional({ example: 11, nullable: true })
+  courseId!: number | null;
 
-  @ApiProperty({ example: '2026-2027' })
-  yearTitle!: string;
+  @ApiPropertyOptional({ example: 'Mathematics', nullable: true })
+  courseTitle!: string | null;
+
+  @ApiProperty({ example: 1, nullable: true })
+  yearId!: number | null;
+
+  @ApiProperty({ example: '2026-2027', nullable: true })
+  yearTitle!: string | null;
 
   @ApiProperty({ example: true })
   status!: boolean;
@@ -96,6 +102,12 @@ export class DashboardAttendanceSheetDto {
 
   @ApiProperty({ example: 'Grade 2' })
   className!: string;
+
+  @ApiPropertyOptional({ example: 11, nullable: true })
+  courseId!: number | null;
+
+  @ApiPropertyOptional({ example: 'Mathematics', nullable: true })
+  courseTitle!: string | null;
 
   @ApiProperty({ example: 1 })
   yearId!: number;

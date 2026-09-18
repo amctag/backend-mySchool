@@ -69,6 +69,13 @@ export class DashboardAttendancesQueryDto {
   @Min(1)
   sectionId?: number;
 
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  courseId?: number;
+
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @Transform(toOptionalBoolean)

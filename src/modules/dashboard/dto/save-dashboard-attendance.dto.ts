@@ -46,6 +46,13 @@ export class SaveDashboardAttendanceDto {
   @Min(1)
   sectionId!: number;
 
+  @ApiPropertyOptional({ example: 11, nullable: true })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  courseId?: number | null;
+
   @ApiProperty({ example: '2026-09-04' })
   @IsDateString()
   date!: string;

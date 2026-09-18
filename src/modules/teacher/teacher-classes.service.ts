@@ -84,7 +84,6 @@ export class TeacherClassesService {
     const [
       seeAllCourses,
       assignedTeaches,
-      primaryTeach,
       students,
       rosterRows,
       days,
@@ -95,14 +94,6 @@ export class TeacherClassesService {
       this.prisma.teach.findMany({
         where: {
           teacherId: user.teacherId,
-          sectionId: classId,
-          ...(yearId ? { yearId } : {}),
-        },
-        include: { course: { select: { title: true } } },
-        orderBy: { id: 'asc' },
-      }),
-      this.prisma.teach.findFirst({
-        where: {
           sectionId: classId,
           ...(yearId ? { yearId } : {}),
         },
@@ -170,28 +161,29 @@ export class TeacherClassesService {
       entriesByDay.set(detail.day.id, bucket);
     }
 
-    const courseTitles = assignedTeaches.map((row) => row.course.title);
+    const visibleRoster = rosterRows.filter(
+      (row) => seeAllCourses || row.teacherId === user.teacherId,
+    );
+    const courseTitles = [
+      ...new Set(visibleRoster.map((row) => row.course.title)),
+    ];
     const summary: TeacherClassSummaryDto = {
       id: section.id,
       className: section.class.className,
       sectionTitle: section.sectionTitle.title,
       yearTitle: section.year.title,
       stage: section.class.stage.title,
-      primaryCourseTitle:
-        courseTitles.join(', ') ||
-        (seeAllCourses ? primaryTeach?.course.title || '' : ''),
+      primaryCourseTitle: courseTitles.join(', '),
       courseTitles,
       studentCount: students.length,
       isAssignedToCurrentTeacher: assignedTeaches.length > 0,
     };
 
-    const roster: TeacherClassRosterEntryDto[] = rosterRows
-      .filter((row) => seeAllCourses || row.teacherId === user.teacherId)
-      .map((row) => ({
-        teacherName: formatFullName(row.teacher.person),
-        courseTitle: row.course.title,
-        isCurrentTeacher: row.teacherId === user.teacherId,
-      }));
+    const roster: TeacherClassRosterEntryDto[] = visibleRoster.map((row) => ({
+      teacherName: formatFullName(row.teacher.person),
+      courseTitle: row.course.title,
+      isCurrentTeacher: row.teacherId === user.teacherId,
+    }));
 
     return {
       summary,
@@ -286,16 +278,17 @@ export class TeacherClassesService {
         const assigned = section.teaches.filter(
           (teach) => teach.teacherId === user.teacherId,
         );
-        const courseTitles = assigned.map((teach) => teach.course.title);
+        const visibleTeaches = seeAllCourses ? section.teaches : assigned;
+        const courseTitles = [
+          ...new Set(visibleTeaches.map((teach) => teach.course.title)),
+        ];
         return {
           id: section.id,
           className: section.class.className,
           sectionTitle: section.sectionTitle.title,
           yearTitle: section.year.title,
           stage: section.class.stage.title,
-          primaryCourseTitle:
-            courseTitles.join(', ') ||
-            (seeAllCourses ? section.teaches[0]?.course.title || '' : ''),
+          primaryCourseTitle: courseTitles.join(', '),
           courseTitles,
           studentCount: section._count.registrations,
           isAssignedToCurrentTeacher: assigned.length > 0,

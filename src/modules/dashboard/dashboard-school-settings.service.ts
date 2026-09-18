@@ -15,7 +15,11 @@ export class DashboardSchoolSettingsService {
   ): Promise<DashboardSchoolSettingsDto> {
     const school = await this.prisma.school.findUnique({
       where: { id: user.schoolId },
-      select: { id: true, teachersSeeAllClassCourses: true },
+      select: {
+        id: true,
+        teachersSeeAllClassCourses: true,
+        attendancePerCourse: true,
+      },
     });
     if (!school) {
       throw new NotFoundException('School not found');
@@ -30,9 +34,18 @@ export class DashboardSchoolSettingsService {
     const school = await this.prisma.school.update({
       where: { id: user.schoolId },
       data: {
-        teachersSeeAllClassCourses: dto.teachersSeeAllClassCourses,
+        ...(dto.teachersSeeAllClassCourses !== undefined
+          ? { teachersSeeAllClassCourses: dto.teachersSeeAllClassCourses }
+          : {}),
+        ...(dto.attendancePerCourse !== undefined
+          ? { attendancePerCourse: dto.attendancePerCourse }
+          : {}),
       },
-      select: { id: true, teachersSeeAllClassCourses: true },
+      select: {
+        id: true,
+        teachersSeeAllClassCourses: true,
+        attendancePerCourse: true,
+      },
     });
     return this.toDto(school);
   }
@@ -40,10 +53,12 @@ export class DashboardSchoolSettingsService {
   private toDto(school: {
     id: number;
     teachersSeeAllClassCourses: boolean;
+    attendancePerCourse: boolean;
   }): DashboardSchoolSettingsDto {
     return {
       schoolId: school.id,
       teachersSeeAllClassCourses: school.teachersSeeAllClassCourses,
+      attendancePerCourse: school.attendancePerCourse,
     };
   }
 }

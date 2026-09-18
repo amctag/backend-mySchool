@@ -60,11 +60,17 @@ export class DashboardAttendancesController {
     @Req() request: Request & { user: AuthenticatedSchool },
     @Query('sectionId', ParseIntPipe) sectionId: number,
     @Query('date') date: string,
+    @Query('courseId') courseId?: string,
   ): Promise<DashboardAttendanceSheetDto> {
+    const parsedCourseId =
+      courseId !== undefined && courseId !== ''
+        ? Number.parseInt(courseId, 10)
+        : undefined;
     return this.dashboardAttendancesService.getAttendanceSheet(
       request.user,
       sectionId,
       date,
+      Number.isInteger(parsedCourseId) ? parsedCourseId : undefined,
     );
   }
 

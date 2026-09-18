@@ -43,6 +43,7 @@ export class DashboardAttendancesService {
               sectionTitle: { select: { title: true } },
             },
           },
+          course: { select: { id: true, title: true } },
           details: {
             where: { deletedAt: null },
             select: { status: true },
@@ -60,11 +61,13 @@ export class DashboardAttendancesService {
         id: row.id,
         date: this.formatDate(row.date),
         sectionId: row.sectionId,
-        sectionTitle: row.section.sectionTitle.title,
-        classId: row.section.class.id,
-        className: row.section.class.className,
-        yearId: row.section.year.id,
-        yearTitle: row.section.year.title,
+        sectionTitle: row.section?.sectionTitle.title ?? null,
+        classId: row.section?.class.id ?? null,
+        className: row.section?.class.className ?? null,
+        courseId: row.courseId,
+        courseTitle: row.course?.title ?? null,
+        yearId: row.section?.year.id ?? null,
+        yearTitle: row.section?.year.title ?? null,
         status: row.status,
         studentCount: row.details.length,
         absentCount: row.details.filter((d) => d.status === 'absent').length,
@@ -80,11 +83,12 @@ export class DashboardAttendancesService {
     user: AuthenticatedSchool,
     sectionId: number,
     date: string,
+    courseId?: number,
   ): Promise<DashboardAttendanceSheetDto> {
     const section = await this.findSectionForSchool(user.schoolId, sectionId);
     const day = this.parseDateOnly(date);
 
-    const [registrations, existing] = await Promise.all([
+    const [registrations, existing, course] = await Promise.all([
       this.prisma.registration.findMany({
         where: {
           schoolId: user.schoolId,
@@ -107,6 +111,7 @@ export class DashboardAttendancesService {
           sectionId,
           date: day,
           deletedAt: null,
+          courseId: courseId ?? null,
           section: { schoolId: user.schoolId },
         },
         include: {
@@ -118,6 +123,12 @@ export class DashboardAttendancesService {
           },
         },
       }),
+      courseId
+        ? this.prisma.course.findFirst({
+            where: { id: courseId, schoolId: user.schoolId },
+            select: { id: true, title: true },
+          })
+        : Promise.resolve(null),
     ]);
 
     const detailByStudent = new Map(
@@ -131,6 +142,8 @@ export class DashboardAttendancesService {
       sectionTitle: section.sectionTitle.title,
       classId: section.class.id,
       className: section.class.className,
+      courseId: course?.id ?? courseId ?? null,
+      courseTitle: course?.title ?? null,
       yearId: section.year.id,
       yearTitle: section.year.title,
       students: registrations.map((registration) => {
@@ -162,15 +175,16 @@ export class DashboardAttendancesService {
         deletedAt: null,
         section: { schoolId: user.schoolId },
       },
-      include: {
-        section: {
-          include: {
-            class: { select: { id: true, className: true } },
-            year: { select: { id: true, title: true } },
-            sectionTitle: { select: { title: true } },
+        include: {
+          section: {
+            include: {
+              class: { select: { id: true, className: true } },
+              year: { select: { id: true, title: true } },
+              sectionTitle: { select: { title: true } },
+            },
           },
-        },
-        details: {
+          course: { select: { id: true, title: true } },
+          details: {
           where: { deletedAt: null },
           include: {
             attendanceReason: { select: { id: true, title: true } },
@@ -190,7 +204,7 @@ export class DashboardAttendancesService {
       },
     });
 
-    if (!row) {
+    if (!row || !row.section || row.sectionId == null) {
       throw new NotFoundException('Attendance not found');
     }
 
@@ -213,6 +227,8 @@ export class DashboardAttendancesService {
       sectionTitle: row.section.sectionTitle.title,
       classId: row.section.class.id,
       className: row.section.class.className,
+      courseId: row.courseId,
+      courseTitle: row.course?.title ?? null,
       yearId: row.section.year.id,
       yearTitle: row.section.year.title,
       status: row.status,
@@ -300,6 +316,7 @@ export class DashboardAttendancesService {
         sectionId: body.sectionId,
         date: day,
         deletedAt: null,
+        courseId: body.courseId ?? null,
       },
       select: { id: true },
     });
@@ -314,6 +331,7 @@ export class DashboardAttendancesService {
           data: {
             status: true,
             personId: DASHBOARD_CREATOR_PERSON_ID,
+            courseId: body.courseId ?? null,
           },
         });
         await tx.attendanceDetail.createMany({
@@ -338,6 +356,7 @@ export class DashboardAttendancesService {
         data: {
           date: day,
           sectionId: section.id,
+          courseId: body.courseId ?? null,
           personId: DASHBOARD_CREATOR_PERSON_ID,
           status: true,
           details: {
@@ -400,6 +419,7 @@ export class DashboardAttendancesService {
         ...(query.classId ? { classId: query.classId } : {}),
       },
       ...(query.sectionId ? { sectionId: query.sectionId } : {}),
+      ...(query.courseId ? { courseId: query.courseId } : {}),
       ...(query.status !== undefined ? { status: query.status } : {}),
     };
 

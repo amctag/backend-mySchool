@@ -6,6 +6,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { AuthenticatedTeacher } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { SchoolAttendancePolicyService } from '../school/school-attendance-policy.service';
 
 export const assignmentInclude = {
   course: { select: { id: true, title: true } },
@@ -32,7 +33,10 @@ export type TeacherAssignmentRecord = Prisma.TeachGetPayload<{
 
 @Injectable()
 export class TeacherAccessService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly attendancePolicy: SchoolAttendancePolicyService,
+  ) {}
 
   ensureTeacherRole(user: AuthenticatedTeacher): void {
     if (user.role !== 'teacher' || !user.teacherId || !user.schoolId) {
@@ -126,5 +130,22 @@ export class TeacherAccessService {
     }
 
     return section;
+  }
+
+  canTakeAttendance(params: {
+    user: AuthenticatedTeacher;
+    sectionId: number;
+    date: Date;
+    courseId?: number | null;
+  }) {
+    this.ensureTeacherRole(params.user);
+    return this.attendancePolicy.canTeacherTakeAttendance({
+      schoolId: params.user.schoolId,
+      teacherPersonId: params.user.id,
+      teacherId: params.user.teacherId,
+      sectionId: params.sectionId,
+      date: params.date,
+      courseId: params.courseId,
+    });
   }
 }
