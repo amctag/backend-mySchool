@@ -91,6 +91,13 @@ export class TeacherAgendaItemDto {
     description: 'When true, parents can see this agenda.',
   })
   published!: boolean;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'True when the logged-in teacher created this agenda and can edit or delete it.',
+  })
+  isOwn!: boolean;
 }
 
 export class TeacherAgendasResponseDto {

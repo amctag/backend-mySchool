@@ -65,13 +65,37 @@ export class TeacherAgendaService {
       limit: query.limit ?? 100,
     });
 
+    const sectionIds = await this.taughtSectionIds(user);
+    if (sectionIds.length === 0) {
+      return {
+        items: [],
+        pagination: buildPaginationMeta(page, limit, 0),
+      };
+    }
+
+    const filterSectionIds =
+      query.classId != null
+        ? sectionIds.includes(query.classId)
+          ? [query.classId]
+          : []
+        : sectionIds;
+
+    if (filterSectionIds.length === 0) {
+      return {
+        items: [],
+        pagination: buildPaginationMeta(page, limit, 0),
+      };
+    }
+
     const where: Prisma.AgendaWhereInput = {
       deletedAt: null,
-      personId: user.id,
       course: { schoolId: user.schoolId },
-      ...(query.classId
-        ? { sections: { some: { deletedAt: null, sectionId: query.classId } } }
-        : {}),
+      sections: {
+        some: {
+          deletedAt: null,
+          sectionId: { in: filterSectionIds },
+        },
+      },
       ...(query.agendaDate
         ? { agendaDate: parseDateOnly(query.agendaDate) }
         : query.month
@@ -99,7 +123,7 @@ export class TeacherAgendaService {
     );
 
     return {
-      items: rows.map((row) => this.toItem(row, assignmentIds)),
+      items: rows.map((row) => this.toItem(row, assignmentIds, user.id)),
       pagination: buildPaginationMeta(page, limit, total),
     };
   }
@@ -129,7 +153,11 @@ export class TeacherAgendaService {
 
     await this.notifyParentsOfAgenda(created);
 
-    return this.toItem(created, new Map([[this.key(assignment.courseId, assignment.sectionId), assignment.id]]));
+    return this.toItem(
+      created,
+      new Map([[this.key(assignment.courseId, assignment.sectionId), assignment.id]]),
+      user.id,
+    );
   }
 
   async getAgenda(
@@ -137,12 +165,18 @@ export class TeacherAgendaService {
     agendaId: number,
   ): Promise<TeacherAgendaItemDto> {
     this.teacherAccess.ensureTeacherRole(user);
+    const sectionIds = await this.taughtSectionIds(user);
     const row = await this.prisma.agenda.findFirst({
       where: {
         id: agendaId,
-        personId: user.id,
         deletedAt: null,
         course: { schoolId: user.schoolId },
+        sections: {
+          some: {
+            deletedAt: null,
+            sectionId: { in: sectionIds.length > 0 ? sectionIds : [-1] },
+          },
+        },
       },
       include: agendaInclude,
     });
@@ -156,7 +190,7 @@ export class TeacherAgendaService {
         sectionId: row.sections[0]?.section.id,
       },
     ]);
-    return this.toItem(row, assignmentIds);
+    return this.toItem(row, assignmentIds, user.id);
   }
 
   async publishAgenda(
@@ -176,7 +210,7 @@ export class TeacherAgendaService {
       },
     ]);
     await this.notifyParentsOfAgenda(published);
-    return this.toItem(published, assignmentIds);
+    return this.toItem(published, assignmentIds, user.id);
   }
 
   async updateAgenda(
@@ -218,6 +252,7 @@ export class TeacherAgendaService {
     return this.toItem(
       updated,
       new Map([[this.key(assignment.courseId, assignment.sectionId), assignment.id]]),
+      user.id,
     );
   }
 
@@ -308,6 +343,19 @@ export class TeacherAgendaService {
     return assignment;
   }
 
+  private async taughtSectionIds(
+    user: AuthenticatedTeacher,
+  ): Promise<number[]> {
+    const rows = await this.prisma.teach.findMany({
+      where: {
+        teacherId: user.teacherId,
+        section: { schoolId: user.schoolId },
+      },
+      select: { sectionId: true },
+    });
+    return [...new Set(rows.map((row) => row.sectionId))];
+  }
+
   private async resolveAssignmentIds(
     user: AuthenticatedTeacher,
     pairs: Array<{ courseId: number; sectionId?: number }>,
@@ -339,6 +387,7 @@ export class TeacherAgendaService {
   private toItem(
     row: AgendaRecord,
     assignmentIds: Map<string, number>,
+    viewerPersonId: number,
   ): TeacherAgendaItemDto {
     const section = row.sections[0]?.section;
     if (!section) {
@@ -362,6 +411,7 @@ export class TeacherAgendaService {
       imageLink: row.imageLink || null,
       fileLink: normalizePublicMediaUrl(row.fileLink),
       published: row.status === 1,
+      isOwn: row.personId === viewerPersonId,
     };
   }
 

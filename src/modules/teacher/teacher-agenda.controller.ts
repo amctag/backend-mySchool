@@ -42,9 +42,9 @@ export class TeacherAgendaController {
 
   @Get('me/agendas')
   @ApiOperation({
-    summary: 'List my agendas',
+    summary: 'List agendas for my classes',
     description:
-      'Agendas created by the logged-in teacher. Optional classId, agendaDate (YYYY-MM-DD), or month (YYYY-MM) filters.',
+      'Agendas linked to sections the teacher teaches (not only agendas they created). Optional classId, agendaDate (YYYY-MM-DD), or month (YYYY-MM) filters. isOwn marks items the teacher can edit.',
   })
   @ApiOkResponse({ type: TeacherAgendasResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
@@ -75,7 +75,11 @@ export class TeacherAgendaController {
   }
 
   @Get('me/agendas/:agendaId')
-  @ApiOperation({ summary: 'Get one of my agendas' })
+  @ApiOperation({
+    summary: 'Get one agenda for my classes',
+    description:
+      'Returns an agenda in a section the teacher teaches. Edit/delete remain limited to agendas they created (isOwn).',
+  })
   @ApiOkResponse({ type: TeacherAgendaItemDto })
   @ApiNotFoundResponse({ description: 'Agenda not found' })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
