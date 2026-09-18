@@ -31,7 +31,7 @@ export class TeacherAuthController {
   @ApiOperation({
     summary: 'Teacher login',
     description:
-      'Authenticates a teacher by username and password. Optional fcmToken is stored when sent (one row per person). Returns an access token and refresh token. If the teacher belongs to multiple schools, pass schoolId to choose one; otherwise the first active school is used.',
+      'Authenticates a teacher by username and password. Optional fcmToken is stored when sent (one row per person). Returns an access token and refresh token. Multiple devices can stay logged in at the same time. If the teacher belongs to multiple schools, pass schoolId to choose one; otherwise the first active school is used.',
   })
   @ApiOkResponse({ type: TeacherLoginResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
@@ -54,7 +54,11 @@ export class TeacherAuthController {
 
   @Post('logout')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Teacher logout' })
+  @ApiOperation({
+    summary: 'Teacher logout',
+    description:
+      'Ends only the current device session. Other logged-in devices stay signed in.',
+  })
   @ApiOkResponse({ type: TeacherLogoutResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
   logout(

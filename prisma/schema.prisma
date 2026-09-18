@@ -509,7 +509,7 @@ model TeacherSession {
   person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  @@unique([personId])
+  @@index([personId])
   @@index([schoolId])
   @@map("teacher_sessions")
 }

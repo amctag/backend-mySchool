@@ -133,8 +133,10 @@ export class TeacherAuthService {
 
   async logout(user: AuthenticatedTeacher): Promise<TeacherLogoutResponseDto> {
     this.teacherAccess.ensureTeacherRole(user);
-    await this.revokeTeacherSessions(user.id);
-    await this.prisma.fcmToken.deleteMany({ where: { personId: user.id } });
+    await this.prisma.teacherSession.deleteMany({
+      where: { id: user.sessionId, personId: user.id },
+    });
+    await this.sessionService.cleanupExpiredSessions();
     return { message: 'Logged out successfully' };
   }
 
@@ -287,10 +289,6 @@ export class TeacherAuthService {
     const refreshToken = this.generateRefreshToken();
     const refreshExpiresAt = this.getRefreshExpiryDate();
 
-    await this.prisma.teacherSession.deleteMany({
-      where: { personId: person.id },
-    });
-
     const session = await this.prisma.teacherSession.create({
       data: {
         personId: person.id,
@@ -359,11 +357,6 @@ export class TeacherAuthService {
     return person as LoginTeacherPerson | null;
   }
 
-  private async revokeTeacherSessions(personId: number): Promise<void> {
-    await this.prisma.teacherSession.deleteMany({ where: { personId } });
-    await this.sessionService.cleanupExpiredSessions();
-  }
-
   private generateRefreshToken(): string {
     return randomBytes(48).toString('base64url');
   }
@@ -380,7 +373,7 @@ export class TeacherAuthService {
   private getRefreshExpiryDate(): Date {
     const refreshExpiresIn = (this.configService.get<string>(
       'jwt.refreshExpiresIn',
-    ) ?? '7d') as StringValue;
+    ) ?? '90d') as StringValue;
     const ttl = ms(refreshExpiresIn);
 
     if (typeof ttl !== 'number') {
