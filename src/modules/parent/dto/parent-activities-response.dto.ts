@@ -21,6 +21,12 @@ export class ParentActivityItemDto {
 
   @ApiProperty({ example: 'Green Valley School' })
   schoolName!: string;
+
+  @ApiProperty({ example: 'Grade 2 - Section A', nullable: true })
+  classLabel!: string | null;
+
+  @ApiProperty({ example: 'Mathematics', nullable: true })
+  courseTitle!: string | null;
 }
 
 export class ParentActivitiesResponseDto {

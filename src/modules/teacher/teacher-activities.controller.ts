@@ -1,6 +1,18 @@
-import { Controller, Get, Param, ParseIntPipe, Query, Req } from '@nestjs/common';
 import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
+import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -14,6 +26,7 @@ import {
   TeacherActivitiesQueryDto,
   TeacherActivitiesResponseDto,
   TeacherActivityItemDto,
+  UpsertTeacherActivityDto,
 } from './dto/teacher-media.dto';
 import { TeacherActivitiesService } from './teacher-activities.service';
 
@@ -28,9 +41,9 @@ export class TeacherActivitiesController {
 
   @Get('me/activities')
   @ApiOperation({
-    summary: 'List activities for me',
+    summary: 'List activities for my classes',
     description:
-      'School-wide activities and activities for academic years I teach.',
+      'Section-scoped activities for classes I teach, plus school/year-wide activities.',
   })
   @ApiOkResponse({ type: TeacherActivitiesResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
@@ -39,6 +52,25 @@ export class TeacherActivitiesController {
     @Query() query: TeacherActivitiesQueryDto,
   ): Promise<TeacherActivitiesResponseDto> {
     return this.teacherActivitiesService.listActivities(request.user, query);
+  }
+
+  @Post('me/activities')
+  @ApiOperation({
+    summary: 'Create an activity for a class',
+    description:
+      'Creates an activity for one teaching assignment (class section + course). Parents of children in that section are notified.',
+  })
+  @ApiCreatedResponse({ type: TeacherActivityItemDto })
+  @ApiBadRequestResponse({
+    description: 'Validation failed or classId does not match the assignment',
+  })
+  @ApiForbiddenResponse({ description: 'Teacher is not assigned to this class' })
+  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  createActivity(
+    @Req() request: Request & { user: AuthenticatedTeacher },
+    @Body() dto: UpsertTeacherActivityDto,
+  ): Promise<TeacherActivityItemDto> {
+    return this.teacherActivitiesService.createActivity(request.user, dto);
   }
 
   @Get('me/activities/:activityId')

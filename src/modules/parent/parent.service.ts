@@ -453,6 +453,7 @@ export class ParentService {
           include: {
             section: {
               select: {
+                id: true,
                 schoolId: true,
                 yearId: true,
               },
@@ -467,6 +468,14 @@ export class ParentService {
     if (studentId !== undefined && students.length === 0) {
       throw new NotFoundException('Child not found');
     }
+
+    const sectionIds = [
+      ...new Set(
+        students
+          .map((student) => student.registrations[0]?.section.id)
+          .filter((id): id is number => id !== undefined),
+      ),
+    ];
 
     const yearIds = [
       ...new Set(
@@ -484,25 +493,58 @@ export class ParentService {
       ),
     ];
 
+    const sectionScopedFilter =
+      sectionIds.length > 0
+        ? [
+            {
+              sections: {
+                some: {
+                  deletedAt: null,
+                  sectionId: { in: sectionIds },
+                },
+              },
+            },
+          ]
+        : [];
+
     const yearScopedFilter =
-      yearIds.length > 0 ? [{ yearId: { in: yearIds } }] : [];
+      yearIds.length > 0
+        ? [
+            {
+              sections: { none: { deletedAt: null } },
+              yearId: { in: yearIds },
+            },
+          ]
+        : [];
 
     const schoolWideFilter =
       schoolIds.length > 0
         ? [
             {
+              sections: { none: { deletedAt: null } },
               yearId: null,
               person: { schoolId: { in: schoolIds } },
             },
           ]
         : [];
 
-    const globalFilter = [{ yearId: null, person: { schoolId: null } }];
+    const globalFilter = [
+      {
+        sections: { none: { deletedAt: null } },
+        yearId: null,
+        person: { schoolId: null },
+      },
+    ];
 
     const activities = await this.prisma.activity.findMany({
       where: {
         deletedAt: null,
-        OR: [...yearScopedFilter, ...schoolWideFilter, ...globalFilter],
+        OR: [
+          ...sectionScopedFilter,
+          ...yearScopedFilter,
+          ...schoolWideFilter,
+          ...globalFilter,
+        ],
       },
       include: {
         year: {
@@ -514,6 +556,18 @@ export class ParentService {
         person: {
           select: {
             school: { select: { name: true } },
+          },
+        },
+        course: { select: { title: true } },
+        sections: {
+          where: { deletedAt: null },
+          include: {
+            section: {
+              select: {
+                class: { select: { className: true } },
+                sectionTitle: { select: { title: true } },
+              },
+            },
           },
         },
       },
@@ -2147,7 +2201,18 @@ export class ParentService {
     person: {
       school: { name: string } | null;
     };
+    course: { title: string } | null;
+    sections: Array<{
+      section: {
+        class: { className: string };
+        sectionTitle: { title: string };
+      };
+    }>;
   }) {
+    const section = activity.sections[0]?.section;
+    const classLabel = section
+      ? `${section.class.className} - ${section.sectionTitle.title}`
+      : null;
     return {
       id: activity.id,
       title: activity.title,
@@ -2157,6 +2222,8 @@ export class ParentService {
       yearTitle: activity.year?.title ?? null,
       schoolName:
         activity.year?.school.name ?? activity.person.school?.name ?? '',
+      classLabel,
+      courseTitle: activity.course?.title ?? null,
     };
   }
 

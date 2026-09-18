@@ -320,6 +320,7 @@ model Section {
   attendances      Attendance[]
   noticeSections   NoticeSection[]
   agendaSections   AgendaSection[]
+  activitySections ActivitySection[]
   grades           Grade[]
 
   @@index([schoolId, yearId])
@@ -344,6 +345,7 @@ model Course {
   teaches               Teach[]
   weeklyScheduleDetails WeeklyScheduleDetail[]
   agendas               Agenda[]
+  activities            Activity[]
   examScheduleDetails   ExamScheduleDetail[]
   grades                Grade[]
 
@@ -603,14 +605,34 @@ model Activity {
   image     String    @db.Text
   personId  Int       @map("person_id")
   yearId    Int?      @map("year_id")
+  courseId  Int?      @map("course_id")
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  person Person @relation(fields: [personId], references: [id], onDelete: Restrict)
-  year   Year?  @relation(fields: [yearId], references: [id], onDelete: Restrict)
+  person   Person            @relation(fields: [personId], references: [id], onDelete: Restrict)
+  year     Year?             @relation(fields: [yearId], references: [id], onDelete: Restrict)
+  course   Course?           @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  sections ActivitySection[]
 
+  @@index([courseId])
   @@map("activities")
+}
+
+model ActivitySection {
+  id         Int       @id @default(autoincrement())
+  activityId Int       @map("activity_id")
+  sectionId  Int       @map("section_id")
+  deletedAt  DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  section  Section  @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+
+  @@unique([activityId, sectionId])
+  @@index([sectionId])
+  @@map("activity_sections")
 }
 
 model SchoolDetail {
