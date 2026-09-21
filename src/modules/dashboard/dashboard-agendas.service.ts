@@ -43,6 +43,7 @@ type AgendaRecord = {
   description: string;
   agendaDate: Date;
   time: string;
+  personId: number;
   courseId: number;
   imageLink: string;
   fileLink: string;
@@ -192,6 +193,7 @@ export class DashboardAgendasService {
 
     if (previous.status !== 1 && updated.status === 1) {
       await this.notifyParentsOfAgenda(updated);
+      await this.notifyTeacherAgendaPublished(updated);
     }
 
     return this.toItem(updated);
@@ -213,6 +215,7 @@ export class DashboardAgendasService {
     });
 
     await this.notifyParentsOfAgenda(published);
+    await this.notifyTeacherAgendaPublished(published);
     return this.toItem(published);
   }
 
@@ -262,6 +265,26 @@ export class DashboardAgendasService {
       personIds,
       row.title.trim() || row.course.title || 'Agenda',
       row.description,
+      {
+        type: 'agenda',
+        route: 'agenda',
+        agendaId: String(row.id),
+      },
+    );
+  }
+
+  private async notifyTeacherAgendaPublished(
+    row: AgendaRecord,
+  ): Promise<void> {
+    if (row.status !== 1 || row.personId === DASHBOARD_CREATOR_PERSON_ID) {
+      return;
+    }
+
+    const title = row.title.trim() || row.course.title || 'Agenda';
+    await this.parentFcmNotify.sendToPersonIds(
+      [row.personId],
+      'Agenda published',
+      `Now your agenda is published: ${title}`,
       {
         type: 'agenda',
         route: 'agenda',
