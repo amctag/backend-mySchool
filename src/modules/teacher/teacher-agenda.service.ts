@@ -260,6 +260,9 @@ export class TeacherAgendaService {
       },
     ]);
     await this.notifyParentsOfAgenda(published);
+    if (published.personId !== user.id) {
+      await this.notifyAuthorAgendaPublished(published);
+    }
     return this.toItem(
       published,
       assignmentIds,
@@ -467,6 +470,24 @@ export class TeacherAgendaService {
       personIds,
       'Agenda awaiting publish',
       `${authorName} saved an agenda for ${classLabel}: ${agendaTitle}`,
+      {
+        type: 'agenda',
+        route: 'agenda',
+        agendaId: String(row.id),
+      },
+    );
+  }
+
+  private async notifyAuthorAgendaPublished(row: AgendaRecord): Promise<void> {
+    if (row.status !== 1) {
+      return;
+    }
+
+    const title = row.title.trim() || row.course.title || 'Agenda';
+    await this.parentFcmNotify.sendToPersonIds(
+      [row.personId],
+      'Agenda published',
+      `Your agenda is now published: ${title}`,
       {
         type: 'agenda',
         route: 'agenda',
