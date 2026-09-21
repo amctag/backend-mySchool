@@ -39,6 +39,13 @@ export class DashboardSchoolSettingsDto {
       'When true, teachers can publish agendas to parents. When false, teachers only save drafts and the school publishes them from the dashboard.',
   })
   teachersCanPublishAgenda!: boolean;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'When true, teachers can publish grades to parents. When false, teachers only save drafts and supervisors (or the school) publish them.',
+  })
+  teachersCanPublishGrades!: boolean;
 }
 
 export class UpdateDashboardSchoolSettingsDto {
@@ -71,4 +78,14 @@ export class UpdateDashboardSchoolSettingsDto {
   @Transform(toOptionalBoolean)
   @IsBoolean()
   teachersCanPublishAgenda?: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'Allow teachers to publish grades. Off = teachers save drafts; supervisors can publish.',
+  })
+  @IsOptional()
+  @Transform(toOptionalBoolean)
+  @IsBoolean()
+  teachersCanPublishGrades?: boolean;
 }

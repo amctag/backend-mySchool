@@ -1,0 +1,2 @@
+ALTER TABLE "school"
+ADD COLUMN IF NOT EXISTS "teachers_can_publish_grades" BOOLEAN NOT NULL DEFAULT TRUE;

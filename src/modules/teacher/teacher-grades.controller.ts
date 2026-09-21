@@ -107,6 +107,24 @@ export class TeacherGradesController {
     return this.teacherGradesService.saveSheet(request.user, dto);
   }
 
+  @Post('me/grades/:gradeId/publish')
+  @ApiOperation({
+    summary: 'Publish a grade sheet',
+    description:
+      'Makes a draft grade sheet visible to parents. Supervisors can publish sheets for their classes even when teachers cannot.',
+  })
+  @ApiOkResponse({ type: TeacherGradeEntryContextDto })
+  @ApiNotFoundResponse({ description: 'Grade sheet not found' })
+  @ApiForbiddenResponse({
+    description: 'Not allowed to publish this grade sheet',
+  })
+  publishSheet(
+    @Req() request: Request & { user: AuthenticatedTeacher },
+    @Param('gradeId', ParseIntPipe) gradeId: number,
+  ): Promise<TeacherGradeEntryContextDto> {
+    return this.teacherGradesService.publishSheet(request.user, gradeId);
+  }
+
   @Delete('me/grades/:gradeId')
   @ApiOperation({ summary: 'Delete a grade sheet for one of my courses' })
   @ApiOkResponse({ type: TeacherMessageResponseDto })

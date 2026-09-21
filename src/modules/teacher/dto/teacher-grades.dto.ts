@@ -160,6 +160,16 @@ export class TeacherGradeSheetItemDto {
   @ApiProperty({ example: '2026-09-08', nullable: true })
   publishDate!: string | null;
 
+  @ApiProperty({ example: true })
+  published!: boolean;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'When false, the school publishes grades. The teacher can only save drafts unless they supervise this class.',
+  })
+  canPublish!: boolean;
+
   @ApiProperty({ example: 24 })
   entriesCount!: number;
 }
@@ -170,6 +180,13 @@ export class TeacherGradeSheetsResponseDto {
 
   @ApiProperty({ type: PaginationMetaDto })
   pagination!: PaginationMetaDto;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'When false, teachers cannot publish. Supervisors of the class can still publish.',
+  })
+  teachersCanPublishGrades!: boolean;
 }
 
 export class TeacherGradeEntryStudentDto {
@@ -238,6 +255,16 @@ export class TeacherGradeEntryContextDto {
   @ApiPropertyOptional({ example: '2026-09-08', nullable: true })
   publishDate!: string | null;
 
+  @ApiProperty({ example: true })
+  published!: boolean;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'When false, the school publishes grades. The teacher can only save drafts unless they supervise this class.',
+  })
+  canPublish!: boolean;
+
   @ApiProperty({ type: [TeacherGradeEntryStudentDto] })
   students!: TeacherGradeEntryStudentDto[];
 }
@@ -289,7 +316,11 @@ export class SaveTeacherGradeSheetDto {
   @Max(99999.99)
   maxGrade!: number;
 
-  @ApiPropertyOptional({ example: '2026-09-08' })
+  @ApiPropertyOptional({
+    example: '2026-09-08',
+    description:
+      'Omit or leave empty to save as a draft. Supervisors are notified when a draft is saved.',
+  })
   @IsOptional()
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)

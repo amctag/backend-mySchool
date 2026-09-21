@@ -20,6 +20,7 @@ export class DashboardSchoolSettingsService {
         teachersSeeAllClassCourses: true,
         attendancePerCourse: true,
         teachersCanPublishAgenda: true,
+        teachersCanPublishGrades: true,
       },
     });
     if (!school) {
@@ -44,12 +45,16 @@ export class DashboardSchoolSettingsService {
         ...(dto.teachersCanPublishAgenda !== undefined
           ? { teachersCanPublishAgenda: dto.teachersCanPublishAgenda }
           : {}),
+        ...(dto.teachersCanPublishGrades !== undefined
+          ? { teachersCanPublishGrades: dto.teachersCanPublishGrades }
+          : {}),
       },
       select: {
         id: true,
         teachersSeeAllClassCourses: true,
         attendancePerCourse: true,
         teachersCanPublishAgenda: true,
+        teachersCanPublishGrades: true,
       },
     });
     return this.toDto(school);
@@ -60,12 +65,14 @@ export class DashboardSchoolSettingsService {
     teachersSeeAllClassCourses: boolean;
     attendancePerCourse: boolean;
     teachersCanPublishAgenda: boolean;
+    teachersCanPublishGrades: boolean;
   }): DashboardSchoolSettingsDto {
     return {
       schoolId: school.id,
       teachersSeeAllClassCourses: school.teachersSeeAllClassCourses,
       attendancePerCourse: school.attendancePerCourse,
       teachersCanPublishAgenda: school.teachersCanPublishAgenda,
+      teachersCanPublishGrades: school.teachersCanPublishGrades,
     };
   }
 }

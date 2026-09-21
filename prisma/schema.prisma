@@ -15,6 +15,7 @@ model School {
   teachersSeeAllClassCourses Boolean @default(true) @map("teachers_see_all_class_courses")
   attendancePerCourse Boolean @default(false) @map("attendance_per_course")
   teachersCanPublishAgenda Boolean @default(true) @map("teachers_can_publish_agenda")
+  teachersCanPublishGrades Boolean @default(true) @map("teachers_can_publish_grades")
   sessionId String?  @unique @map("session_id") @db.Uuid
   refreshTokenHash String? @unique @map("refresh_token_hash") @db.VarChar(64)
   refreshExpiresAt DateTime? @map("refresh_expires_at") @db.Timestamptz(6)

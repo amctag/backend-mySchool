@@ -11,6 +11,7 @@ import {
   resolvePagination,
 } from '../../common/dto/pagination-query.dto';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { ParentFcmNotifyService } from '../../fcm/parent-fcm-notify.service';
 import { TeacherAccessService } from './teacher-access.service';
 import { TeacherMessageResponseDto } from './dto/teacher-auth.dto';
 import {
@@ -51,6 +52,7 @@ export class TeacherGradesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly teacherAccess: TeacherAccessService,
+    private readonly parentFcmNotify: ParentFcmNotifyService,
   ) {}
 
   async listOptions(
@@ -108,6 +110,9 @@ export class TeacherGradesService {
       return {
         items: [],
         pagination: buildPaginationMeta(page, limit, 0),
+        teachersCanPublishGrades: await this.teachersCanPublishGrades(
+          user.schoolId,
+        ),
       };
     }
 
@@ -158,12 +163,23 @@ export class TeacherGradesService {
         courseId: row.courseId,
       })),
     );
+    const [schoolCanPublish, supervisedSectionIds] = await Promise.all([
+      this.teachersCanPublishGrades(user.schoolId),
+      this.teacherAccess.supervisedSectionIds(user, yearId),
+    ]);
 
     return {
       items: rows.map((row) =>
-        this.toSheetItem(row, coefficientByKey, yearId),
+        this.toSheetItem(
+          row,
+          coefficientByKey,
+          yearId,
+          schoolCanPublish,
+          supervisedSectionIds,
+        ),
       ),
       pagination: buildPaginationMeta(page, limit, total),
+      teachersCanPublishGrades: schoolCanPublish,
     };
   }
 
@@ -240,6 +256,13 @@ export class TeacherGradesService {
         : existing
           ? Number(existing.maxGrade)
           : DEFAULT_MAX_GRADE;
+    const schoolCanPublish = await this.teachersCanPublishGrades(user.schoolId);
+    const isSupervisor = await this.teacherAccess.isSupervisorOfSection(
+      user,
+      assignment.section.id,
+    );
+    const canPublish = schoolCanPublish || isSupervisor;
+    const published = Boolean(existing?.publishDate);
 
     return {
       gradeSheetId: existing?.id ?? null,
@@ -261,7 +284,9 @@ export class TeacherGradesService {
       maxGrade,
       publishDate: existing?.publishDate
         ? formatDateOnly(existing.publishDate)
-        : formatDateOnly(new Date()),
+        : null,
+      published,
+      canPublish,
       students: registrations.map((registration, index) => {
         const detail = detailByRegistration.get(registration.id);
         return {
@@ -328,7 +353,21 @@ export class TeacherGradesService {
       );
     }
 
-    const publishDate = dto.publishDate ? parseDateOnly(dto.publishDate) : null;
+    const wantsPublish = Boolean(dto.publishDate);
+    if (wantsPublish) {
+      const schoolCanPublish = await this.teachersCanPublishGrades(
+        user.schoolId,
+      );
+      const isSupervisor = await this.teacherAccess.isSupervisorOfSection(
+        user,
+        dto.sectionId,
+      );
+      this.assertTeacherMayPublish(schoolCanPublish || isSupervisor);
+    }
+
+    const publishDate = wantsPublish ? parseDateOnly(dto.publishDate!) : null;
+    let sheetId = 0;
+    let isNewSheet = false;
 
     await this.prisma.$transaction(async (tx) => {
       const existing = await tx.grade.findFirst({
@@ -338,16 +377,20 @@ export class TeacherGradesService {
           courseId: dto.courseId,
           gradeTypeId: dto.gradeTypeId,
         },
-        select: { id: true },
+        select: { id: true, publishDate: true },
       });
+      isNewSheet = !existing;
 
-      let sheetId: number;
       if (existing) {
         await tx.grade.update({
           where: { id: existing.id },
           data: {
             maxGrade,
-            publishDate,
+            publishDate: wantsPublish
+              ? publishDate
+              : existing.publishDate
+                ? existing.publishDate
+                : null,
             personId: user.id,
           },
         });
@@ -404,10 +447,92 @@ export class TeacherGradesService {
       }
     });
 
-    return this.getEntry(user, {
+    const saved = await this.getEntry(user, {
       sectionId: dto.sectionId,
       courseId: dto.courseId,
       gradeTypeId: dto.gradeTypeId,
+    });
+
+    if (!saved.published && isNewSheet) {
+      await this.notifySupervisorsOfDraftGrades(user, {
+        sectionId: dto.sectionId,
+        courseTitle: saved.courseTitle,
+        gradeTypeTitle: saved.gradeTypeTitle,
+        classLabel: saved.classLabel,
+        gradeId: sheetId,
+      });
+    }
+
+    return saved;
+  }
+
+  async publishSheet(
+    user: AuthenticatedTeacher,
+    gradeId: number,
+  ): Promise<TeacherGradeEntryContextDto> {
+    this.teacherAccess.ensureTeacherRole(user);
+    const row = await this.prisma.grade.findFirst({
+      where: { id: gradeId, schoolId: user.schoolId },
+      select: {
+        id: true,
+        personId: true,
+        publishDate: true,
+        sectionId: true,
+        courseId: true,
+        gradeTypeId: true,
+        course: { select: { title: true } },
+        gradeType: { select: { title: true } },
+        section: {
+          select: {
+            class: { select: { className: true } },
+            sectionTitle: { select: { title: true } },
+          },
+        },
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('Grade sheet not found');
+    }
+
+    await this.assertAssignedCourse(user, row.sectionId, row.courseId);
+    const schoolCanPublish = await this.teachersCanPublishGrades(user.schoolId);
+    const isSupervisor = await this.teacherAccess.isSupervisorOfSection(
+      user,
+      row.sectionId,
+    );
+    if (row.personId !== user.id && !isSupervisor) {
+      throw new ForbiddenException('You cannot publish this grade sheet');
+    }
+    this.assertTeacherMayPublish(schoolCanPublish || isSupervisor);
+
+    if (!row.publishDate) {
+      await this.prisma.grade.update({
+        where: { id: row.id },
+        data: { publishDate: new Date() },
+      });
+    }
+
+    if (row.personId !== user.id) {
+      const classLabel = formatClassLabel(
+        row.section.class.className,
+        row.section.sectionTitle.title,
+      );
+      await this.parentFcmNotify.sendToPersonIds(
+        [row.personId],
+        'Grades published',
+        `Your grades for ${classLabel} · ${row.course.title} (${row.gradeType.title}) are now published`,
+        {
+          type: 'grades',
+          route: 'grades',
+          gradeId: String(row.id),
+        },
+      );
+    }
+
+    return this.getEntry(user, {
+      sectionId: row.sectionId,
+      courseId: row.courseId,
+      gradeTypeId: row.gradeTypeId,
     });
   }
 
@@ -684,7 +809,10 @@ export class TeacherGradesService {
     },
     coefficientByKey: Map<string, number>,
     yearId: number | null,
+    schoolCanPublish: boolean,
+    supervisedSectionIds: number[],
   ): TeacherGradeSheetItemDto {
+    const published = Boolean(row.publishDate);
     return {
       id: row.id,
       classId: row.section.class.id,
@@ -708,8 +836,67 @@ export class TeacherGradesService {
         yearId,
       ),
       publishDate: row.publishDate ? formatDateOnly(row.publishDate) : null,
+      published,
+      canPublish:
+        schoolCanPublish || supervisedSectionIds.includes(row.section.id),
       entriesCount: row._count.details,
     };
+  }
+
+  private async teachersCanPublishGrades(schoolId: number): Promise<boolean> {
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { teachersCanPublishGrades: true },
+    });
+    return school?.teachersCanPublishGrades ?? true;
+  }
+
+  private assertTeacherMayPublish(canPublish: boolean): void {
+    if (!canPublish) {
+      throw new ForbiddenException(
+        'The school publishes grades. You can save drafts only.',
+      );
+    }
+  }
+
+  private async notifySupervisorsOfDraftGrades(
+    author: AuthenticatedTeacher,
+    params: {
+      sectionId: number;
+      courseTitle: string;
+      gradeTypeTitle: string;
+      classLabel: string;
+      gradeId: number;
+    },
+  ): Promise<void> {
+    const supervisorPersonIds =
+      await this.teacherAccess.supervisorPersonIdsForSection(
+        author.schoolId,
+        params.sectionId,
+      );
+    const personIds = supervisorPersonIds.filter((id) => id !== author.id);
+    if (personIds.length === 0) {
+      return;
+    }
+
+    const authorPerson = await this.prisma.person.findUnique({
+      where: { id: author.id },
+      select: { firstName: true, lastName: true },
+    });
+    const authorName =
+      `${authorPerson?.firstName ?? ''} ${authorPerson?.lastName ?? ''}`.trim() ||
+      'A teacher';
+
+    await this.parentFcmNotify.sendToPersonIds(
+      personIds,
+      'Grades awaiting publish',
+      `${authorName} saved grades for ${params.classLabel} · ${params.courseTitle} (${params.gradeTypeTitle})`,
+      {
+        type: 'grades',
+        route: 'grades',
+        gradeId: String(params.gradeId),
+      },
+    );
   }
 
   private async assertAssignedCourse(
