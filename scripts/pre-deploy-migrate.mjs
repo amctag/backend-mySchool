@@ -8,6 +8,7 @@ const FAILED_MIGRATIONS_TO_RETRY = [
   '20260812160000_exam_schedule_detail_start_time',
   '20260903140000_grade_form_average_int',
   '20260916110000_person_paid',
+  '20260921140000_teacher_supervisors_class',
 ];
 
 function run(command, { inherit = false } = {}) {
