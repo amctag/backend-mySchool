@@ -27,6 +27,8 @@ import { DashboardSectionsController } from './dashboard-sections.controller';
 import { DashboardSectionsService } from './dashboard-sections.service';
 import { DashboardTeachesController } from './dashboard-teaches.controller';
 import { DashboardTeachesService } from './dashboard-teaches.service';
+import { DashboardTeacherSupervisorsController } from './dashboard-teacher-supervisors.controller';
+import { DashboardTeacherSupervisorsService } from './dashboard-teacher-supervisors.service';
 import { DashboardAnnouncementsController } from './dashboard-announcements.controller';
 import { DashboardAnnouncementsService } from './dashboard-announcements.service';
 import { DashboardWeeklySchedulesController } from './dashboard-weekly-schedules.controller';
@@ -69,6 +71,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     DashboardCoursesController,
     DashboardSectionsController,
     DashboardTeachesController,
+    DashboardTeacherSupervisorsController,
     DashboardAnnouncementsController,
     DashboardWeeklySchedulesController,
     DashboardExamSchedulesController,
@@ -99,6 +102,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     DashboardCoursesService,
     DashboardSectionsService,
     DashboardTeachesService,
+    DashboardTeacherSupervisorsService,
     DashboardAnnouncementsService,
     DashboardWeeklySchedulesService,
     DashboardExamSchedulesService,

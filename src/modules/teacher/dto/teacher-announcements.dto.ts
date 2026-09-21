@@ -1,8 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { PaginationMetaDto } from '../../../common/dto/pagination-meta.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
+
+function trimString({ value }: { value: unknown }): unknown {
+  return typeof value === 'string' ? value.trim() : value;
+}
 
 export class TeacherAnnouncementsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ example: 2, description: 'Class id (not section id)' })
@@ -46,4 +50,29 @@ export class TeacherAnnouncementsResponseDto {
 
   @ApiProperty({ type: PaginationMetaDto })
   pagination!: PaginationMetaDto;
+}
+
+export class CreateTeacherAnnouncementDto {
+  @ApiPropertyOptional({ example: 'Class trip' })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(255)
+  title?: string;
+
+  @ApiProperty({ example: 'Please send permission slips tomorrow.' })
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(10000)
+  content!: string;
+
+  @ApiProperty({ enum: ['parent', 'teacher'], example: 'parent' })
+  @IsIn(['parent', 'teacher'])
+  audience!: 'parent' | 'teacher';
+
+  @ApiProperty({ example: 5, description: 'Supervised section id' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  sectionId!: number;
 }

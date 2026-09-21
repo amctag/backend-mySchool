@@ -33,6 +33,10 @@ export class PrismaService
     return super.teach;
   }
 
+  override get teacherSupervisor(): PrismaClient['teacherSupervisor'] {
+    return super.teacherSupervisor;
+  }
+
   override get weeklyScheduleDetail(): PrismaClient['weeklyScheduleDetail'] {
     return super.weeklyScheduleDetail;
   }

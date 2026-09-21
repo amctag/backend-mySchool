@@ -1,6 +1,17 @@
-import { Controller, Get, Param, ParseIntPipe, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -11,6 +22,7 @@ import { Request } from 'express';
 import { AuthenticatedTeacher } from '../../auth/interfaces/jwt-payload.interface';
 import { Roles } from '../../common/decorators/roles.decorator';
 import {
+  CreateTeacherAnnouncementDto,
   TeacherAnnouncementItemDto,
   TeacherAnnouncementsQueryDto,
   TeacherAnnouncementsResponseDto,
@@ -41,6 +53,25 @@ export class TeacherAnnouncementsController {
     return this.teacherAnnouncementsService.listAnnouncements(
       request.user,
       query,
+    );
+  }
+
+  @Post('me/announcements')
+  @ApiOperation({
+    summary: 'Create an announcement for a supervised class',
+    description:
+      'Supervisors only. Audience is parent or teacher, scoped to a supervised section.',
+  })
+  @ApiCreatedResponse({ type: TeacherAnnouncementItemDto })
+  @ApiForbiddenResponse({ description: 'Not a supervisor of this class' })
+  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  createAnnouncement(
+    @Req() request: Request & { user: AuthenticatedTeacher },
+    @Body() dto: CreateTeacherAnnouncementDto,
+  ): Promise<TeacherAnnouncementItemDto> {
+    return this.teacherAnnouncementsService.createAnnouncement(
+      request.user,
+      dto,
     );
   }
 

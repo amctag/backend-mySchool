@@ -108,6 +108,91 @@ export class TeacherAccessService {
     }
   }
 
+  async supervisedSectionIds(
+    user: AuthenticatedTeacher,
+    yearId?: number | null,
+  ): Promise<number[]> {
+    this.ensureTeacherRole(user);
+    const rows = await this.prisma.teacherSupervisor.findMany({
+      where: {
+        teacherId: user.teacherId,
+        section: { schoolId: user.schoolId },
+        ...(yearId ? { yearId } : {}),
+      },
+      select: { sectionId: true },
+    });
+    return [...new Set(rows.map((row) => row.sectionId))];
+  }
+
+  async taughtSectionIds(
+    user: AuthenticatedTeacher,
+    yearId?: number | null,
+  ): Promise<number[]> {
+    this.ensureTeacherRole(user);
+    const rows = await this.prisma.teach.findMany({
+      where: {
+        teacherId: user.teacherId,
+        section: { schoolId: user.schoolId },
+        ...(yearId ? { yearId } : {}),
+      },
+      select: { sectionId: true },
+    });
+    return [...new Set(rows.map((row) => row.sectionId))];
+  }
+
+  async taughtOrSupervisedSectionIds(
+    user: AuthenticatedTeacher,
+    yearId?: number | null,
+  ): Promise<number[]> {
+    const [taught, supervised] = await Promise.all([
+      this.taughtSectionIds(user, yearId),
+      this.supervisedSectionIds(user, yearId),
+    ]);
+    return [...new Set([...taught, ...supervised])];
+  }
+
+  async isSupervisorOfSection(
+    user: AuthenticatedTeacher,
+    sectionId: number,
+    yearId?: number | null,
+  ): Promise<boolean> {
+    this.ensureTeacherRole(user);
+    const row = await this.prisma.teacherSupervisor.findFirst({
+      where: {
+        teacherId: user.teacherId,
+        sectionId,
+        section: { schoolId: user.schoolId },
+        ...(yearId ? { yearId } : {}),
+      },
+      select: { id: true },
+    });
+    return Boolean(row);
+  }
+
+  async assertAssignedOrSupervisedSection(
+    user: AuthenticatedTeacher,
+    sectionId: number,
+    yearId?: number | null,
+  ): Promise<void> {
+    this.ensureTeacherRole(user);
+    const teach = await this.prisma.teach.findFirst({
+      where: {
+        teacherId: user.teacherId,
+        sectionId,
+        section: { schoolId: user.schoolId },
+        ...(yearId ? { yearId } : {}),
+      },
+      select: { id: true },
+    });
+    if (teach) {
+      return;
+    }
+    const supervises = await this.isSupervisorOfSection(user, sectionId, yearId);
+    if (!supervises) {
+      throw new ForbiddenException('You are not assigned to this class');
+    }
+  }
+
   async findSectionInSchool(schoolId: number, sectionId: number) {
     const section = await this.prisma.section.findFirst({
       where: { id: sectionId, schoolId },

@@ -72,6 +72,17 @@ export class TeacherAuthService {
       });
     }
 
+    const supervised = await this.prisma.teacherSupervisor.findMany({
+      where: {
+        teacherId: person.teacher.id,
+        section: { schoolId: school.id },
+      },
+      select: { sectionId: true },
+    });
+    const supervisedClassIds = [
+      ...new Set(supervised.map((row) => row.sectionId)),
+    ];
+
     return {
       ...tokens,
       teacherId: person.teacher.id,
@@ -83,6 +94,8 @@ export class TeacherAuthService {
       email: person.email,
       phoneNumber: person.phoneNumber,
       roles: ['teacher'],
+      isSupervisor: supervisedClassIds.length > 0,
+      supervisedClassIds,
     };
   }
 
@@ -174,6 +187,9 @@ export class TeacherAuthService {
       throw new NotFoundException('Teacher not found');
     }
 
+    const supervisedClassIds =
+      await this.teacherAccess.supervisedSectionIds(user);
+
     return {
       personId: person.id,
       teacherId: person.teacher.id,
@@ -187,6 +203,8 @@ export class TeacherAuthService {
       email: person.email,
       phoneNumber: person.phoneNumber,
       roles: ['teacher'],
+      isSupervisor: supervisedClassIds.length > 0,
+      supervisedClassIds,
     };
   }
 

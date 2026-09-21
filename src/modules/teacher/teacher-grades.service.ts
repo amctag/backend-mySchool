@@ -58,8 +58,9 @@ export class TeacherGradesService {
   ): Promise<TeacherGradeOptionsResponseDto> {
     this.teacherAccess.ensureTeacherRole(user);
     const yearId = await this.teacherAccess.currentYearId(user.schoolId);
-    const [teaches, gradeTypes] = await Promise.all([
+    const [teaches, supervised, gradeTypes] = await Promise.all([
       this.loadAssignedTeaches(user, yearId),
+      this.loadSupervisedTeaches(user, yearId),
       this.prisma.gradeType.findMany({
         where: {
           status: true,
@@ -70,10 +71,17 @@ export class TeacherGradesService {
       }),
     ]);
 
-    const coefficientByKey = await this.loadCoefficients(yearId, teaches);
+    const coefficientByKey = await this.loadCoefficients(yearId, [
+      ...teaches,
+      ...supervised,
+    ]);
 
     return {
-      classes: this.groupOptions(teaches, coefficientByKey, yearId),
+      classes: this.groupOptions(
+        this.mergeTeaches(teaches, supervised),
+        coefficientByKey,
+        yearId,
+      ),
       gradeTypes: gradeTypes.map((item) => ({
         id: item.id,
         title: item.title,
@@ -92,7 +100,10 @@ export class TeacherGradesService {
       limit: query.limit ?? 20,
     });
     const yearId = await this.teacherAccess.currentYearId(user.schoolId);
-    const teaches = await this.loadAssignedTeaches(user, yearId);
+    const teaches = this.mergeTeaches(
+      await this.loadAssignedTeaches(user, yearId),
+      await this.loadSupervisedTeaches(user, yearId),
+    );
     if (teaches.length === 0) {
       return {
         items: [],
@@ -417,6 +428,91 @@ export class TeacherGradesService {
     return { message: 'Grade sheet deleted successfully' };
   }
 
+  private mergeTeaches(
+    taught: AssignedTeach[],
+    supervised: AssignedTeach[],
+  ): AssignedTeach[] {
+    const seen = new Set<string>();
+    const merged: AssignedTeach[] = [];
+    for (const row of [...taught, ...supervised]) {
+      const key = `${row.sectionId}:${row.courseId}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      merged.push(row);
+    }
+    return merged;
+  }
+
+  private async loadSupervisedTeaches(
+    user: AuthenticatedTeacher,
+    yearId: number | null,
+  ): Promise<AssignedTeach[]> {
+    const sectionIds = await this.teacherAccess.supervisedSectionIds(
+      user,
+      yearId,
+    );
+    if (sectionIds.length === 0) {
+      return [];
+    }
+    const sections = await this.prisma.section.findMany({
+      where: {
+        id: { in: sectionIds },
+        schoolId: user.schoolId,
+      },
+      select: {
+        id: true,
+        classId: true,
+        yearId: true,
+        class: { select: { id: true, className: true } },
+        sectionTitle: { select: { title: true } },
+      },
+    });
+    if (sections.length === 0) {
+      return [];
+    }
+    const classCourses = await this.prisma.classCourse.findMany({
+      where: {
+        status: true,
+        OR: sections.map((section) => ({
+          classId: section.classId,
+          yearId: yearId ?? section.yearId,
+        })),
+      },
+      select: {
+        classId: true,
+        yearId: true,
+        courseId: true,
+        course: { select: { id: true, title: true } },
+      },
+    });
+    const rows: AssignedTeach[] = [];
+    for (const section of sections) {
+      const courses = classCourses.filter(
+        (item) =>
+          item.classId === section.classId &&
+          item.yearId === (yearId ?? section.yearId),
+      );
+      for (const item of courses) {
+        rows.push({
+          id: 0,
+          courseId: item.courseId,
+          sectionId: section.id,
+          course: item.course,
+          section: {
+            id: section.id,
+            classId: section.classId,
+            yearId: section.yearId,
+            class: section.class,
+            sectionTitle: section.sectionTitle,
+          },
+        });
+      }
+    }
+    return rows;
+  }
+
   private async loadAssignedTeaches(
     user: AuthenticatedTeacher,
     yearId: number | null,
@@ -648,13 +744,53 @@ export class TeacherGradesService {
       },
     });
 
-    if (!assignment) {
+    if (assignment) {
+      return assignment;
+    }
+
+    const supervises = await this.teacherAccess.isSupervisorOfSection(
+      user,
+      sectionId,
+      yearId,
+    );
+    if (!supervises) {
       throw new ForbiddenException(
         'You are not assigned to this class, section, and course',
       );
     }
 
-    return assignment;
+    const fallback = await this.prisma.section.findFirst({
+      where: { id: sectionId, schoolId: user.schoolId },
+      select: {
+        id: true,
+        classId: true,
+        yearId: true,
+        class: { select: { id: true, className: true } },
+        sectionTitle: { select: { title: true } },
+      },
+    });
+    const course = await this.prisma.course.findFirst({
+      where: { id: courseId, schoolId: user.schoolId },
+      select: { id: true, title: true },
+    });
+    if (!fallback || !course) {
+      throw new ForbiddenException(
+        'You are not assigned to this class, section, and course',
+      );
+    }
+    return {
+      id: 0,
+      courseId: course.id,
+      sectionId: fallback.id,
+      course,
+      section: {
+        id: fallback.id,
+        classId: fallback.classId,
+        yearId: fallback.yearId,
+        class: fallback.class,
+        sectionTitle: fallback.sectionTitle,
+      },
+    };
   }
 
   private async assertGradeType(schoolId: number, gradeTypeId: number) {

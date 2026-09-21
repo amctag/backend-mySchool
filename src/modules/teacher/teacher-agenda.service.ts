@@ -65,13 +65,16 @@ export class TeacherAgendaService {
       limit: query.limit ?? 100,
     });
 
-    const sectionIds = await this.taughtSectionIds(user);
-    const canPublish = await this.teachersCanPublishAgenda(user.schoolId);
+    const sectionIds = await this.teacherAccess.taughtOrSupervisedSectionIds(
+      user,
+    );
+    const schoolCanPublish = await this.teachersCanPublishAgenda(user.schoolId);
+    const supervisedIds = await this.teacherAccess.supervisedSectionIds(user);
     if (sectionIds.length === 0) {
       return {
         items: [],
         pagination: buildPaginationMeta(page, limit, 0),
-        teachersCanPublishAgenda: canPublish,
+        teachersCanPublishAgenda: schoolCanPublish,
       };
     }
 
@@ -86,7 +89,7 @@ export class TeacherAgendaService {
       return {
         items: [],
         pagination: buildPaginationMeta(page, limit, 0),
-        teachersCanPublishAgenda: canPublish,
+        teachersCanPublishAgenda: schoolCanPublish,
       };
     }
 
@@ -127,10 +130,16 @@ export class TeacherAgendaService {
 
     return {
       items: rows.map((row) =>
-        this.toItem(row, assignmentIds, user.id, canPublish),
+        this.toItem(
+          row,
+          assignmentIds,
+          user.id,
+          schoolCanPublish,
+          supervisedIds,
+        ),
       ),
       pagination: buildPaginationMeta(page, limit, total),
-      teachersCanPublishAgenda: canPublish,
+      teachersCanPublishAgenda: schoolCanPublish,
     };
   }
 
@@ -139,9 +148,15 @@ export class TeacherAgendaService {
     dto: UpsertTeacherAgendaDto,
   ): Promise<TeacherAgendaItemDto> {
     const assignment = await this.assertWritableAssignment(user, dto);
-    const canPublish = await this.teachersCanPublishAgenda(user.schoolId);
+    const schoolCanPublish = await this.teachersCanPublishAgenda(user.schoolId);
     const published = dto.published === true;
     if (published) {
+      const canPublish =
+        schoolCanPublish ||
+        (await this.teacherAccess.isSupervisorOfSection(
+          user,
+          assignment.sectionId,
+        ));
       this.assertTeacherMayPublish(canPublish);
     }
 
@@ -168,7 +183,8 @@ export class TeacherAgendaService {
       created,
       new Map([[this.key(assignment.courseId, assignment.sectionId), assignment.id]]),
       user.id,
-      canPublish,
+      schoolCanPublish,
+      await this.teacherAccess.supervisedSectionIds(user),
     );
   }
 
@@ -177,7 +193,9 @@ export class TeacherAgendaService {
     agendaId: number,
   ): Promise<TeacherAgendaItemDto> {
     this.teacherAccess.ensureTeacherRole(user);
-    const sectionIds = await this.taughtSectionIds(user);
+    const sectionIds = await this.teacherAccess.taughtOrSupervisedSectionIds(
+      user,
+    );
     const row = await this.prisma.agenda.findFirst({
       where: {
         id: agendaId,
@@ -202,17 +220,31 @@ export class TeacherAgendaService {
         sectionId: row.sections[0]?.section.id,
       },
     ]);
-    const canPublish = await this.teachersCanPublishAgenda(user.schoolId);
-    return this.toItem(row, assignmentIds, user.id, canPublish);
+    const schoolCanPublish = await this.teachersCanPublishAgenda(user.schoolId);
+    return this.toItem(
+      row,
+      assignmentIds,
+      user.id,
+      schoolCanPublish,
+      await this.teacherAccess.supervisedSectionIds(user),
+    );
   }
 
   async publishAgenda(
     user: AuthenticatedTeacher,
     agendaId: number,
   ): Promise<TeacherAgendaItemDto> {
-    await this.findOwnAgenda(user, agendaId);
-    const canPublish = await this.teachersCanPublishAgenda(user.schoolId);
-    this.assertTeacherMayPublish(canPublish);
+    const row = await this.findPublishableAgenda(user, agendaId);
+    const sectionId = row.sectionId;
+    const schoolCanPublish = await this.teachersCanPublishAgenda(user.schoolId);
+    const isSupervisor = await this.teacherAccess.isSupervisorOfSection(
+      user,
+      sectionId,
+    );
+    if (row.personId !== user.id && !isSupervisor) {
+      throw new ForbiddenException('You cannot publish this agenda');
+    }
+    this.assertTeacherMayPublish(schoolCanPublish || isSupervisor);
     const published = await this.prisma.agenda.update({
       where: { id: agendaId },
       data: { status: 1, publishedDate: new Date() },
@@ -225,7 +257,13 @@ export class TeacherAgendaService {
       },
     ]);
     await this.notifyParentsOfAgenda(published);
-    return this.toItem(published, assignmentIds, user.id, canPublish);
+    return this.toItem(
+      published,
+      assignmentIds,
+      user.id,
+      schoolCanPublish,
+      await this.teacherAccess.supervisedSectionIds(user),
+    );
   }
 
   async updateAgenda(
@@ -235,8 +273,14 @@ export class TeacherAgendaService {
   ): Promise<TeacherAgendaItemDto> {
     const existing = await this.findOwnAgenda(user, agendaId);
     const assignment = await this.assertWritableAssignment(user, dto);
-    const canPublish = await this.teachersCanPublishAgenda(user.schoolId);
+    const schoolCanPublish = await this.teachersCanPublishAgenda(user.schoolId);
     if (dto.published === true && existing.status !== 1) {
+      const canPublish =
+        schoolCanPublish ||
+        (await this.teacherAccess.isSupervisorOfSection(
+          user,
+          assignment.sectionId,
+        ));
       this.assertTeacherMayPublish(canPublish);
     }
 
@@ -272,7 +316,8 @@ export class TeacherAgendaService {
       updated,
       new Map([[this.key(assignment.courseId, assignment.sectionId), assignment.id]]),
       user.id,
-      canPublish,
+      schoolCanPublish,
+      await this.teacherAccess.supervisedSectionIds(user),
     );
   }
 
@@ -286,6 +331,38 @@ export class TeacherAgendaService {
       data: { deletedAt: new Date(), status: 0 },
     });
     return { message: 'Agenda deleted successfully' };
+  }
+
+  private async findPublishableAgenda(
+    user: AuthenticatedTeacher,
+    agendaId: number,
+  ) {
+    const row = await this.prisma.agenda.findFirst({
+      where: {
+        id: agendaId,
+        deletedAt: null,
+        course: { schoolId: user.schoolId },
+      },
+      select: {
+        id: true,
+        personId: true,
+        status: true,
+        sections: {
+          where: { deletedAt: null },
+          select: { sectionId: true },
+          take: 1,
+        },
+      },
+    });
+    if (!row || !row.sections[0]) {
+      throw new NotFoundException('Agenda not found');
+    }
+    return {
+      id: row.id,
+      personId: row.personId,
+      status: row.status,
+      sectionId: row.sections[0].sectionId,
+    };
   }
 
   private async findOwnAgenda(user: AuthenticatedTeacher, agendaId: number) {
@@ -363,19 +440,6 @@ export class TeacherAgendaService {
     return assignment;
   }
 
-  private async taughtSectionIds(
-    user: AuthenticatedTeacher,
-  ): Promise<number[]> {
-    const rows = await this.prisma.teach.findMany({
-      where: {
-        teacherId: user.teacherId,
-        section: { schoolId: user.schoolId },
-      },
-      select: { sectionId: true },
-    });
-    return [...new Set(rows.map((row) => row.sectionId))];
-  }
-
   private async resolveAssignmentIds(
     user: AuthenticatedTeacher,
     pairs: Array<{ courseId: number; sectionId?: number }>,
@@ -408,12 +472,15 @@ export class TeacherAgendaService {
     row: AgendaRecord,
     assignmentIds: Map<string, number>,
     viewerPersonId: number,
-    canPublish: boolean,
+    schoolCanPublish: boolean,
+    supervisedSectionIds: number[],
   ): TeacherAgendaItemDto {
     const section = row.sections[0]?.section;
     if (!section) {
       throw new ForbiddenException('Agenda is missing a class');
     }
+    const canPublish =
+      schoolCanPublish || supervisedSectionIds.includes(section.id);
 
     return {
       id: row.id,

@@ -37,6 +37,12 @@ export class TeacherMeResponseDto {
 
   @ApiProperty({ example: ['teacher'], type: [String] })
   roles!: string[];
+
+  @ApiProperty({ example: true })
+  isSupervisor!: boolean;
+
+  @ApiProperty({ example: [5, 6], type: [Number] })
+  supervisedClassIds!: number[];
 }
 
 export class TeacherChangePasswordDto {

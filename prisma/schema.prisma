@@ -113,6 +113,7 @@ model Teacher {
   person  Person          @relation(fields: [personId], references: [id], onDelete: Cascade)
   schools TeacherSchool[]
   teaches Teach[]
+  supervises TeacherSupervisor[]
 
   @@map("teachers")
 }
@@ -244,6 +245,7 @@ model Year {
   sections     Section[]
   classCourses ClassCourse[]
   teaches      Teach[]
+  teacherSupervisors TeacherSupervisor[]
   activities    Activity[]
   albums        Album[]
   examSchedules ExamSchedule[]
@@ -317,6 +319,7 @@ model Section {
   sectionTitle     SectionTitle     @relation(fields: [sectionTitleId], references: [id], onDelete: Restrict)
   year             Year             @relation(fields: [yearId], references: [id], onDelete: Restrict)
   teaches          Teach[]
+  teacherSupervisors TeacherSupervisor[]
   weeklySchedules  WeeklySchedule[]
   registrations    Registration[]
   announcementSections AnnouncementSection[]
@@ -397,6 +400,24 @@ model Teach {
   @@index([teacherId, sectionId, courseId])
   @@index([sectionId, yearId])
   @@map("teach")
+}
+
+model TeacherSupervisor {
+  id        Int      @id @default(autoincrement())
+  teacherId Int      @map("teacher_id")
+  sectionId Int      @map("section_id")
+  yearId    Int      @map("year_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  year    Year    @relation(fields: [yearId], references: [id], onDelete: Restrict)
+
+  @@unique([teacherId, sectionId, yearId])
+  @@index([teacherId, yearId])
+  @@index([sectionId, yearId])
+  @@map("teacher_supervisors")
 }
 
 model Day {

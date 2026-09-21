@@ -266,7 +266,7 @@ export class TeacherNoticesService {
       }
     }
 
-    await this.teacherAccess.assertAssignedSection(user, dto.classId);
+    await this.teacherAccess.assertAssignedOrSupervisedSection(user, dto.classId);
 
     if (dto.targetType === 'section') {
       if (dto.targetId !== dto.classId) {

@@ -50,7 +50,7 @@ export class TeacherClassesService {
   ): Promise<TeacherClassStudentsResponseDto> {
     this.teacherAccess.ensureTeacherRole(user);
     const yearId = await this.teacherAccess.currentYearId(user.schoolId);
-    await this.teacherAccess.assertAssignedSection(user, classId, yearId);
+    await this.teacherAccess.assertAssignedOrSupervisedSection(user, classId, yearId);
 
     const section = await this.teacherAccess.findSectionInSchool(
       user.schoolId,
@@ -233,11 +233,26 @@ export class TeacherClassesService {
       teacherId: user.teacherId,
       ...(yearId ? { yearId } : {}),
     };
+    const supervisorFilter = {
+      teacherId: user.teacherId,
+      ...(yearId ? { yearId } : {}),
+    };
     const where = {
       schoolId: user.schoolId,
       ...(yearId ? { yearId } : {}),
-      ...(assignedOnly ? { teaches: { some: teachFilter } } : {}),
+      ...(assignedOnly
+        ? {
+            OR: [
+              { teaches: { some: teachFilter } },
+              { teacherSupervisors: { some: supervisorFilter } },
+            ],
+          }
+        : {}),
     };
+
+    const supervisedIds = assignedOnly
+      ? await this.teacherAccess.supervisedSectionIds(user, yearId)
+      : [];
 
     const [total, sections] = await this.prisma.$transaction([
       this.prisma.section.count({ where }),
@@ -291,7 +306,8 @@ export class TeacherClassesService {
           primaryCourseTitle: courseTitles.join(', '),
           courseTitles,
           studentCount: section._count.registrations,
-          isAssignedToCurrentTeacher: assigned.length > 0,
+          isAssignedToCurrentTeacher:
+            assigned.length > 0 || supervisedIds.includes(section.id),
         };
       }),
       pagination: buildPaginationMeta(page, limit, total),
