@@ -34,6 +34,7 @@ type EligibleScope = {
   sectionTitle: string;
   courseId: number | null;
   courseTitle: string | null;
+  fromSupervisor?: boolean;
 };
 
 @Injectable()
@@ -49,7 +50,7 @@ export class TeacherAttendanceService {
     date?: string,
   ): Promise<TeacherAttendanceOptionsDto> {
     this.teacherAccess.ensureTeacherRole(user);
-    const [scopes, reasons, policy] = await Promise.all([
+    const [scopes, reasons, policy, supervisedSectionIds] = await Promise.all([
       this.eligibleScopes(user),
       this.prisma.attendanceReason.findMany({
         where: { deletedAt: null, status: true },
@@ -57,6 +58,7 @@ export class TeacherAttendanceService {
         orderBy: [{ title: 'asc' }, { id: 'asc' }],
       }),
       this.attendancePolicy.getPolicy(user.schoolId),
+      this.teacherAccess.supervisedSectionIds(user),
     ]);
 
     const classes = new Map<
@@ -109,6 +111,8 @@ export class TeacherAttendanceService {
 
     return {
       attendancePerCourse: policy.attendancePerCourse,
+      canTakeAttendance:
+        policy.attendancePerCourse || supervisedSectionIds.length > 0,
       classes: [...classes.values()].map((item) => ({
         id: item.id,
         name: item.name,
@@ -225,7 +229,10 @@ export class TeacherAttendanceService {
         );
       }
     } else {
-      await this.assertTeachesSection(user, query.sectionId);
+      await this.teacherAccess.assertAssignedOrSupervisedSection(
+        user,
+        query.sectionId,
+      );
     }
 
     const section = await this.teacherAccess.findSectionInSchool(
@@ -323,25 +330,34 @@ export class TeacherAttendanceService {
     this.teacherAccess.ensureTeacherRole(user);
     const day = parseDateOnly(dto.date);
     const policy = await this.attendancePolicy.getPolicy(user.schoolId);
-    if (!policy.attendancePerCourse) {
-      throw new ForbiddenException(
-        'Teachers can only view class attendance for this school',
-      );
-    }
-    const courseId = dto.courseId;
-    const allowed = await this.teacherAccess.canTakeAttendance({
+    const isSupervisor = await this.teacherAccess.isSupervisorOfSection(
       user,
-      sectionId: dto.sectionId,
-      date: day,
-      courseId,
-    });
-    if (!allowed.allowed) {
-      throw new ForbiddenException(
-        'You cannot take attendance for this class',
-      );
-    }
-    if (!courseId) {
-      throw new BadRequestException('courseId is required for this school');
+      dto.sectionId,
+    );
+
+    let courseId: number | null | undefined = dto.courseId;
+    if (policy.attendancePerCourse) {
+      const allowed = await this.teacherAccess.canTakeAttendance({
+        user,
+        sectionId: dto.sectionId,
+        date: day,
+        courseId,
+      });
+      if (!allowed.allowed) {
+        throw new ForbiddenException(
+          'You cannot take attendance for this class',
+        );
+      }
+      if (!courseId) {
+        throw new BadRequestException('courseId is required for this school');
+      }
+    } else {
+      if (!isSupervisor) {
+        throw new ForbiddenException(
+          'Teachers can only view class attendance for this school',
+        );
+      }
+      courseId = null;
     }
 
     const studentIds = dto.details.map((item) => item.studentId);
@@ -477,12 +493,14 @@ export class TeacherAttendanceService {
   private async eligibleScopes(
     user: AuthenticatedTeacher,
   ): Promise<EligibleScope[]> {
-    const [policy, teaches] = await Promise.all([
+    const yearId = await this.teacherAccess.currentYearId(user.schoolId);
+    const [policy, teaches, supervisedSectionIds] = await Promise.all([
       this.attendancePolicy.getPolicy(user.schoolId),
       this.prisma.teach.findMany({
         where: {
           teacherId: user.teacherId,
           section: { schoolId: user.schoolId },
+          ...(yearId ? { yearId } : {}),
         },
         select: {
           sectionId: true,
@@ -497,54 +515,133 @@ export class TeacherAttendanceService {
           },
         },
       }),
+      this.teacherAccess.supervisedSectionIds(user, yearId),
     ]);
 
-    if (policy.attendancePerCourse) {
-      return teaches.map((row) => ({
-        sectionId: row.sectionId,
-        classId: row.section.classId,
-        className: row.section.class.className,
-        sectionTitle: row.section.sectionTitle.title,
-        courseId: row.courseId,
-        courseTitle: row.course.title,
+    const taughtScopes: EligibleScope[] = policy.attendancePerCourse
+      ? teaches.map((row) => ({
+          sectionId: row.sectionId,
+          classId: row.section.classId,
+          className: row.section.class.className,
+          sectionTitle: row.section.sectionTitle.title,
+          courseId: row.courseId,
+          courseTitle: row.course.title,
+          fromSupervisor: false,
+        }))
+      : (() => {
+          const seen = new Set<number>();
+          const scopes: EligibleScope[] = [];
+          for (const row of teaches) {
+            if (seen.has(row.sectionId)) {
+              continue;
+            }
+            seen.add(row.sectionId);
+            scopes.push({
+              sectionId: row.sectionId,
+              classId: row.section.classId,
+              className: row.section.class.className,
+              sectionTitle: row.section.sectionTitle.title,
+              courseId: null,
+              courseTitle: null,
+              fromSupervisor: false,
+            });
+          }
+          return scopes;
+        })();
+
+    const supervisedScopes = await this.supervisedScopes(
+      user.schoolId,
+      supervisedSectionIds,
+      yearId,
+      policy.attendancePerCourse,
+    );
+    return this.mergeScopes(taughtScopes, supervisedScopes);
+  }
+
+  private async supervisedScopes(
+    schoolId: number,
+    sectionIds: number[],
+    yearId: number | null,
+    attendancePerCourse: boolean,
+  ): Promise<EligibleScope[]> {
+    const sections = await this.prisma.section.findMany({
+      where: { id: { in: sectionIds }, schoolId },
+      select: {
+        id: true,
+        classId: true,
+        yearId: true,
+        class: { select: { className: true } },
+        sectionTitle: { select: { title: true } },
+      },
+    });
+    if (sections.length === 0) {
+      return [];
+    }
+
+    if (!attendancePerCourse) {
+      return sections.map((section) => ({
+        sectionId: section.id,
+        classId: section.classId,
+        className: section.class.className,
+        sectionTitle: section.sectionTitle.title,
+        courseId: null,
+        courseTitle: null,
+        fromSupervisor: true,
       }));
     }
 
-    const seen = new Set<number>();
+    const classCourses = await this.prisma.classCourse.findMany({
+      where: {
+        status: true,
+        OR: sections.map((section) => ({
+          classId: section.classId,
+          yearId: yearId ?? section.yearId,
+        })),
+      },
+      select: {
+        classId: true,
+        yearId: true,
+        courseId: true,
+        course: { select: { id: true, title: true } },
+      },
+    });
+
     const scopes: EligibleScope[] = [];
-    for (const row of teaches) {
-      if (seen.has(row.sectionId)) {
-        continue;
+    for (const section of sections) {
+      const courses = classCourses.filter(
+        (item) =>
+          item.classId === section.classId &&
+          item.yearId === (yearId ?? section.yearId),
+      );
+      for (const item of courses) {
+        scopes.push({
+          sectionId: section.id,
+          classId: section.classId,
+          className: section.class.className,
+          sectionTitle: section.sectionTitle.title,
+          courseId: item.courseId,
+          courseTitle: item.course.title,
+          fromSupervisor: true,
+        });
       }
-      seen.add(row.sectionId);
-      scopes.push({
-        sectionId: row.sectionId,
-        classId: row.section.classId,
-        className: row.section.class.className,
-        sectionTitle: row.section.sectionTitle.title,
-        courseId: null,
-        courseTitle: null,
-      });
     }
     return scopes;
   }
 
-  private async assertTeachesSection(
-    user: AuthenticatedTeacher,
-    sectionId: number,
-  ): Promise<void> {
-    const assignment = await this.prisma.teach.findFirst({
-      where: {
-        teacherId: user.teacherId,
-        sectionId,
-        section: { schoolId: user.schoolId },
-      },
-      select: { id: true },
-    });
-    if (!assignment) {
-      throw new ForbiddenException(
-        'You cannot view attendance for this class',
-      );
+  private mergeScopes(
+    taught: EligibleScope[],
+    supervised: EligibleScope[],
+  ): EligibleScope[] {
+    const seen = new Set<string>();
+    const merged: EligibleScope[] = [];
+    for (const scope of [...taught, ...supervised]) {
+      const key = `${scope.sectionId}:${scope.courseId ?? 'null'}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      merged.push(scope);
     }
+    return merged;
   }
 }

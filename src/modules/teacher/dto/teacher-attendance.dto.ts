@@ -142,6 +142,13 @@ export class TeacherAttendanceOptionsDto {
   @ApiProperty({ example: false })
   attendancePerCourse!: boolean;
 
+  @ApiProperty({
+    example: true,
+    description:
+      'When true, the logged-in teacher or supervisor may save attendance for the returned classes.',
+  })
+  canTakeAttendance!: boolean;
+
   @ApiProperty({ type: [TeacherAttendanceClassOptionDto] })
   classes!: TeacherAttendanceClassOptionDto[];
 

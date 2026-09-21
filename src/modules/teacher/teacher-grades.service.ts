@@ -367,7 +367,6 @@ export class TeacherGradesService {
 
     const publishDate = wantsPublish ? parseDateOnly(dto.publishDate!) : null;
     let sheetId = 0;
-    let isNewSheet = false;
 
     await this.prisma.$transaction(async (tx) => {
       const existing = await tx.grade.findFirst({
@@ -379,7 +378,6 @@ export class TeacherGradesService {
         },
         select: { id: true, publishDate: true },
       });
-      isNewSheet = !existing;
 
       if (existing) {
         await tx.grade.update({
@@ -453,7 +451,7 @@ export class TeacherGradesService {
       gradeTypeId: dto.gradeTypeId,
     });
 
-    if (!saved.published && isNewSheet) {
+    if (!wantsPublish && !saved.published) {
       await this.notifySupervisorsOfDraftGrades(user, {
         sectionId: dto.sectionId,
         courseTitle: saved.courseTitle,

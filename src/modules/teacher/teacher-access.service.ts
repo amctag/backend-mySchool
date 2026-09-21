@@ -270,9 +270,18 @@ export class TeacherAccessService {
     sectionId: number;
     date: Date;
     courseId?: number | null;
-  }) {
+  }): Promise<{ allowed: boolean; courseId: number | null }> {
+    return this.resolveAttendanceAccess(params);
+  }
+
+  private async resolveAttendanceAccess(params: {
+    user: AuthenticatedTeacher;
+    sectionId: number;
+    date: Date;
+    courseId?: number | null;
+  }): Promise<{ allowed: boolean; courseId: number | null }> {
     this.ensureTeacherRole(params.user);
-    return this.attendancePolicy.canTeacherTakeAttendance({
+    const result = await this.attendancePolicy.canTeacherTakeAttendance({
       schoolId: params.user.schoolId,
       teacherPersonId: params.user.id,
       teacherId: params.user.teacherId,
@@ -280,5 +289,27 @@ export class TeacherAccessService {
       date: params.date,
       courseId: params.courseId,
     });
+    if (result.allowed) {
+      return result;
+    }
+
+    const isSupervisor = await this.isSupervisorOfSection(
+      params.user,
+      params.sectionId,
+    );
+    if (!isSupervisor) {
+      return result;
+    }
+
+    const policy = await this.attendancePolicy.getPolicy(params.user.schoolId);
+    if (policy.attendancePerCourse) {
+      const courseId = params.courseId ?? null;
+      if (!courseId) {
+        return { allowed: false, courseId: null };
+      }
+      return { allowed: true, courseId };
+    }
+
+    return { allowed: true, courseId: null };
   }
 }
