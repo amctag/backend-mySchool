@@ -29,7 +29,7 @@ export class ParentFcmNotifyService {
     const route = data.route?.trim() || null;
     const dataJson = JSON.stringify(data);
 
-    await this.prisma.parentNotification.createMany({
+    await this.prisma.personNotification.createMany({
       data: uniquePersonIds.map((personId) => ({
         personId,
         title: pushTitle,
@@ -41,7 +41,7 @@ export class ParentFcmNotifyService {
     });
 
     if (!this.fcmService.isReady()) {
-      this.logger.warn('Saved parent notifications; FCM is not configured');
+      this.logger.warn('Saved person notifications; FCM is not configured');
       return;
     }
 

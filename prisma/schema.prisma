@@ -95,7 +95,7 @@ model Person {
   examSchedules         ExamSchedule[]
   grades                Grade[]
   fcmToken              FcmToken?
-  parentNotifications   ParentNotification[]
+  personNotifications   PersonNotification[]
 
   @@unique([schoolId, username])
   @@index([schoolId])
@@ -1066,7 +1066,7 @@ model FcmToken {
   @@map("fcm_tokens")
 }
 
-model ParentNotification {
+model PersonNotification {
   id        Int      @id @default(autoincrement())
   personId  Int      @map("person_id")
   title     String   @db.VarChar(255)
@@ -1079,5 +1079,5 @@ model ParentNotification {
   person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@index([personId, createdAt(sort: Desc)])
-  @@map("parent_notifications")
+  @@map("person_notifications")
 }

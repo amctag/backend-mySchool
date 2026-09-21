@@ -1743,7 +1743,7 @@ export class ParentService {
   ): Promise<ParentNotificationsResponseDto> {
     this.ensureParentRole(user);
 
-    const rows = await this.prisma.parentNotification.findMany({
+    const rows = await this.prisma.personNotification.findMany({
       where: { personId: user.id },
       orderBy: { createdAt: 'desc' },
       take: 100,

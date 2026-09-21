@@ -161,8 +161,8 @@ export class PrismaService
     return super.fcmToken;
   }
 
-  override get parentNotification(): PrismaClient['parentNotification'] {
-    return super.parentNotification;
+  override get personNotification(): PrismaClient['personNotification'] {
+    return super.personNotification;
   }
 
   private readonly pool: Pool;
