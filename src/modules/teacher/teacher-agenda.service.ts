@@ -178,6 +178,9 @@ export class TeacherAgendaService {
     });
 
     await this.notifyParentsOfAgenda(created);
+    if (created.status !== 1) {
+      await this.notifySupervisorsOfDraftAgenda(created, user);
+    }
 
     return this.toItem(
       created,
@@ -416,6 +419,54 @@ export class TeacherAgendaService {
       personIds,
       row.title.trim() || row.course.title || 'Agenda',
       row.description,
+      {
+        type: 'agenda',
+        route: 'agenda',
+        agendaId: String(row.id),
+      },
+    );
+  }
+
+  private async notifySupervisorsOfDraftAgenda(
+    row: AgendaRecord,
+    author: AuthenticatedTeacher,
+  ): Promise<void> {
+    if (row.status === 1) {
+      return;
+    }
+
+    const sectionId = row.sections[0]?.section.id;
+    if (!sectionId) {
+      return;
+    }
+
+    const supervisorPersonIds =
+      await this.teacherAccess.supervisorPersonIdsForSection(
+        author.schoolId,
+        sectionId,
+      );
+    const personIds = supervisorPersonIds.filter((id) => id !== author.id);
+    if (personIds.length === 0) {
+      return;
+    }
+
+    const authorPerson = await this.prisma.person.findUnique({
+      where: { id: author.id },
+      select: { firstName: true, lastName: true },
+    });
+    const authorName =
+      `${authorPerson?.firstName ?? ''} ${authorPerson?.lastName ?? ''}`.trim() ||
+      'A teacher';
+    const agendaTitle = row.title.trim() || row.course.title || 'Agenda';
+    const classLabel = formatClassLabel(
+      row.sections[0].section.class.className,
+      row.sections[0].section.sectionTitle.title,
+    );
+
+    await this.parentFcmNotify.sendToPersonIds(
+      personIds,
+      'Agenda awaiting publish',
+      `${authorName} saved an agenda for ${classLabel}: ${agendaTitle}`,
       {
         type: 'agenda',
         route: 'agenda',

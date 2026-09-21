@@ -189,6 +189,34 @@ export class TeacherAccessService {
     return Boolean(row);
   }
 
+  async supervisorPersonIdsForSection(
+    schoolId: number,
+    sectionId: number,
+  ): Promise<number[]> {
+    const section = await this.prisma.section.findFirst({
+      where: { id: sectionId, schoolId },
+      select: { classId: true, yearId: true },
+    });
+    if (!section) {
+      return [];
+    }
+
+    const rows = await this.prisma.teacherSupervisor.findMany({
+      where: {
+        classId: section.classId,
+        yearId: section.yearId,
+        class: { stage: { schoolId } },
+      },
+      select: {
+        teacher: { select: { personId: true } },
+      },
+    });
+
+    return [
+      ...new Set(rows.map((row) => row.teacher.personId).filter(Boolean)),
+    ];
+  }
+
   async assertAssignedOrSupervisedSection(
     user: AuthenticatedTeacher,
     sectionId: number,
