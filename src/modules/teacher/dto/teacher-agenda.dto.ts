@@ -98,6 +98,13 @@ export class TeacherAgendaItemDto {
       'True when the logged-in teacher created this agenda and can edit or delete it.',
   })
   isOwn!: boolean;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'When false, the school publishes agendas. The teacher can only save drafts.',
+  })
+  canPublish!: boolean;
 }
 
 export class TeacherAgendasResponseDto {
@@ -106,6 +113,13 @@ export class TeacherAgendasResponseDto {
 
   @ApiProperty({ type: PaginationMetaDto })
   pagination!: PaginationMetaDto;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'When false, teachers cannot publish. The school publishes agendas from the dashboard.',
+  })
+  teachersCanPublishAgenda!: boolean;
 }
 
 export class UpsertTeacherAgendaDto {

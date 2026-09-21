@@ -66,10 +66,12 @@ export class TeacherAgendaService {
     });
 
     const sectionIds = await this.taughtSectionIds(user);
+    const canPublish = await this.teachersCanPublishAgenda(user.schoolId);
     if (sectionIds.length === 0) {
       return {
         items: [],
         pagination: buildPaginationMeta(page, limit, 0),
+        teachersCanPublishAgenda: canPublish,
       };
     }
 
@@ -84,6 +86,7 @@ export class TeacherAgendaService {
       return {
         items: [],
         pagination: buildPaginationMeta(page, limit, 0),
+        teachersCanPublishAgenda: canPublish,
       };
     }
 
@@ -123,8 +126,11 @@ export class TeacherAgendaService {
     );
 
     return {
-      items: rows.map((row) => this.toItem(row, assignmentIds, user.id)),
+      items: rows.map((row) =>
+        this.toItem(row, assignmentIds, user.id, canPublish),
+      ),
       pagination: buildPaginationMeta(page, limit, total),
+      teachersCanPublishAgenda: canPublish,
     };
   }
 
@@ -133,6 +139,11 @@ export class TeacherAgendaService {
     dto: UpsertTeacherAgendaDto,
   ): Promise<TeacherAgendaItemDto> {
     const assignment = await this.assertWritableAssignment(user, dto);
+    const canPublish = await this.teachersCanPublishAgenda(user.schoolId);
+    const published = dto.published === true;
+    if (published) {
+      this.assertTeacherMayPublish(canPublish);
+    }
 
     const created = await this.prisma.agenda.create({
       data: {
@@ -145,7 +156,7 @@ export class TeacherAgendaService {
         imageLink: dto.imageLink?.trim() || '',
         fileLink: normalizePublicMediaUrl(dto.fileLink) ?? '',
         publishedDate: new Date(),
-        status: dto.published ? 1 : 0,
+        status: published ? 1 : 0,
         sections: { create: { sectionId: assignment.sectionId } },
       },
       include: agendaInclude,
@@ -157,6 +168,7 @@ export class TeacherAgendaService {
       created,
       new Map([[this.key(assignment.courseId, assignment.sectionId), assignment.id]]),
       user.id,
+      canPublish,
     );
   }
 
@@ -190,7 +202,8 @@ export class TeacherAgendaService {
         sectionId: row.sections[0]?.section.id,
       },
     ]);
-    return this.toItem(row, assignmentIds, user.id);
+    const canPublish = await this.teachersCanPublishAgenda(user.schoolId);
+    return this.toItem(row, assignmentIds, user.id, canPublish);
   }
 
   async publishAgenda(
@@ -198,6 +211,8 @@ export class TeacherAgendaService {
     agendaId: number,
   ): Promise<TeacherAgendaItemDto> {
     await this.findOwnAgenda(user, agendaId);
+    const canPublish = await this.teachersCanPublishAgenda(user.schoolId);
+    this.assertTeacherMayPublish(canPublish);
     const published = await this.prisma.agenda.update({
       where: { id: agendaId },
       data: { status: 1, publishedDate: new Date() },
@@ -210,7 +225,7 @@ export class TeacherAgendaService {
       },
     ]);
     await this.notifyParentsOfAgenda(published);
-    return this.toItem(published, assignmentIds, user.id);
+    return this.toItem(published, assignmentIds, user.id, canPublish);
   }
 
   async updateAgenda(
@@ -218,8 +233,12 @@ export class TeacherAgendaService {
     agendaId: number,
     dto: UpsertTeacherAgendaDto,
   ): Promise<TeacherAgendaItemDto> {
-    await this.findOwnAgenda(user, agendaId);
+    const existing = await this.findOwnAgenda(user, agendaId);
     const assignment = await this.assertWritableAssignment(user, dto);
+    const canPublish = await this.teachersCanPublishAgenda(user.schoolId);
+    if (dto.published === true && existing.status !== 1) {
+      this.assertTeacherMayPublish(canPublish);
+    }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.agendaSection.deleteMany({ where: { agendaId } });
@@ -253,6 +272,7 @@ export class TeacherAgendaService {
       updated,
       new Map([[this.key(assignment.courseId, assignment.sectionId), assignment.id]]),
       user.id,
+      canPublish,
     );
   }
 
@@ -388,6 +408,7 @@ export class TeacherAgendaService {
     row: AgendaRecord,
     assignmentIds: Map<string, number>,
     viewerPersonId: number,
+    canPublish: boolean,
   ): TeacherAgendaItemDto {
     const section = row.sections[0]?.section;
     if (!section) {
@@ -412,7 +433,24 @@ export class TeacherAgendaService {
       fileLink: normalizePublicMediaUrl(row.fileLink),
       published: row.status === 1,
       isOwn: row.personId === viewerPersonId,
+      canPublish,
     };
+  }
+
+  private async teachersCanPublishAgenda(schoolId: number): Promise<boolean> {
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { teachersCanPublishAgenda: true },
+    });
+    return school?.teachersCanPublishAgenda ?? true;
+  }
+
+  private assertTeacherMayPublish(canPublish: boolean): void {
+    if (!canPublish) {
+      throw new ForbiddenException(
+        'The school publishes agendas. You can save drafts only.',
+      );
+    }
   }
 
   private key(courseId: number, sectionId: number): string {

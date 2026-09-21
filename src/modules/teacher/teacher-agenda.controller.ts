@@ -94,10 +94,13 @@ export class TeacherAgendaController {
   @ApiOperation({
     summary: 'Publish an agenda',
     description:
-      'Makes an agenda visible to parents of the assigned class.',
+      'Makes an agenda visible to parents of the assigned class. Forbidden when the school publishes agendas.',
   })
   @ApiOkResponse({ type: TeacherAgendaItemDto })
   @ApiNotFoundResponse({ description: 'Agenda not found' })
+  @ApiForbiddenResponse({
+    description: 'School publishes agendas; teachers can save drafts only',
+  })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
   publishAgenda(
     @Req() request: Request & { user: AuthenticatedTeacher },

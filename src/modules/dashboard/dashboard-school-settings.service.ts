@@ -19,6 +19,7 @@ export class DashboardSchoolSettingsService {
         id: true,
         teachersSeeAllClassCourses: true,
         attendancePerCourse: true,
+        teachersCanPublishAgenda: true,
       },
     });
     if (!school) {
@@ -40,11 +41,15 @@ export class DashboardSchoolSettingsService {
         ...(dto.attendancePerCourse !== undefined
           ? { attendancePerCourse: dto.attendancePerCourse }
           : {}),
+        ...(dto.teachersCanPublishAgenda !== undefined
+          ? { teachersCanPublishAgenda: dto.teachersCanPublishAgenda }
+          : {}),
       },
       select: {
         id: true,
         teachersSeeAllClassCourses: true,
         attendancePerCourse: true,
+        teachersCanPublishAgenda: true,
       },
     });
     return this.toDto(school);
@@ -54,11 +59,13 @@ export class DashboardSchoolSettingsService {
     id: number;
     teachersSeeAllClassCourses: boolean;
     attendancePerCourse: boolean;
+    teachersCanPublishAgenda: boolean;
   }): DashboardSchoolSettingsDto {
     return {
       schoolId: school.id,
       teachersSeeAllClassCourses: school.teachersSeeAllClassCourses,
       attendancePerCourse: school.attendancePerCourse,
+      teachersCanPublishAgenda: school.teachersCanPublishAgenda,
     };
   }
 }

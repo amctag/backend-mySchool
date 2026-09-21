@@ -1,0 +1,2 @@
+ALTER TABLE "school"
+ADD COLUMN IF NOT EXISTS "teachers_can_publish_agenda" BOOLEAN NOT NULL DEFAULT TRUE;

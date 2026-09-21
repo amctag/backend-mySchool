@@ -32,6 +32,13 @@ export class DashboardSchoolSettingsDto {
       'When true, each course teacher takes attendance. When false, only the first-session teacher takes attendance for the class.',
   })
   attendancePerCourse!: boolean;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'When true, teachers can publish agendas to parents. When false, teachers only save drafts and the school publishes them from the dashboard.',
+  })
+  teachersCanPublishAgenda!: boolean;
 }
 
 export class UpdateDashboardSchoolSettingsDto {
@@ -54,4 +61,14 @@ export class UpdateDashboardSchoolSettingsDto {
   @Transform(toOptionalBoolean)
   @IsBoolean()
   attendancePerCourse?: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'Allow teachers to publish agendas. Off = school publishes from the dashboard.',
+  })
+  @IsOptional()
+  @Transform(toOptionalBoolean)
+  @IsBoolean()
+  teachersCanPublishAgenda?: boolean;
 }
