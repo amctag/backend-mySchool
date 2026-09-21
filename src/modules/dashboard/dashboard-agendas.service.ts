@@ -197,6 +197,25 @@ export class DashboardAgendasService {
     return this.toItem(updated);
   }
 
+  async publishAgenda(
+    user: AuthenticatedSchool,
+    id: number,
+  ): Promise<DashboardAgendaItemDto> {
+    const row = await this.findAgenda(user.schoolId, id);
+    if (row.status === 1) {
+      return this.toItem(row);
+    }
+
+    const published = await this.prisma.agenda.update({
+      where: { id },
+      data: { status: 1, publishedDate: new Date() },
+      include: agendaInclude,
+    });
+
+    await this.notifyParentsOfAgenda(published);
+    return this.toItem(published);
+  }
+
   async deleteAgenda(user: AuthenticatedSchool, id: number): Promise<void> {
     await this.findAgenda(user.schoolId, id);
     await this.prisma.agenda.update({

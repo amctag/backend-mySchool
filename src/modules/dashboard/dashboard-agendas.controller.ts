@@ -80,6 +80,20 @@ export class DashboardAgendasController {
     return this.dashboardAgendasService.updateAgenda(request.user, id, dto);
   }
 
+  @Post(':id/publish')
+  @ApiOperation({
+    summary: 'Publish an agenda',
+    description:
+      'Makes the agenda visible to parents and sends a notification.',
+  })
+  @ApiOkResponse({ type: DashboardAgendaItemDto })
+  publishAgenda(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<DashboardAgendaItemDto> {
+    return this.dashboardAgendasService.publishAgenda(request.user, id);
+  }
+
   @Delete(':id')
   @HttpCode(204)
   @ApiOperation({ summary: 'Soft-delete an agenda' })
