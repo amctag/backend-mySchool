@@ -6,7 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { createHash, randomBytes, randomUUID } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import ms from 'ms';
 import type { StringValue } from 'ms';
 import {
@@ -50,30 +50,45 @@ export class SchoolAuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    const school = await this.prisma.school.findUnique({
+    const session = await this.prisma.schoolSession.findUnique({
       where: { refreshTokenHash: this.hashToken(refreshToken) },
+      include: {
+        school: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            isActive: true,
+          },
+        },
+      },
     });
 
     if (
-      !school?.sessionId ||
-      !school.isActive ||
-      !school.refreshExpiresAt ||
-      school.refreshExpiresAt <= new Date()
+      !session ||
+      !session.school.isActive ||
+      session.refreshExpiresAt <= new Date()
     ) {
-      if (school) {
-        await this.clearSession(school.id);
+      if (session) {
+        await this.prisma.schoolSession.delete({ where: { id: session.id } });
       }
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
     return this.buildAccessResponse(
-      { id: school.id, name: school.name, email: school.email },
-      school.sessionId,
+      {
+        id: session.school.id,
+        name: session.school.name,
+        email: session.school.email,
+      },
+      session.id,
     );
   }
 
   async logout(user: AuthenticatedSchool): Promise<void> {
-    await this.clearSession(user.schoolId);
+    await this.prisma.schoolSession.deleteMany({
+      where: { id: user.sessionId, schoolId: user.schoolId },
+    });
     await this.sessionService.cleanupExpiredSessions();
   }
 
@@ -131,12 +146,10 @@ export class SchoolAuthService {
   private async createSession(school: SchoolAccount): Promise<SchoolAuthResult> {
     const refreshToken = this.generateRefreshToken();
     const refreshExpiresAt = this.getRefreshExpiryDate();
-    const sessionId = randomUUID();
 
-    await this.prisma.school.update({
-      where: { id: school.id },
+    const session = await this.prisma.schoolSession.create({
       data: {
-        sessionId,
+        schoolId: school.id,
         refreshTokenHash: this.hashToken(refreshToken),
         refreshExpiresAt,
       },
@@ -145,21 +158,10 @@ export class SchoolAuthService {
     await this.sessionService.cleanupExpiredSessions();
 
     return {
-      access: this.buildAccessResponse(school, sessionId),
+      access: this.buildAccessResponse(school, session.id),
       refreshToken,
       refreshTokenExpiresAt: refreshExpiresAt,
     };
-  }
-
-  private async clearSession(schoolId: number): Promise<void> {
-    await this.prisma.school.updateMany({
-      where: { id: schoolId },
-      data: {
-        sessionId: null,
-        refreshTokenHash: null,
-        refreshExpiresAt: null,
-      },
-    });
   }
 
   private buildAccessResponse(

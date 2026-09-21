@@ -16,9 +16,6 @@ model School {
   attendancePerCourse Boolean @default(false) @map("attendance_per_course")
   teachersCanPublishAgenda Boolean @default(true) @map("teachers_can_publish_agenda")
   teachersCanPublishGrades Boolean @default(true) @map("teachers_can_publish_grades")
-  sessionId String?  @unique @map("session_id") @db.Uuid
-  refreshTokenHash String? @unique @map("refresh_token_hash") @db.VarChar(64)
-  refreshExpiresAt DateTime? @map("refresh_expires_at") @db.Timestamptz(6)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -32,6 +29,7 @@ model School {
   sessions      Session[]
   teacherSchools   TeacherSchool[]
   teacherSessions  TeacherSession[]
+  schoolSessions   SchoolSession[]
   details          SchoolDetail?
   notices          Notice[]
   albums           Album[]
@@ -540,6 +538,20 @@ model TeacherSession {
   @@index([personId])
   @@index([schoolId])
   @@map("teacher_sessions")
+}
+
+model SchoolSession {
+  id               String   @id @default(uuid()) @db.Uuid
+  schoolId         Int      @map("school_id")
+  refreshTokenHash String   @unique @map("refresh_token_hash") @db.VarChar(64)
+  refreshExpiresAt DateTime @map("refresh_expires_at") @db.Timestamptz(6)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@map("school_sessions")
 }
 
 model PasswordChangeOtp {

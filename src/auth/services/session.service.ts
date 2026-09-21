@@ -27,13 +27,8 @@ export class SessionService {
       where: { refreshExpiresAt: { lt: new Date() } },
     });
 
-    await this.prisma.school.updateMany({
+    await this.prisma.schoolSession.deleteMany({
       where: { refreshExpiresAt: { lt: new Date() } },
-      data: {
-        sessionId: null,
-        refreshTokenHash: null,
-        refreshExpiresAt: null,
-      },
     });
   }
 
@@ -72,23 +67,16 @@ export class SessionService {
   }
 
   private async isSchoolSessionActive(sessionId: string): Promise<boolean> {
-    const school = await this.prisma.school.findFirst({
-      where: { sessionId },
+    const session = await this.prisma.schoolSession.findUnique({
+      where: { id: sessionId },
     });
 
-    if (!school?.refreshExpiresAt) {
+    if (!session) {
       return false;
     }
 
-    if (school.refreshExpiresAt <= new Date()) {
-      await this.prisma.school.update({
-        where: { id: school.id },
-        data: {
-          sessionId: null,
-          refreshTokenHash: null,
-          refreshExpiresAt: null,
-        },
-      });
+    if (session.refreshExpiresAt <= new Date()) {
+      await this.prisma.schoolSession.delete({ where: { id: sessionId } });
       return false;
     }
 
