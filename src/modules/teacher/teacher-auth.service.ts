@@ -75,13 +75,24 @@ export class TeacherAuthService {
     const supervised = await this.prisma.teacherSupervisor.findMany({
       where: {
         teacherId: person.teacher.id,
-        section: { schoolId: school.id },
+        class: { stage: { schoolId: school.id } },
       },
-      select: { sectionId: true },
+      select: { classId: true, yearId: true },
     });
-    const supervisedClassIds = [
-      ...new Set(supervised.map((row) => row.sectionId)),
-    ];
+    const sections =
+      supervised.length === 0
+        ? []
+        : await this.prisma.section.findMany({
+            where: {
+              schoolId: school.id,
+              OR: supervised.map((row) => ({
+                classId: row.classId,
+                yearId: row.yearId,
+              })),
+            },
+            select: { id: true },
+          });
+    const supervisedClassIds = [...new Set(sections.map((row) => row.id))];
 
     return {
       ...tokens,

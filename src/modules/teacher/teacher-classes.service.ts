@@ -244,7 +244,11 @@ export class TeacherClassesService {
         ? {
             OR: [
               { teaches: { some: teachFilter } },
-              { teacherSupervisors: { some: supervisorFilter } },
+              {
+                class: {
+                  teacherSupervisors: { some: supervisorFilter },
+                },
+              },
             ],
           }
         : {}),

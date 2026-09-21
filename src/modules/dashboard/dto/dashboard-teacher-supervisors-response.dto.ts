@@ -18,12 +18,6 @@ export class DashboardTeacherSupervisorItemDto {
   className!: string;
 
   @ApiProperty({ example: 1 })
-  sectionId!: number;
-
-  @ApiProperty({ example: 'A' })
-  sectionTitle!: string;
-
-  @ApiProperty({ example: 1 })
   yearId!: number;
 
   @ApiProperty({ example: '2025-2026' })

@@ -55,7 +55,7 @@ export class DashboardTeacherSupervisorsController {
 
   @Post()
   @ApiOperation({
-    summary: 'Assign a teacher as supervisor of one or more class sections',
+    summary: 'Assign a teacher as supervisor of one or more classes',
   })
   @ApiCreatedResponse({ type: DashboardTeacherSupervisorCreateResponseDto })
   createSupervisor(

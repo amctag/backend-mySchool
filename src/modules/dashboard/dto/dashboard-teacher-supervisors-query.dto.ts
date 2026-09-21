@@ -34,13 +34,6 @@ export class DashboardTeacherSupervisorsQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  sectionId?: number;
-
-  @ApiPropertyOptional({ example: 1 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
   teacherId?: number;
 
   @ApiPropertyOptional({ example: 1 })
@@ -58,14 +51,14 @@ export class DashboardTeacherSupervisorsQueryDto {
   search?: string;
 
   @ApiPropertyOptional({
-    enum: ['id', 'teacher', 'class', 'section', 'year'],
+    enum: ['id', 'teacher', 'class', 'year'],
     example: 'id',
   })
   @IsOptional()
   @Allow()
   @IsString()
-  @IsIn(['id', 'teacher', 'class', 'section', 'year'])
-  sortBy?: 'id' | 'teacher' | 'class' | 'section' | 'year';
+  @IsIn(['id', 'teacher', 'class', 'year'])
+  sortBy?: 'id' | 'teacher' | 'class' | 'year';
 
   @ApiPropertyOptional({ enum: ['asc', 'desc'], example: 'asc' })
   @IsOptional()

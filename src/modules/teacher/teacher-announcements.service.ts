@@ -175,17 +175,22 @@ export class TeacherAnnouncementsService {
         section: { select: { classId: true } },
       },
     });
-    const supervised = await this.prisma.teacherSupervisor.findMany({
-      where: {
-        teacherId: user.teacherId,
-        section: { schoolId: user.schoolId },
-      },
-      select: {
-        sectionId: true,
-        section: { select: { classId: true } },
-      },
-    });
-    const scoped = [...teaches, ...supervised];
+    const supervisedSectionIds =
+      await this.teacherAccess.supervisedSectionIds(user);
+    const supervisedSections =
+      supervisedSectionIds.length === 0
+        ? []
+        : await this.prisma.section.findMany({
+            where: { id: { in: supervisedSectionIds }, schoolId: user.schoolId },
+            select: { id: true, classId: true },
+          });
+    const scoped = [
+      ...teaches,
+      ...supervisedSections.map((section) => ({
+        sectionId: section.id,
+        section: { classId: section.classId },
+      })),
+    ];
     const taughtSectionIds = [...new Set(scoped.map((row) => row.sectionId))];
     const today = this.todayUtcDate();
     const currentTime = this.currentPublishTime();

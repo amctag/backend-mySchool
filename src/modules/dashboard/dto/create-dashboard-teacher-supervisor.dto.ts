@@ -1,6 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Min } from 'class-validator';
+import {
+  ArrayUnique,
+  IsArray,
+  IsInt,
+  IsOptional,
+  Min,
+} from 'class-validator';
 
 export class CreateDashboardTeacherSupervisorDto {
   @ApiProperty({ example: 1 })
@@ -11,8 +17,7 @@ export class CreateDashboardTeacherSupervisorDto {
 
   @ApiPropertyOptional({
     example: 1,
-    description:
-      'Assign the teacher as supervisor across every section of this class. Required when sectionId is omitted.',
+    description: 'Single class. Use classIds to assign multiple classes.',
   })
   @IsOptional()
   @Type(() => Number)
@@ -21,19 +26,21 @@ export class CreateDashboardTeacherSupervisorDto {
   classId?: number;
 
   @ApiPropertyOptional({
-    example: 1,
-    description:
-      'Limit the assignment to one section. Omit to apply to all sections of the class.',
+    type: [Number],
+    example: [1, 2, 3],
+    description: 'Assign the teacher as supervisor of multiple classes',
   })
   @IsOptional()
+  @IsArray()
+  @ArrayUnique()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  sectionId?: number;
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  classIds?: number[];
 
   @ApiPropertyOptional({
     example: 1,
-    description: 'Defaults to the section year, or the current school year',
+    description: 'Defaults to the current school year',
   })
   @IsOptional()
   @Type(() => Number)

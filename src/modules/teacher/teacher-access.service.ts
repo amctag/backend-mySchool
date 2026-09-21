@@ -116,12 +116,25 @@ export class TeacherAccessService {
     const rows = await this.prisma.teacherSupervisor.findMany({
       where: {
         teacherId: user.teacherId,
-        section: { schoolId: user.schoolId },
+        class: { stage: { schoolId: user.schoolId } },
         ...(yearId ? { yearId } : {}),
       },
-      select: { sectionId: true },
+      select: { classId: true, yearId: true },
     });
-    return [...new Set(rows.map((row) => row.sectionId))];
+    if (rows.length === 0) {
+      return [];
+    }
+    const sections = await this.prisma.section.findMany({
+      where: {
+        schoolId: user.schoolId,
+        OR: rows.map((row) => ({
+          classId: row.classId,
+          yearId: row.yearId,
+        })),
+      },
+      select: { id: true },
+    });
+    return [...new Set(sections.map((row) => row.id))];
   }
 
   async taughtSectionIds(
@@ -157,12 +170,19 @@ export class TeacherAccessService {
     yearId?: number | null,
   ): Promise<boolean> {
     this.ensureTeacherRole(user);
+    const section = await this.prisma.section.findFirst({
+      where: { id: sectionId, schoolId: user.schoolId },
+      select: { classId: true, yearId: true },
+    });
+    if (!section) {
+      return false;
+    }
     const row = await this.prisma.teacherSupervisor.findFirst({
       where: {
         teacherId: user.teacherId,
-        sectionId,
-        section: { schoolId: user.schoolId },
-        ...(yearId ? { yearId } : {}),
+        classId: section.classId,
+        yearId: yearId ?? section.yearId,
+        class: { stage: { schoolId: user.schoolId } },
       },
       select: { id: true },
     });

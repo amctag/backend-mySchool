@@ -285,6 +285,7 @@ model Class {
   announcementSections AnnouncementSection[]
   examSchedules        ExamSchedule[]
   gradeFormClasses     GradeFormClass[]
+  teacherSupervisors   TeacherSupervisor[]
 
   @@map("classes")
 }
@@ -319,7 +320,6 @@ model Section {
   sectionTitle     SectionTitle     @relation(fields: [sectionTitleId], references: [id], onDelete: Restrict)
   year             Year             @relation(fields: [yearId], references: [id], onDelete: Restrict)
   teaches          Teach[]
-  teacherSupervisors TeacherSupervisor[]
   weeklySchedules  WeeklySchedule[]
   registrations    Registration[]
   announcementSections AnnouncementSection[]
@@ -405,18 +405,18 @@ model Teach {
 model TeacherSupervisor {
   id        Int      @id @default(autoincrement())
   teacherId Int      @map("teacher_id")
-  sectionId Int      @map("section_id")
+  classId   Int      @map("class_id")
   yearId    Int      @map("year_id")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  section Section @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Restrict)
   year    Year    @relation(fields: [yearId], references: [id], onDelete: Restrict)
 
-  @@unique([teacherId, sectionId, yearId])
+  @@unique([teacherId, classId, yearId])
   @@index([teacherId, yearId])
-  @@index([sectionId, yearId])
+  @@index([classId, yearId])
   @@map("teacher_supervisors")
 }
 
