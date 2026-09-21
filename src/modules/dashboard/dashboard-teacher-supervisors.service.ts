@@ -12,6 +12,7 @@ import { CreateDashboardTeacherSupervisorDto } from './dto/create-dashboard-teac
 import { DashboardTeacherSupervisorsQueryDto } from './dto/dashboard-teacher-supervisors-query.dto';
 import {
   DashboardTeacherSupervisorCreateResponseDto,
+  DashboardTeacherSupervisorGroupDto,
   DashboardTeacherSupervisorItemDto,
   DashboardTeacherSupervisorsResponseDto,
 } from './dto/dashboard-teacher-supervisors-response.dto';
@@ -71,19 +72,20 @@ export class DashboardTeacherSupervisorsService {
     });
     const orderBy = this.buildOrderBy(query.sortBy, query.sortOrder);
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.teacherSupervisor.count({ where }),
-      this.prisma.teacherSupervisor.findMany({
-        where,
-        include: supervisorInclude,
-        orderBy,
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-    ]);
+    const rows = await this.prisma.teacherSupervisor.findMany({
+      where,
+      include: supervisorInclude,
+      orderBy,
+    });
+
+    const groups = this.groupByTeacherYear(
+      rows.map((row) => row as unknown as SupervisorRecord),
+    );
+    const total = groups.length;
+    const items = groups.slice((page - 1) * limit, page * limit);
 
     return {
-      items: rows.map((row) => this.toItem(row as unknown as SupervisorRecord)),
+      items,
       pagination: {
         page,
         limit,
@@ -210,6 +212,38 @@ export class DashboardTeacherSupervisorsService {
       yearTitle: row.year.title,
       isCurrentYear: row.year.isCurrent,
     };
+  }
+
+  private groupByTeacherYear(
+    rows: SupervisorRecord[],
+  ): DashboardTeacherSupervisorGroupDto[] {
+    const groups = new Map<string, DashboardTeacherSupervisorGroupDto>();
+    for (const row of rows) {
+      const key = `${row.teacherId}:${row.yearId}`;
+      let group = groups.get(key);
+      if (!group) {
+        group = {
+          teacherId: row.teacherId,
+          teacherName: this.formatName(row.teacher.person),
+          yearId: row.yearId,
+          yearTitle: row.year.title,
+          isCurrentYear: row.year.isCurrent,
+          classes: [],
+        };
+        groups.set(key, group);
+      }
+      group.classes.push({
+        id: row.id,
+        classId: row.classId,
+        className: row.class.className,
+      });
+    }
+    return [...groups.values()].map((group) => ({
+      ...group,
+      classes: [...group.classes].sort((a, b) =>
+        a.className.localeCompare(b.className),
+      ),
+    }));
   }
 
   private formatName(person: {
