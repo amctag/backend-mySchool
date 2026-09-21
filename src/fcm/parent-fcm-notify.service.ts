@@ -39,6 +39,9 @@ export class ParentFcmNotifyService {
         data: dataJson,
       })),
     });
+    this.logger.log(
+      `Saved ${uniquePersonIds.length} person notification(s): ${pushTitle}`,
+    );
 
     if (!this.fcmService.isReady()) {
       this.logger.warn('Saved person notifications; FCM is not configured');

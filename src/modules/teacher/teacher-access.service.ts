@@ -201,16 +201,27 @@ export class TeacherAccessService {
       return [];
     }
 
-    const rows = await this.prisma.teacherSupervisor.findMany({
+    let rows = await this.prisma.teacherSupervisor.findMany({
       where: {
         classId: section.classId,
         yearId: section.yearId,
-        class: { stage: { schoolId } },
       },
       select: {
         teacher: { select: { personId: true } },
       },
     });
+
+    if (rows.length === 0) {
+      rows = await this.prisma.teacherSupervisor.findMany({
+        where: {
+          classId: section.classId,
+          class: { stage: { schoolId } },
+        },
+        select: {
+          teacher: { select: { personId: true } },
+        },
+      });
+    }
 
     return [
       ...new Set(rows.map((row) => row.teacher.personId).filter(Boolean)),

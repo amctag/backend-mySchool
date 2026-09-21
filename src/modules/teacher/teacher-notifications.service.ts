@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AuthenticatedTeacher } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { TeacherAccessService } from './teacher-access.service';
@@ -6,6 +6,8 @@ import { TeacherNotificationsResponseDto } from './dto/teacher-notifications.dto
 
 @Injectable()
 export class TeacherNotificationsService {
+  private readonly logger = new Logger(TeacherNotificationsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly teacherAccess: TeacherAccessService,
@@ -21,6 +23,10 @@ export class TeacherNotificationsService {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
+
+    this.logger.debug(
+      `Loaded ${rows.length} notifications for person ${user.id}`,
+    );
 
     return {
       notifications: rows.map((row) => ({
