@@ -265,6 +265,23 @@ export class DashboardParentsService {
     return { id: existing.id, status };
   }
 
+  async resetParentPassword(
+    user: AuthenticatedSchool,
+    parentId: number,
+    newPassword: string,
+    confirmPassword: string,
+  ): Promise<{ id: number; reset: boolean }> {
+    if (newPassword !== confirmPassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
+    const existing = await this.findVisibleParent(user.schoolId, parentId);
+    await this.prisma.person.update({
+      where: { id: existing.personId },
+      data: { password: await bcrypt.hash(newPassword, 10) },
+    });
+    return { id: existing.id, reset: true };
+  }
+
   async updateParentPaid(
     user: AuthenticatedSchool,
     parentId: number,

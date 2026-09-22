@@ -202,6 +202,23 @@ export class DashboardTeachersService {
     return { id: existing.id, status };
   }
 
+  async resetTeacherPassword(
+    user: AuthenticatedSchool,
+    teacherId: number,
+    newPassword: string,
+    confirmPassword: string,
+  ): Promise<{ id: number; reset: boolean }> {
+    if (newPassword !== confirmPassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
+    const existing = await this.findVisibleTeacher(user.schoolId, teacherId);
+    await this.prisma.person.update({
+      where: { id: existing.personId },
+      data: { password: await bcrypt.hash(newPassword, 10) },
+    });
+    return { id: existing.id, reset: true };
+  }
+
   async updateTeacher(
     user: AuthenticatedSchool,
     teacherId: number,

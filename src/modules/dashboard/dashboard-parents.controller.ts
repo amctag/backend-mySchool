@@ -44,6 +44,10 @@ import {
   DashboardParentPaidDto,
   UpdateDashboardParentPaidDto,
 } from './dto/update-dashboard-parent-paid.dto';
+import {
+  ResetDashboardPersonPasswordDto,
+  ResetDashboardPersonPasswordResponseDto,
+} from './dto/reset-dashboard-person-password.dto';
 import { DashboardChildrenService } from './dashboard-children.service';
 import { DashboardParentsService } from './dashboard-parents.service';
 
@@ -153,6 +157,24 @@ export class DashboardParentsController {
       request.user,
       id,
       dto.paid,
+    );
+  }
+
+  @Patch(':id/password')
+  @ApiOperation({
+    summary: 'Reset parent login password to a new custom password',
+  })
+  @ApiOkResponse({ type: ResetDashboardPersonPasswordResponseDto })
+  resetParentPassword(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ResetDashboardPersonPasswordDto,
+  ): Promise<ResetDashboardPersonPasswordResponseDto> {
+    return this.dashboardParentsService.resetParentPassword(
+      request.user,
+      id,
+      dto.newPassword,
+      dto.confirmPassword,
     );
   }
 

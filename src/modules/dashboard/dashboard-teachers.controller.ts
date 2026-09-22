@@ -32,6 +32,10 @@ import {
   DashboardTeacherStatusDto,
   UpdateDashboardTeacherStatusDto,
 } from './dto/update-dashboard-teacher-status.dto';
+import {
+  ResetDashboardPersonPasswordDto,
+  ResetDashboardPersonPasswordResponseDto,
+} from './dto/reset-dashboard-person-password.dto';
 import { DashboardTeachersService } from './dashboard-teachers.service';
 
 @ApiTags('Dashboard Teachers v1')
@@ -91,6 +95,24 @@ export class DashboardTeachersController {
       request.user,
       id,
       dto.status,
+    );
+  }
+
+  @Patch(':id/password')
+  @ApiOperation({
+    summary: 'Reset teacher login password to a new custom password',
+  })
+  @ApiOkResponse({ type: ResetDashboardPersonPasswordResponseDto })
+  resetTeacherPassword(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ResetDashboardPersonPasswordDto,
+  ): Promise<ResetDashboardPersonPasswordResponseDto> {
+    return this.dashboardTeachersService.resetTeacherPassword(
+      request.user,
+      id,
+      dto.newPassword,
+      dto.confirmPassword,
     );
   }
 
