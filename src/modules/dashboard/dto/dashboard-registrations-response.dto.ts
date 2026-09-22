@@ -17,6 +17,9 @@ export class DashboardRegistrationItemDto {
   @ApiProperty({ example: 'Grade 4' })
   className!: string;
 
+  @ApiProperty({ example: 4 })
+  classLevel!: number;
+
   @ApiProperty({ example: 1 })
   sectionId!: number;
 

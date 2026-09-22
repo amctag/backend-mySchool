@@ -28,6 +28,7 @@ import {
   DashboardRegistrationItemDto,
   DashboardRegistrationsResponseDto,
 } from './dto/dashboard-registrations-response.dto';
+import { ProgressDashboardRegistrationDto } from './dto/progress-dashboard-registration.dto';
 import { DashboardRegistrationsService } from './dashboard-registrations.service';
 
 @ApiTags('Dashboard Registrations v1')
@@ -75,6 +76,27 @@ export class DashboardRegistrationsController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DashboardRegistrationItemDto> {
     return this.dashboardRegistrationsService.getRegistration(request.user, id);
+  }
+
+  @Post('registrations/:id/progress')
+  @ApiOperation({
+    summary: 'Create next-year registration (up / down / stay)',
+    description:
+      'Creates a new registration for the next school year. ' +
+      'up moves to classLevel + 1, down to classLevel - 1, stay keeps the same class. ' +
+      'Uses the first section of the target class. The current registration is kept.',
+  })
+  @ApiCreatedResponse({ type: DashboardRegistrationItemDto })
+  progressRegistration(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ProgressDashboardRegistrationDto,
+  ): Promise<DashboardRegistrationItemDto> {
+    return this.dashboardRegistrationsService.progressRegistration(
+      request.user,
+      id,
+      dto,
+    );
   }
 
   @Delete('registrations/:id')
