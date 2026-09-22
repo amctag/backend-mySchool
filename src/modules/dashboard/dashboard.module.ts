@@ -58,11 +58,14 @@ import { DashboardAlbumsService } from './dashboard-albums.service';
 import { DashboardUploadsController } from './dashboard-uploads.controller';
 import { DashboardSchoolSettingsController } from './dashboard-school-settings.controller';
 import { DashboardSchoolSettingsService } from './dashboard-school-settings.service';
+import { DashboardOverviewController } from './dashboard-overview.controller';
+import { DashboardOverviewService } from './dashboard-overview.service';
 import { MediaUploadService } from '../../upload/media-upload.service';
 
 @Module({
   imports: [PrismaModule, AuthModule],
   controllers: [
+    DashboardOverviewController,
     DashboardParentsController,
     DashboardChildrenController,
     DashboardStudentsController,
@@ -122,6 +125,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     DashboardActivitiesService,
     DashboardAlbumsService,
     DashboardSchoolSettingsService,
+    DashboardOverviewService,
     MediaUploadService,
   ],
   exports: [DashboardGradesService],
