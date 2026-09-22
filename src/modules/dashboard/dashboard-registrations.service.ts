@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -13,7 +14,11 @@ import {
   DashboardRegistrationItemDto,
   DashboardRegistrationsResponseDto,
 } from './dto/dashboard-registrations-response.dto';
-import { ProgressDashboardRegistrationDto } from './dto/progress-dashboard-registration.dto';
+import {
+  BulkProgressDashboardRegistrationDto,
+  BulkProgressRegistrationsResponseDto,
+  ProgressDashboardRegistrationDto,
+} from './dto/progress-dashboard-registration.dto';
 
 const DASHBOARD_CREATOR_PERSON_ID = 1;
 
@@ -184,12 +189,74 @@ export class DashboardRegistrationsService {
     dto: ProgressDashboardRegistrationDto,
   ): Promise<DashboardRegistrationItemDto> {
     await this.assertCreatorPersonExists();
+    return this.progressOne(user.schoolId, id, dto.action);
+  }
 
+  async bulkProgressRegistrations(
+    user: AuthenticatedSchool,
+    dto: BulkProgressDashboardRegistrationDto,
+  ): Promise<BulkProgressRegistrationsResponseDto> {
+    await this.assertCreatorPersonExists();
+
+    const items: BulkProgressRegistrationsResponseDto['items'] = [];
+
+    for (const registrationId of dto.registrationIds) {
+      const studentName = await this.resolveStudentName(
+        user.schoolId,
+        registrationId,
+      );
+
+      try {
+        const created = await this.progressOne(
+          user.schoolId,
+          registrationId,
+          dto.action,
+        );
+        items.push({
+          registrationId,
+          studentName: created.studentName || studentName,
+          ok: true,
+          message: `${created.yearTitle} · ${created.className} · Level ${created.classLevel} · ${created.sectionTitle}`,
+          created,
+        });
+      } catch (error) {
+        items.push({
+          registrationId,
+          studentName,
+          ok: false,
+          message: this.toErrorMessage(error),
+        });
+      }
+    }
+
+    return {
+      items,
+      successCount: items.filter((item) => item.ok).length,
+      failCount: items.filter((item) => !item.ok).length,
+    };
+  }
+
+  async deleteRegistration(
+    user: AuthenticatedSchool,
+    id: number,
+  ): Promise<void> {
+    await this.findRegistrationForSchool(user.schoolId, id);
+    await this.prisma.registration.update({
+      where: { id },
+      data: { status: false },
+    });
+  }
+
+  private async progressOne(
+    schoolId: number,
+    id: number,
+    action: ProgressDashboardRegistrationDto['action'],
+  ): Promise<DashboardRegistrationItemDto> {
     const current = await this.prisma.registration.findFirst({
       where: {
         id,
         status: true,
-        section: { schoolId: user.schoolId },
+        section: { schoolId },
       },
       select: {
         id: true,
@@ -218,16 +285,16 @@ export class DashboardRegistrationsService {
     }
 
     const nextYear = await this.resolveNextYear(
-      user.schoolId,
+      schoolId,
       current.section.year,
     );
     const targetClass = await this.resolveTargetClass(
-      user.schoolId,
+      schoolId,
       current.section.class,
-      dto.action,
+      action,
     );
     const targetSection = await this.resolveFirstSection(
-      user.schoolId,
+      schoolId,
       targetClass.id,
       nextYear.id,
       targetClass.className,
@@ -239,7 +306,7 @@ export class DashboardRegistrationsService {
         studentId: current.studentId,
         sectionId: targetSection.id,
         status: true,
-        section: { schoolId: user.schoolId },
+        section: { schoolId },
       },
       select: { id: true },
     });
@@ -251,7 +318,7 @@ export class DashboardRegistrationsService {
 
     const created = await this.prisma.registration.create({
       data: {
-        schoolId: user.schoolId,
+        schoolId,
         studentId: current.studentId,
         sectionId: targetSection.id,
         personId: DASHBOARD_CREATOR_PERSON_ID,
@@ -263,15 +330,56 @@ export class DashboardRegistrationsService {
     return this.toItem(created as unknown as RegistrationRecord);
   }
 
-  async deleteRegistration(
-    user: AuthenticatedSchool,
-    id: number,
-  ): Promise<void> {
-    await this.findRegistrationForSchool(user.schoolId, id);
-    await this.prisma.registration.update({
-      where: { id },
-      data: { status: false },
+  private async resolveStudentName(
+    schoolId: number,
+    registrationId: number,
+  ): Promise<string> {
+    const row = await this.prisma.registration.findFirst({
+      where: {
+        id: registrationId,
+        section: { schoolId },
+      },
+      select: {
+        student: {
+          select: {
+            person: {
+              select: {
+                firstName: true,
+                middleName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+      },
     });
+
+    if (!row) {
+      return `Registration #${registrationId}`;
+    }
+
+    return this.formatPersonName(row.student.person);
+  }
+
+  private toErrorMessage(error: unknown): string {
+    if (error instanceof HttpException) {
+      const response = error.getResponse();
+      if (typeof response === 'string') {
+        return response;
+      }
+      if (
+        typeof response === 'object' &&
+        response !== null &&
+        'message' in response
+      ) {
+        const message = (response as { message: string | string[] }).message;
+        return Array.isArray(message) ? message.join(', ') : message;
+      }
+    }
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+    return 'Could not progress registration';
   }
 
   private async findRegistrationForSchool(schoolId: number, id: number) {

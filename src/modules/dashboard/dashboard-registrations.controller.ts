@@ -28,7 +28,11 @@ import {
   DashboardRegistrationItemDto,
   DashboardRegistrationsResponseDto,
 } from './dto/dashboard-registrations-response.dto';
-import { ProgressDashboardRegistrationDto } from './dto/progress-dashboard-registration.dto';
+import {
+  BulkProgressDashboardRegistrationDto,
+  BulkProgressRegistrationsResponseDto,
+  ProgressDashboardRegistrationDto,
+} from './dto/progress-dashboard-registration.dto';
 import { DashboardRegistrationsService } from './dashboard-registrations.service';
 
 @ApiTags('Dashboard Registrations v1')
@@ -63,6 +67,23 @@ export class DashboardRegistrationsController {
     @Body() dto: CreateDashboardRegistrationDto,
   ): Promise<DashboardRegistrationItemDto> {
     return this.dashboardRegistrationsService.createRegistration(
+      request.user,
+      dto,
+    );
+  }
+
+  @Post('registrations/progress')
+  @ApiOperation({
+    summary: 'Bulk create next-year registrations (up / down / stay)',
+    description:
+      'Processes many registrations in one request. Each item returns ok/fail independently.',
+  })
+  @ApiOkResponse({ type: BulkProgressRegistrationsResponseDto })
+  bulkProgressRegistrations(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Body() dto: BulkProgressDashboardRegistrationDto,
+  ): Promise<BulkProgressRegistrationsResponseDto> {
+    return this.dashboardRegistrationsService.bulkProgressRegistrations(
       request.user,
       dto,
     );
