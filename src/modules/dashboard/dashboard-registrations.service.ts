@@ -86,7 +86,11 @@ export class DashboardRegistrationsService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const yearId =
-      query.yearId ?? (await this.currentYearId(user.schoolId)) ?? undefined;
+      query.yearId !== undefined
+        ? query.yearId
+        : query.studentId
+          ? undefined
+          : ((await this.currentYearId(user.schoolId)) ?? undefined);
     const where = this.buildWhere(user.schoolId, { ...query, yearId });
     const orderBy = this.buildOrderBy(query.sortBy, query.sortOrder);
 
@@ -412,6 +416,7 @@ export class DashboardRegistrationsService {
     return {
       status: true,
       ...(query.sectionId ? { sectionId: query.sectionId } : {}),
+      ...(query.studentId ? { studentId: query.studentId } : {}),
       section: {
         schoolId,
         ...(query.classId ? { classId: query.classId } : {}),

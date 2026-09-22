@@ -52,6 +52,16 @@ export class DashboardRegistrationsQueryDto {
   @Min(1)
   yearId?: number;
 
+  @ApiPropertyOptional({
+    description: 'Filter by student id (returns all years when yearId is omitted)',
+    example: 12,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  studentId?: number;
+
   @ApiPropertyOptional({ example: 'Layla' })
   @IsOptional()
   @Transform(trimString)
