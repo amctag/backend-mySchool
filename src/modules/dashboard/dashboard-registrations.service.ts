@@ -151,7 +151,7 @@ export class DashboardRegistrationsService {
         classId: dto.classId,
         status: 1,
       },
-      select: { id: true },
+      select: { id: true, yearId: true },
     });
     if (!section) {
       throw new BadRequestException(
@@ -159,20 +159,11 @@ export class DashboardRegistrationsService {
       );
     }
 
-    const duplicate = await this.prisma.registration.findFirst({
-      where: {
-        studentId: dto.studentId,
-        sectionId: dto.sectionId,
-        status: true,
-        section: { schoolId: user.schoolId },
-      },
-      select: { id: true },
-    });
-    if (duplicate) {
-      throw new BadRequestException(
-        'This student is already registered in this section',
-      );
-    }
+    await this.assertNoActiveRegistrationForYear(
+      user.schoolId,
+      dto.studentId,
+      section.yearId,
+    );
 
     const created = await this.prisma.registration.create({
       data: {
@@ -212,38 +203,27 @@ export class DashboardRegistrationsService {
       }
     }
 
-    if (dto.classId !== undefined || dto.sectionId !== undefined) {
-      const section = await this.prisma.section.findFirst({
-        where: {
-          id: sectionId,
-          schoolId: user.schoolId,
-          classId,
-          status: 1,
-        },
-        select: { id: true },
-      });
-      if (!section) {
-        throw new BadRequestException(
-          'Section not found for the selected class',
-        );
-      }
-    }
-
-    const duplicate = await this.prisma.registration.findFirst({
+    const section = await this.prisma.section.findFirst({
       where: {
-        studentId,
-        sectionId,
-        status: true,
-        section: { schoolId: user.schoolId },
-        NOT: { id },
+        id: sectionId,
+        schoolId: user.schoolId,
+        classId,
+        status: 1,
       },
-      select: { id: true },
+      select: { id: true, yearId: true },
     });
-    if (duplicate) {
+    if (!section) {
       throw new BadRequestException(
-        'This student is already registered in this section',
+        'Section not found for the selected class',
       );
     }
+
+    await this.assertNoActiveRegistrationForYear(
+      user.schoolId,
+      studentId,
+      section.yearId,
+      id,
+    );
 
     const updated = await this.prisma.registration.update({
       where: { id },
@@ -375,20 +355,11 @@ export class DashboardRegistrationsService {
       nextYear.title,
     );
 
-    const duplicate = await this.prisma.registration.findFirst({
-      where: {
-        studentId: current.studentId,
-        sectionId: targetSection.id,
-        status: true,
-        section: { schoolId },
-      },
-      select: { id: true },
-    });
-    if (duplicate) {
-      throw new BadRequestException(
-        'This student is already registered in that section for the next year',
-      );
-    }
+    await this.assertNoActiveRegistrationForYear(
+      schoolId,
+      current.studentId,
+      nextYear.id,
+    );
 
     const created = await this.prisma.registration.create({
       data: {
@@ -454,6 +425,46 @@ export class DashboardRegistrationsService {
       return error.message;
     }
     return 'Could not progress registration';
+  }
+
+  private async assertNoActiveRegistrationForYear(
+    schoolId: number,
+    studentId: number,
+    yearId: number,
+    excludeRegistrationId?: number,
+  ): Promise<void> {
+    const existing = await this.prisma.registration.findFirst({
+      where: {
+        studentId,
+        status: true,
+        section: {
+          schoolId,
+          yearId,
+        },
+        ...(excludeRegistrationId
+          ? { NOT: { id: excludeRegistrationId } }
+          : {}),
+      },
+      select: {
+        id: true,
+        section: {
+          select: {
+            year: { select: { title: true } },
+            class: { select: { className: true } },
+            sectionTitle: { select: { title: true } },
+          },
+        },
+      },
+    });
+
+    if (existing) {
+      const yearTitle = existing.section.year.title;
+      const className = existing.section.class.className;
+      const sectionTitle = existing.section.sectionTitle.title;
+      throw new BadRequestException(
+        `This student already has a registration for ${yearTitle} (${className} · ${sectionTitle}). One student can only have one registration per year.`,
+      );
+    }
   }
 
   private async findRegistrationForSchool(schoolId: number, id: number) {
