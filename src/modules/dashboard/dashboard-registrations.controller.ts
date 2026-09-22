@@ -6,6 +6,7 @@ import {
   HttpCode,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -33,6 +34,7 @@ import {
   BulkProgressRegistrationsResponseDto,
   ProgressDashboardRegistrationDto,
 } from './dto/progress-dashboard-registration.dto';
+import { UpdateDashboardRegistrationDto } from './dto/update-dashboard-registration.dto';
 import { DashboardRegistrationsService } from './dashboard-registrations.service';
 
 @ApiTags('Dashboard Registrations v1')
@@ -97,6 +99,21 @@ export class DashboardRegistrationsController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DashboardRegistrationItemDto> {
     return this.dashboardRegistrationsService.getRegistration(request.user, id);
+  }
+
+  @Patch('registrations/:id')
+  @ApiOperation({ summary: 'Update a registration' })
+  @ApiOkResponse({ type: DashboardRegistrationItemDto })
+  updateRegistration(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateDashboardRegistrationDto,
+  ): Promise<DashboardRegistrationItemDto> {
+    return this.dashboardRegistrationsService.updateRegistration(
+      request.user,
+      id,
+      dto,
+    );
   }
 
   @Post('registrations/:id/progress')

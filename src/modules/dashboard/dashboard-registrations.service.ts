@@ -19,6 +19,7 @@ import {
   BulkProgressRegistrationsResponseDto,
   ProgressDashboardRegistrationDto,
 } from './dto/progress-dashboard-registration.dto';
+import { UpdateDashboardRegistrationDto } from './dto/update-dashboard-registration.dto';
 
 const DASHBOARD_CREATOR_PERSON_ID = 1;
 
@@ -185,6 +186,75 @@ export class DashboardRegistrationsService {
     });
 
     return this.toItem(created as unknown as RegistrationRecord);
+  }
+
+  async updateRegistration(
+    user: AuthenticatedSchool,
+    id: number,
+    dto: UpdateDashboardRegistrationDto,
+  ): Promise<DashboardRegistrationItemDto> {
+    const existing = await this.findRegistrationForSchool(user.schoolId, id);
+
+    const studentId = dto.studentId ?? existing.student.id;
+    const classId = dto.classId ?? existing.section.classId;
+    const sectionId = dto.sectionId ?? existing.section.id;
+
+    if (dto.studentId !== undefined) {
+      const student = await this.prisma.student.findFirst({
+        where: {
+          id: studentId,
+          person: { schoolId: user.schoolId },
+        },
+        select: { id: true },
+      });
+      if (!student) {
+        throw new BadRequestException('Student not found');
+      }
+    }
+
+    if (dto.classId !== undefined || dto.sectionId !== undefined) {
+      const section = await this.prisma.section.findFirst({
+        where: {
+          id: sectionId,
+          schoolId: user.schoolId,
+          classId,
+          status: 1,
+        },
+        select: { id: true },
+      });
+      if (!section) {
+        throw new BadRequestException(
+          'Section not found for the selected class',
+        );
+      }
+    }
+
+    const duplicate = await this.prisma.registration.findFirst({
+      where: {
+        studentId,
+        sectionId,
+        status: true,
+        section: { schoolId: user.schoolId },
+        NOT: { id },
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new BadRequestException(
+        'This student is already registered in this section',
+      );
+    }
+
+    const updated = await this.prisma.registration.update({
+      where: { id },
+      data: {
+        studentId,
+        sectionId,
+      },
+      include: registrationInclude,
+    });
+
+    return this.toItem(updated as unknown as RegistrationRecord);
   }
 
   async progressRegistration(
