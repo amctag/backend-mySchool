@@ -61,14 +61,18 @@ export class DashboardChildrenService {
           registrations: {
             where: {
               status: true,
-              section: { schoolId },
+              section: {
+                schoolId,
+                ...(query.classId ? { classId: query.classId } : {}),
+                ...(query.yearId ? { yearId: query.yearId } : {}),
+              },
             },
             include: {
               section: {
                 select: {
                   class: { select: { id: true, className: true } },
                   sectionTitle: { select: { title: true } },
-                  year: { select: { title: true, isCurrent: true } },
+                  year: { select: { id: true, title: true, isCurrent: true } },
                 },
               },
             },
@@ -84,6 +88,11 @@ export class DashboardChildrenService {
     return {
       items: students.map((student) => {
         const registration =
+          (query.yearId
+            ? student.registrations.find(
+                (item) => item.section.year.id === query.yearId,
+              )
+            : undefined) ??
           student.registrations.find((item) => item.section.year.isCurrent) ??
           student.registrations[0];
 
@@ -159,19 +168,23 @@ export class DashboardChildrenService {
     const lastName = query.lastName?.trim();
     const parentNameContains = personNameContainsFilter(query.parentName);
 
+    const registrationSectionWhere: Prisma.SectionWhereInput = {
+      schoolId,
+      ...(query.classId ? { classId: query.classId } : {}),
+      ...(query.yearId ? { yearId: query.yearId } : {}),
+    };
+    const hasRegistrationFilter = Boolean(query.classId || query.yearId);
+
     return {
       AND: [
         { person: { schoolId } },
         query.parentId ? { parentId: query.parentId } : {},
-        query.classId
+        hasRegistrationFilter
           ? {
               registrations: {
                 some: {
                   status: true,
-                  section: {
-                    schoolId,
-                    classId: query.classId,
-                  },
+                  section: registrationSectionWhere,
                 },
               },
             }
