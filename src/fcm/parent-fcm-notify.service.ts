@@ -65,7 +65,7 @@ export class ParentFcmNotifyService {
 
       if (result === 'invalid') {
         await this.prisma.fcmToken.deleteMany({
-          where: { personId: row.personId },
+          where: { token: row.token },
         });
       }
     }

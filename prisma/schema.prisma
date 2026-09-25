@@ -95,7 +95,7 @@ model Person {
   agendas               Agenda[]
   examSchedules         ExamSchedule[]
   grades                Grade[]
-  fcmToken              FcmToken?
+  fcmTokens             FcmToken[]
   personNotifications   PersonNotification[]
 
   @@unique([schoolId, username])
@@ -1095,11 +1095,13 @@ model GradeFormPercentage {
 }
 
 model FcmToken {
-  personId Int    @id @map("person_id")
-  token    String @map("fcm_token") @db.Text
+  id       Int    @id @default(autoincrement())
+  personId Int    @map("person_id")
+  token    String @unique @map("fcm_token") @db.Text
 
   person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
 
+  @@index([personId])
   @@map("fcm_tokens")
 }
 

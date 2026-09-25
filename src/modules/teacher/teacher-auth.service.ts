@@ -16,6 +16,7 @@ import {
   TeacherJwtPayload,
 } from '../../auth/interfaces/jwt-payload.interface';
 import { SessionService } from '../../auth/services/session.service';
+import { FcmTokenStore } from '../../fcm/fcm-token.store';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { SchoolService } from '../school/school.service';
 import { TeacherAccessService } from './teacher-access.service';
@@ -57,6 +58,7 @@ export class TeacherAuthService {
     private readonly sessionService: SessionService,
     private readonly teacherAccess: TeacherAccessService,
     private readonly schoolService: SchoolService,
+    private readonly fcmTokens: FcmTokenStore,
   ) {}
 
   async login(loginDto: TeacherLoginDto): Promise<TeacherLoginResponseDto> {
@@ -65,11 +67,7 @@ export class TeacherAuthService {
     const tokens = await this.createSession(person, school.id);
     const fcmToken = loginDto.fcmToken?.trim();
     if (fcmToken) {
-      await this.prisma.fcmToken.upsert({
-        where: { personId: person.id },
-        create: { personId: person.id, token: fcmToken },
-        update: { token: fcmToken },
-      });
+      await this.fcmTokens.save(person.id, fcmToken);
     }
 
     const supervised = await this.prisma.teacherSupervisor.findMany({

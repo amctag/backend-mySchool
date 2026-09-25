@@ -6,6 +6,7 @@ import {
 import { AuthenticatedParent } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { FcmService } from '../../fcm/fcm.service';
+import { FcmTokenStore } from '../../fcm/fcm-token.store';
 import { ParentFcmTokenResponseDto } from './dto/parent-fcm-token.dto';
 import {
   SendParentFcmTestDto,
@@ -20,6 +21,7 @@ export class ParentFcmTokenService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly fcmService: FcmService,
+    private readonly fcmTokens: FcmTokenStore,
   ) {}
 
   async upsert(
@@ -34,16 +36,11 @@ export class ParentFcmTokenService {
     token: string,
   ): Promise<ParentFcmTokenResponseDto> {
     const trimmed = token.trim();
-
-    const row = await this.prisma.fcmToken.upsert({
-      where: { personId },
-      create: { personId, token: trimmed },
-      update: { token: trimmed },
-    });
+    await this.fcmTokens.save(personId, trimmed);
 
     return {
-      personId: row.personId,
-      token: row.token,
+      personId,
+      token: trimmed,
     };
   }
 
@@ -57,19 +54,18 @@ export class ParentFcmTokenService {
     user: AuthenticatedParent,
     dto: SendParentFcmTestDto,
   ): Promise<SendParentFcmTestResponseDto> {
-    const row = await this.prisma.fcmToken.findUnique({
+    const rows = await this.prisma.fcmToken.findMany({
       where: { personId: user.id },
     });
 
-    if (!row) {
+    if (rows.length === 0) {
       throw new NotFoundException('No FCM token for this parent');
     }
 
     const title = dto.title?.trim() || DEFAULT_TITLE;
     const body = dto.body?.trim() || DEFAULT_BODY;
 
-    try {
-      await this.prisma.personNotification.create({
+    await this.prisma.personNotification.create({
         data: {
           personId: user.id,
           title: title.slice(0, 255),
@@ -83,24 +79,33 @@ export class ParentFcmTokenService {
         },
       });
 
-      const messageId = await this.fcmService.sendNotification(
-        row.token,
-        title,
-        body,
-        {
-          type: 'test',
-          personId: String(user.id),
-        },
-      );
+      let messageId = '';
+      let sent = false;
+      for (const row of rows) {
+        try {
+          messageId = await this.fcmService.sendNotification(
+            row.token,
+            title,
+            body,
+            {
+              type: 'test',
+              personId: String(user.id),
+            },
+          );
+          sent = true;
+        } catch (error) {
+          if (this.fcmService.isInvalidTokenError(error)) {
+            await this.fcmTokens.deleteToken(row.token);
+            continue;
+          }
+          throw error;
+        }
+      }
 
-      return { sent: true, personId: user.id, messageId };
-    } catch (error) {
-      if (this.fcmService.isInvalidTokenError(error)) {
-        await this.deleteForPerson(user.id);
+      if (!sent) {
         throw new BadRequestException('FCM token is invalid or expired');
       }
 
-      throw error;
-    }
+      return { sent: true, personId: user.id, messageId };
   }
 }
