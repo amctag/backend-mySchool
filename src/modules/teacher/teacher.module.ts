@@ -28,6 +28,8 @@ import { TeacherAttendanceController } from './teacher-attendance.controller';
 import { TeacherAttendanceService } from './teacher-attendance.service';
 import { TeacherNotificationsController } from './teacher-notifications.controller';
 import { TeacherNotificationsService } from './teacher-notifications.service';
+import { TeacherTasksController } from './teacher-tasks.controller';
+import { TeacherTasksService } from './teacher-tasks.service';
 import { MediaUploadService } from '../../upload/media-upload.service';
 
 @Module({
@@ -47,6 +49,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     TeacherActivitiesController,
     TeacherAlbumsController,
     TeacherNotificationsController,
+    TeacherTasksController,
   ],
   providers: [
     TeacherAuthService,
@@ -61,6 +64,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     TeacherActivitiesService,
     TeacherAlbumsService,
     TeacherNotificationsService,
+    TeacherTasksService,
     MediaUploadService,
   ],
 })

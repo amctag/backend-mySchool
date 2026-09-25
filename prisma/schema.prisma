@@ -37,6 +37,7 @@ model School {
   gradeForms       GradeForm[]
   gradeTypes       GradeType[]
   registrations    Registration[]
+  teacherTasks     TeacherTask[]
 
   @@map("school")
 }
@@ -113,6 +114,7 @@ model Teacher {
   schools TeacherSchool[]
   teaches Teach[]
   supervises TeacherSupervisor[]
+  taskCompletions TeacherTaskCompletion[]
 
   @@map("teachers")
 }
@@ -1115,4 +1117,33 @@ model PersonNotification {
 
   @@index([personId, createdAt(sort: Desc)])
   @@map("person_notifications")
+}
+
+model TeacherTask {
+  id          Int       @id @default(autoincrement())
+  schoolId    Int       @map("school_id")
+  title       String    @db.VarChar(255)
+  description String    @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  school      School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  completions TeacherTaskCompletion[]
+
+  @@index([schoolId, createdAt(sort: Desc)])
+  @@map("teacher_tasks")
+}
+
+model TeacherTaskCompletion {
+  id          Int      @id @default(autoincrement())
+  taskId      Int      @map("task_id")
+  teacherId   Int      @map("teacher_id")
+  completedAt DateTime @default(now()) @map("completed_at") @db.Timestamptz(6)
+
+  task    TeacherTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  teacher Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, teacherId])
+  @@index([teacherId, completedAt(sort: Desc)])
+  @@map("teacher_task_completions")
 }

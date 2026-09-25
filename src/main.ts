@@ -71,6 +71,7 @@ async function bootstrap() {
     .addTag('Teacher Schedule v1', 'Weekly timetable and teaching assignments')
     .addTag('Teacher Classes v1', 'Assigned classes and class students')
     .addTag('Teacher Notices v1', 'Teacher notices for assigned classes and students')
+    .addTag('Teacher Tasks v1', 'School tasks assigned to teachers')
     .build();
 
   const teacherDocument = SwaggerModule.createDocument(
@@ -89,6 +90,7 @@ async function bootstrap() {
     .addTag('Dashboard FCM v1', 'Send test Firebase Cloud Messaging notifications')
     .addTag('Dashboard Notices v1', 'School notices for students and sections')
     .addTag('Dashboard Activities v1', 'School activities and events')
+    .addTag('Dashboard Teacher Tasks v1', 'Tasks assigned to all teachers')
     .addTag('Dashboard Lookups v1', 'Governorates, regions, nationalities, and jobs')
     .build();
 
