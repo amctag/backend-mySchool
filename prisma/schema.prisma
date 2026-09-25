@@ -7,37 +7,39 @@ datasource db {
 }
 
 model School {
-  id        Int      @id @default(autoincrement())
-  name      String   @db.VarChar(255)
-  email     String   @unique @db.VarChar(255)
-  password  String   @db.VarChar(255)
-  isActive  Boolean  @default(true) @map("is_active")
-  teachersSeeAllClassCourses Boolean @default(true) @map("teachers_see_all_class_courses")
-  attendancePerCourse Boolean @default(false) @map("attendance_per_course")
-  teachersCanPublishAgenda Boolean @default(true) @map("teachers_can_publish_agenda")
-  teachersCanPublishGrades Boolean @default(true) @map("teachers_can_publish_grades")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                         Int      @id @default(autoincrement())
+  name                       String   @db.VarChar(255)
+  email                      String   @unique @db.VarChar(255)
+  password                   String   @db.VarChar(255)
+  isActive                   Boolean  @default(true) @map("is_active")
+  teachersSeeAllClassCourses Boolean  @default(true) @map("teachers_see_all_class_courses")
+  attendancePerCourse        Boolean  @default(false) @map("attendance_per_course")
+  teachersCanPublishAgenda   Boolean  @default(true) @map("teachers_can_publish_agenda")
+  teachersCanPublishGrades   Boolean  @default(true) @map("teachers_can_publish_grades")
+  createdAt                  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  persons       Person[]
-  years         Year[]
-  stages        Stage[]
-  sectionTitles SectionTitle[]
-  sections      Section[]
-  courses       Course[]
-  days          Day[]
-  sessions      Session[]
-  teacherSchools   TeacherSchool[]
-  teacherSessions  TeacherSession[]
-  schoolSessions   SchoolSession[]
-  details          SchoolDetail?
-  notices          Notice[]
-  albums           Album[]
-  grades           Grade[]
-  gradeForms       GradeForm[]
-  gradeTypes       GradeType[]
-  registrations    Registration[]
-  teacherTasks     TeacherTask[]
+  persons             Person[]
+  years               Year[]
+  stages              Stage[]
+  sectionTitles       SectionTitle[]
+  sections            Section[]
+  courses             Course[]
+  days                Day[]
+  sessions            Session[]
+  teacherSchools      TeacherSchool[]
+  teacherSessions     TeacherSession[]
+  schoolSessions      SchoolSession[]
+  details             SchoolDetail?
+  notices             Notice[]
+  albums              Album[]
+  grades              Grade[]
+  gradeForms          GradeForm[]
+  gradeTypes          GradeType[]
+  registrations       Registration[]
+  teacherTasks        TeacherTask[]
+  accountingRegisters AccountingRegister[]
+  items               Item[]
 
   @@map("school")
 }
@@ -69,6 +71,7 @@ model Person {
   placeOfBirth   String?   @map("place_of_birth") @db.VarChar(255)
   bloodTypeId    Int?      @map("blood_type_id")
   identityTypeId Int?      @map("identity_type_id")
+  accountId      Int?      @map("account_id")
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -77,6 +80,7 @@ model Person {
   governorate           Governorate?           @relation(fields: [governorateId], references: [id], onDelete: SetNull)
   region                Region?                @relation(fields: [regionId], references: [id], onDelete: SetNull)
   bloodType             BloodType?             @relation(fields: [bloodTypeId], references: [id], onDelete: SetNull)
+  account               Account?               @relation(fields: [accountId], references: [id], onDelete: Restrict)
   teacher               Teacher?
   parent                Parent?
   student               Student?
@@ -100,6 +104,7 @@ model Person {
 
   @@unique([schoolId, username])
   @@index([schoolId])
+  @@index([accountId])
   @@index([firstName, lastName])
   @@map("persons")
 }
@@ -110,10 +115,10 @@ model Teacher {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  person  Person          @relation(fields: [personId], references: [id], onDelete: Cascade)
-  schools TeacherSchool[]
-  teaches Teach[]
-  supervises TeacherSupervisor[]
+  person          Person                  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  schools         TeacherSchool[]
+  teaches         Teach[]
+  supervises      TeacherSupervisor[]
   taskCompletions TeacherTaskCompletion[]
 
   @@map("teachers")
@@ -223,9 +228,9 @@ model Student {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  person        Person         @relation(fields: [personId], references: [id], onDelete: Cascade)
-  parent        Parent?        @relation(fields: [parentId], references: [id], onDelete: SetNull)
-  registrations Registration[]
+  person            Person             @relation(fields: [personId], references: [id], onDelete: Cascade)
+  parent            Parent?            @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  registrations     Registration[]
   attendanceDetails AttendanceDetail[]
   noticeStudents    NoticeStudent[]
 
@@ -242,15 +247,17 @@ model Year {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  school       School        @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  sections     Section[]
-  classCourses ClassCourse[]
-  teaches      Teach[]
-  teacherSupervisors TeacherSupervisor[]
-  activities    Activity[]
-  albums        Album[]
-  examSchedules ExamSchedule[]
-  gradeForms    GradeForm[]
+  school                         School                          @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  sections                       Section[]
+  classCourses                   ClassCourse[]
+  teaches                        Teach[]
+  teacherSupervisors             TeacherSupervisor[]
+  activities                     Activity[]
+  albums                         Album[]
+  examSchedules                  ExamSchedule[]
+  gradeForms                     GradeForm[]
+  accountingRegistrationPackages AccountingRegistrationPackage[]
+  installments                   Installment[]
 
   @@unique([schoolId, title])
   @@index([schoolId, isCurrent])
@@ -280,13 +287,14 @@ model Class {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  stage        Stage         @relation(fields: [stageId], references: [id], onDelete: Restrict)
-  sections     Section[]
-  classCourses ClassCourse[]
-  announcementSections AnnouncementSection[]
-  examSchedules        ExamSchedule[]
-  gradeFormClasses     GradeFormClass[]
-  teacherSupervisors   TeacherSupervisor[]
+  stage                                Stage                                @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  sections                             Section[]
+  classCourses                         ClassCourse[]
+  announcementSections                 AnnouncementSection[]
+  examSchedules                        ExamSchedule[]
+  gradeFormClasses                     GradeFormClass[]
+  teacherSupervisors                   TeacherSupervisor[]
+  accountingRegistrationPackageClasses AccountingRegistrationPackageClass[]
 
   @@map("classes")
 }
@@ -316,19 +324,19 @@ model Section {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  school           School           @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  class            Class            @relation(fields: [classId], references: [id], onDelete: Restrict)
-  sectionTitle     SectionTitle     @relation(fields: [sectionTitleId], references: [id], onDelete: Restrict)
-  year             Year             @relation(fields: [yearId], references: [id], onDelete: Restrict)
-  teaches          Teach[]
-  weeklySchedules  WeeklySchedule[]
-  registrations    Registration[]
+  school               School                @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  class                Class                 @relation(fields: [classId], references: [id], onDelete: Restrict)
+  sectionTitle         SectionTitle          @relation(fields: [sectionTitleId], references: [id], onDelete: Restrict)
+  year                 Year                  @relation(fields: [yearId], references: [id], onDelete: Restrict)
+  teaches              Teach[]
+  weeklySchedules      WeeklySchedule[]
+  registrations        Registration[]
   announcementSections AnnouncementSection[]
-  attendances      Attendance[]
-  noticeSections   NoticeSection[]
-  agendaSections   AgendaSection[]
-  activitySections ActivitySection[]
-  grades           Grade[]
+  attendances          Attendance[]
+  noticeSections       NoticeSection[]
+  agendaSections       AgendaSection[]
+  activitySections     ActivitySection[]
+  grades               Grade[]
 
   @@index([schoolId, yearId])
   @@index([classId, yearId])
@@ -477,10 +485,10 @@ model WeeklyScheduleDetail {
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   schedule WeeklySchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  day      Day              @relation(fields: [dayId], references: [id], onDelete: Restrict)
-  session  Session          @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  course   Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  person   Person?          @relation(fields: [personId], references: [id], onDelete: SetNull)
+  day      Day            @relation(fields: [dayId], references: [id], onDelete: Restrict)
+  session  Session        @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  course   Course         @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  person   Person?        @relation(fields: [personId], references: [id], onDelete: SetNull)
 
   @@index([personId])
   @@index([scheduleId, dayId])
@@ -499,10 +507,10 @@ model Registration {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  school  School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  section Section @relation(fields: [sectionId], references: [id], onDelete: Restrict)
-  student Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  person  Person  @relation(fields: [personId], references: [id], onDelete: Restrict)
+  school       School        @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  section      Section       @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  student      Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  person       Person        @relation(fields: [personId], references: [id], onDelete: Restrict)
   gradeDetails GradeDetail[]
 
   @@index([studentId, status])
@@ -766,7 +774,7 @@ model NoticeType {
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  person Person @relation(fields: [personId], references: [id], onDelete: Restrict)
+  person  Person   @relation(fields: [personId], references: [id], onDelete: Restrict)
   notices Notice[]
 
   @@map("notice_types")
@@ -917,7 +925,7 @@ model GradeType {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  school            School?           @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  school            School?               @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   examSchedules     ExamSchedule[]
   grades            Grade[]
   gradeFormDetails  GradeFormDetail[]
@@ -1024,22 +1032,22 @@ model GradeDetail {
 }
 
 model GradeForm {
-  id             Int      @id @default(autoincrement())
-  schoolId       Int      @map("school_id")
-  title          String   @db.VarChar(255)
-  yearId         Int      @map("year_id")
-  gradeBackground String? @map("grade_background") @db.VarChar(255)
-  average        Int      @default(0)
-  minimum        Int      @default(0) @map("minimum")
-  direction      String   @default("ltr") @db.VarChar(10)
-  tableFormat    String   @default("standard") @map("table_format") @db.VarChar(30)
-  gradeFormatId  Int      @map("grade_format_id")
-  status         Boolean  @default(true)
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              Int      @id @default(autoincrement())
+  schoolId        Int      @map("school_id")
+  title           String   @db.VarChar(255)
+  yearId          Int      @map("year_id")
+  gradeBackground String?  @map("grade_background") @db.VarChar(255)
+  average         Int      @default(0)
+  minimum         Int      @default(0) @map("minimum")
+  direction       String   @default("ltr") @db.VarChar(10)
+  tableFormat     String   @default("standard") @map("table_format") @db.VarChar(30)
+  gradeFormatId   Int      @map("grade_format_id")
+  status          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  school  School           @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  year    Year             @relation(fields: [yearId], references: [id], onDelete: Restrict)
+  school  School            @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  year    Year              @relation(fields: [yearId], references: [id], onDelete: Restrict)
   classes GradeFormClass[]
   details GradeFormDetail[]
 
@@ -1079,13 +1087,13 @@ model GradeFormDetail {
 }
 
 model GradeFormPercentage {
-  id                   Int      @id @default(autoincrement())
-  gradeFormatDetailId  Int      @map("grade_format_detail_id")
-  sourceGradeTypeId    Int?     @map("source_grade_type_id")
-  percentage           Decimal  @db.Decimal(5, 2)
-  status               Boolean  @default(true)
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                  Int      @id @default(autoincrement())
+  gradeFormatDetailId Int      @map("grade_format_detail_id")
+  sourceGradeTypeId   Int?     @map("source_grade_type_id")
+  percentage          Decimal  @db.Decimal(5, 2)
+  status              Boolean  @default(true)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   gradeFormDetail GradeFormDetail @relation(fields: [gradeFormatDetailId], references: [id], onDelete: Cascade)
   sourceGradeType GradeType?      @relation("GradeFormPercentageSource", fields: [sourceGradeTypeId], references: [id], onDelete: Restrict)
@@ -1146,4 +1154,262 @@ model TeacherTaskCompletion {
   @@unique([taskId, teacherId])
   @@index([teacherId, completedAt(sort: Desc)])
   @@map("teacher_task_completions")
+}
+
+model AccountingRegisterType {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(255)
+
+  registers AccountingRegister[]
+
+  @@map("accounting_register_types")
+}
+
+model Account {
+  id   Int    @id @default(autoincrement())
+  code String @unique @db.VarChar(255)
+
+  persons      Person[]
+  dailyEntries AccountingDaily[]
+  installments Installment[]
+
+  @@map("accounts")
+}
+
+model AccountingRegister {
+  id                       Int      @id @default(autoincrement())
+  description              String?  @db.Text
+  dateCreated              DateTime @default(now()) @map("date_created") @db.Timestamptz(6)
+  accountingRegisterTypeId Int      @map("accounting_register_type_id")
+  currencyId               Int?     @map("currency_id")
+  notes                    String?  @db.Text
+  comments                 String?  @db.Text
+  currencyRate             Decimal? @map("currency_rate") @db.Decimal(18, 6)
+  schoolId                 Int      @map("school_id")
+  userId                   Int?     @map("user_id")
+
+  accountingRegisterType AccountingRegisterType     @relation(fields: [accountingRegisterTypeId], references: [id], onDelete: Restrict)
+  school                 School                     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  dailyEntries           AccountingDaily[]
+  receipts               AccountingReceipt[]
+  payments               AccountingPayment[]
+  sales                  AccountingSale[]
+  purchases              AccountingPurchase[]
+  salesReturns           AccountingSalesReturn[]
+  purchaseReturns        AccountingPurchaseReturn[]
+  invoices               AccountingInvoice[]
+
+  @@index([accountingRegisterTypeId])
+  @@index([schoolId])
+  @@map("accounting_register")
+}
+
+model AccountingDaily {
+  id                   Int     @id @default(autoincrement())
+  accountId            Int     @map("account_id")
+  debit                Decimal @db.Decimal(18, 2)
+  credit               Decimal @db.Decimal(18, 2)
+  description          String? @db.Text
+  accountingRegisterId Int     @map("accounting_register_id")
+
+  account            Account            @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  accountingRegister AccountingRegister @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+
+  @@index([accountId])
+  @@index([accountingRegisterId])
+  @@map("accounting_daily")
+}
+
+model AccountingReceipt {
+  id                   Int @id @default(autoincrement())
+  accountingRegisterId Int @map("accounting_register_id")
+  nb                   Int
+
+  accountingRegister AccountingRegister @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+  installments       Installment[]
+
+  @@index([accountingRegisterId])
+  @@map("accounting_receipts")
+}
+
+model AccountingPayment {
+  id                   Int @id @default(autoincrement())
+  accountingRegisterId Int @map("accounting_register_id")
+  nb                   Int
+
+  accountingRegister AccountingRegister @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+
+  @@index([accountingRegisterId])
+  @@map("accounting_payments")
+}
+
+model AccountingSale {
+  id                   Int @id @default(autoincrement())
+  accountingRegisterId Int @map("accounting_register_id")
+  nb                   Int
+
+  accountingRegister AccountingRegister @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+
+  @@index([accountingRegisterId])
+  @@map("accounting_sales")
+}
+
+model AccountingPurchase {
+  id                   Int @id @default(autoincrement())
+  accountingRegisterId Int @map("accounting_register_id")
+  nb                   Int
+
+  accountingRegister AccountingRegister @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+
+  @@index([accountingRegisterId])
+  @@map("accounting_purchase")
+}
+
+model AccountingSalesReturn {
+  id                   Int @id @default(autoincrement())
+  accountingRegisterId Int @map("accounting_register_id")
+  nb                   Int
+
+  accountingRegister AccountingRegister @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+
+  @@index([accountingRegisterId])
+  @@map("accounting_sales_return")
+}
+
+model AccountingPurchaseReturn {
+  id                   Int @id @default(autoincrement())
+  accountingRegisterId Int @map("accounting_register_id")
+  nb                   Int
+
+  accountingRegister AccountingRegister @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+
+  @@index([accountingRegisterId])
+  @@map("accounting_purchase_return")
+}
+
+model AccountingInvoice {
+  id                   Int      @id @default(autoincrement())
+  dateCreated          DateTime @default(now()) @map("date_created") @db.Timestamptz(6)
+  description          String?  @db.Text
+  accountingRegisterId Int      @map("accounting_register_id")
+  tax                  Decimal  @db.Decimal(18, 2)
+  discount             Decimal  @db.Decimal(18, 2)
+  total                Decimal  @db.Decimal(18, 2)
+
+  accountingRegister AccountingRegister        @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+  details            AccountingInvoiceDetail[]
+
+  @@index([accountingRegisterId])
+  @@map("accounting_invoice")
+}
+
+model AccountingInvoiceDetail {
+  id          Int     @id @default(autoincrement())
+  invoiceId   Int     @map("invoice_id")
+  itemId      Int     @map("item_id")
+  unitPrice   Decimal @map("unit_price") @db.Decimal(18, 2)
+  quantity    Decimal @db.Decimal(18, 3)
+  description String? @db.Text
+  discount    Decimal @db.Decimal(18, 2)
+  tax         Decimal @db.Decimal(18, 2)
+
+  invoice AccountingInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  item    Item              @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceId])
+  @@index([itemId])
+  @@map("accounting_invoice_details")
+}
+
+model ItemType {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(255)
+
+  items Item[]
+
+  @@map("item_types")
+}
+
+model Item {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(255)
+  schoolId   Int      @map("school_id")
+  itemTypeId Int      @map("item_type_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  school                   School                              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  itemType                 ItemType                            @relation(fields: [itemTypeId], references: [id], onDelete: Restrict)
+  invoiceDetails           AccountingInvoiceDetail[]
+  registrationPackageItems AccountingRegistrationPackageItem[]
+
+  @@index([schoolId])
+  @@index([itemTypeId])
+  @@map("items")
+}
+
+model AccountingRegistrationPackage {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+  yearId      Int      @map("year_id")
+  dateCreated DateTime @default(now()) @map("date_created") @db.Timestamptz(6)
+
+  year    Year                                 @relation(fields: [yearId], references: [id], onDelete: Restrict)
+  items   AccountingRegistrationPackageItem[]
+  classes AccountingRegistrationPackageClass[]
+
+  @@index([yearId])
+  @@map("accounting_registration_package")
+}
+
+model AccountingRegistrationPackageItem {
+  id                              Int      @id @default(autoincrement())
+  itemId                          Int      @map("item_id")
+  price                           Decimal  @db.Decimal(18, 2)
+  mandatory                       Boolean
+  accountingRegistrationPackageId Int      @map("accounting_registration_package_id")
+  dateCreated                     DateTime @default(now()) @map("date_created") @db.Timestamptz(6)
+  currencyId                      Int?     @map("currency_id")
+
+  item                          Item                          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  accountingRegistrationPackage AccountingRegistrationPackage @relation(fields: [accountingRegistrationPackageId], references: [id], onDelete: Restrict)
+
+  @@index([itemId])
+  @@index([accountingRegistrationPackageId])
+  @@map("accounting_registration_package_items")
+}
+
+model AccountingRegistrationPackageClass {
+  id                              Int      @id @default(autoincrement())
+  accountingRegistrationPackageId Int      @map("accounting_registration_package_id")
+  classId                         Int      @map("class_id")
+  dateCreated                     DateTime @default(now()) @map("date_created") @db.Timestamptz(6)
+
+  accountingRegistrationPackage AccountingRegistrationPackage @relation(fields: [accountingRegistrationPackageId], references: [id], onDelete: Restrict)
+  class                         Class                         @relation(fields: [classId], references: [id], onDelete: Restrict)
+
+  @@index([accountingRegistrationPackageId])
+  @@index([classId])
+  @@map("accounting_registration_package_classes")
+}
+
+model Installment {
+  id          Int       @id @default(autoincrement())
+  accountId   Int       @map("account_id")
+  paid        Boolean   @default(false)
+  receiptId   Int       @map("receipt_id")
+  amount      Decimal   @db.Decimal(18, 2)
+  yearId      Int       @map("year_id")
+  date        DateTime? @db.Date
+  dateCreated DateTime  @default(now()) @map("date_created") @db.Timestamptz(6)
+  userId      Int?      @map("user_id")
+
+  account Account           @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  receipt AccountingReceipt @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  year    Year              @relation(fields: [yearId], references: [id], onDelete: Restrict)
+
+  @@index([accountId])
+  @@index([receiptId])
+  @@index([yearId])
+  @@map("installment")
 }
