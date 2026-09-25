@@ -28,7 +28,7 @@ export class ParentAuthController {
   @ApiOperation({
     summary: 'Parent login',
     description:
-      'Authenticates the parent by person ID (or parent ID) and password. Optional fcmToken is stored for this device and does not remove the person's other devices.',
+      'Authenticates the parent by person ID (or parent ID) and password. Optional fcmToken is stored for this device and does not remove other devices for the same person.',
   })
   @ApiOkResponse({ type: ParentLoginResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })

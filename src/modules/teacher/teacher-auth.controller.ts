@@ -31,7 +31,7 @@ export class TeacherAuthController {
   @ApiOperation({
     summary: 'Teacher login',
     description:
-      'Authenticates a teacher by person ID or teacher ID and password. Optional fcmToken is stored for this device and does not remove the person's other devices. Returns an access token and refresh token. Multiple devices can stay logged in at the same time. If the teacher belongs to multiple schools, pass schoolId to choose one; otherwise the first active school is used.',
+      'Authenticates a teacher by person ID or teacher ID and password. Optional fcmToken is stored for this device and does not remove other devices for the same person. Returns an access token and refresh token. Multiple devices can stay logged in at the same time. If the teacher belongs to multiple schools, pass schoolId to choose one; otherwise the first active school is used.',
   })
   @ApiOkResponse({ type: TeacherLoginResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
