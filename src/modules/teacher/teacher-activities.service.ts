@@ -259,15 +259,33 @@ export class TeacherActivitiesService {
       };
     }
 
-    if (dto.stageId == null) {
-      throw new BadRequestException('stageId is required for stage scope');
+    if (dto.stageId == null && !dto.stageTitle?.trim()) {
+      throw new BadRequestException(
+        'stageId or stageTitle is required for stage scope',
+      );
     }
+
+    let stageId = dto.stageId;
+    if (stageId == null) {
+      const stage = await this.prisma.stage.findFirst({
+        where: {
+          schoolId: user.schoolId,
+          title: dto.stageTitle!.trim(),
+        },
+        select: { id: true },
+      });
+      if (!stage) {
+        throw new BadRequestException('Stage not found');
+      }
+      stageId = stage.id;
+    }
+
     const teaches = await this.prisma.teach.findMany({
       where: {
         teacherId: user.teacherId,
         section: {
           schoolId: user.schoolId,
-          class: { stageId: dto.stageId },
+          class: { stageId },
         },
         ...(yearId ? { yearId } : {}),
       },
