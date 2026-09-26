@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -88,9 +89,17 @@ export class TeacherAgendaItemDto {
 
   @ApiProperty({
     example: true,
-    description: 'When true, parents can see this agenda.',
+    description: 'True when status is published (parents can see it).',
   })
   published!: boolean;
+
+  @ApiProperty({
+    example: 'saved',
+    enum: ['draft', 'saved', 'published'],
+    description:
+      'draft = author only; saved = school/supervisor; published = parents.',
+  })
+  status!: 'draft' | 'saved' | 'published';
 
   @ApiProperty({
     example: true,
@@ -177,8 +186,20 @@ export class UpsertTeacherAgendaDto {
   fileLink?: string;
 
   @ApiPropertyOptional({
+    example: 'saved',
+    enum: ['draft', 'saved', 'published'],
+    description:
+      'draft = only this teacher; saved = school/supervisor can see; published = parents. ' +
+      'If omitted, published=true maps to published and published=false maps to saved.',
+  })
+  @IsOptional()
+  @IsIn(['draft', 'saved', 'published'])
+  status?: 'draft' | 'saved' | 'published';
+
+  @ApiPropertyOptional({
     example: false,
-    description: 'Publish so parents can see this agenda. Defaults to draft.',
+    description:
+      'Legacy flag. Prefer status. true = published, false = saved when status is omitted.',
   })
   @IsOptional()
   @IsBoolean()

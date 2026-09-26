@@ -47,6 +47,29 @@ const agendaInclude = {
 
 type AgendaRecord = Prisma.AgendaGetPayload<{ include: typeof agendaInclude }>;
 
+/** draft = author only; saved = school/supervisor; published = parents */
+const AGENDA_STATUS = {
+  draft: 0,
+  saved: 2,
+  published: 1,
+} as const;
+
+type AgendaStatusLabel = keyof typeof AGENDA_STATUS;
+
+function agendaStatusLabel(status: number): AgendaStatusLabel {
+  if (status === AGENDA_STATUS.published) {
+    return 'published';
+  }
+  if (status === AGENDA_STATUS.saved) {
+    return 'saved';
+  }
+  return 'draft';
+}
+
+function agendaStatusCode(label: AgendaStatusLabel): number {
+  return AGENDA_STATUS[label];
+}
+
 @Injectable()
 export class TeacherAgendaService {
   constructor(
@@ -102,6 +125,11 @@ export class TeacherAgendaService {
           sectionId: { in: filterSectionIds },
         },
       },
+      // Drafts (0) are private to the author; saved (2) + published (1) are shared.
+      OR: [
+        { status: { in: [AGENDA_STATUS.saved, AGENDA_STATUS.published] } },
+        { status: AGENDA_STATUS.draft, personId: user.id },
+      ],
       ...(query.agendaDate
         ? { agendaDate: parseDateOnly(query.agendaDate) }
         : query.month
@@ -149,8 +177,8 @@ export class TeacherAgendaService {
   ): Promise<TeacherAgendaItemDto> {
     const assignment = await this.assertWritableAssignment(user, dto);
     const schoolCanPublish = await this.teachersCanPublishAgenda(user.schoolId);
-    const published = dto.published === true;
-    if (published) {
+    const status = this.resolveStatusFromDto(dto, AGENDA_STATUS.saved);
+    if (status === AGENDA_STATUS.published) {
       const canPublish =
         schoolCanPublish ||
         (await this.teacherAccess.isSupervisorOfSection(
@@ -171,15 +199,15 @@ export class TeacherAgendaService {
         imageLink: dto.imageLink?.trim() || '',
         fileLink: normalizePublicMediaUrl(dto.fileLink) ?? '',
         publishedDate: new Date(),
-        status: published ? 1 : 0,
+        status,
         sections: { create: { sectionId: assignment.sectionId } },
       },
       include: agendaInclude,
     });
 
     await this.notifyParentsOfAgenda(created);
-    if (created.status !== 1) {
-      await this.notifySupervisorsOfDraftAgenda(created, user);
+    if (created.status === AGENDA_STATUS.saved) {
+      await this.notifySupervisorsOfSavedAgenda(created, user);
     }
 
     return this.toItem(
@@ -216,6 +244,9 @@ export class TeacherAgendaService {
     if (!row) {
       throw new NotFoundException('Agenda not found');
     }
+    if (row.status === AGENDA_STATUS.draft && row.personId !== user.id) {
+      throw new NotFoundException('Agenda not found');
+    }
 
     const assignmentIds = await this.resolveAssignmentIds(user, [
       {
@@ -250,7 +281,7 @@ export class TeacherAgendaService {
     this.assertTeacherMayPublish(schoolCanPublish || isSupervisor);
     const published = await this.prisma.agenda.update({
       where: { id: agendaId },
-      data: { status: 1, publishedDate: new Date() },
+      data: { status: AGENDA_STATUS.published, publishedDate: new Date() },
       include: agendaInclude,
     });
     const assignmentIds = await this.resolveAssignmentIds(user, [
@@ -280,7 +311,14 @@ export class TeacherAgendaService {
     const existing = await this.findOwnAgenda(user, agendaId);
     const assignment = await this.assertWritableAssignment(user, dto);
     const schoolCanPublish = await this.teachersCanPublishAgenda(user.schoolId);
-    if (dto.published === true && existing.status !== 1) {
+    const nextStatus =
+      dto.status !== undefined || dto.published !== undefined
+        ? this.resolveStatusFromDto(dto, existing.status)
+        : existing.status;
+    if (
+      nextStatus === AGENDA_STATUS.published &&
+      existing.status !== AGENDA_STATUS.published
+    ) {
       const canPublish =
         schoolCanPublish ||
         (await this.teacherAccess.isSupervisorOfSection(
@@ -306,16 +344,23 @@ export class TeacherAgendaService {
           courseId: assignment.courseId,
           imageLink: dto.imageLink?.trim() || '',
           fileLink: normalizePublicMediaUrl(dto.fileLink) ?? '',
-          ...(dto.published !== undefined
-            ? { status: dto.published ? 1 : 0 }
+          status: nextStatus,
+          ...(nextStatus === AGENDA_STATUS.published &&
+          existing.status !== AGENDA_STATUS.published
+            ? { publishedDate: new Date() }
             : {}),
         },
         include: agendaInclude,
       });
     });
 
-    if (updated.status === 1) {
+    if (updated.status === AGENDA_STATUS.published) {
       await this.notifyParentsOfAgenda(updated);
+    } else if (
+      updated.status === AGENDA_STATUS.saved &&
+      existing.status === AGENDA_STATUS.draft
+    ) {
+      await this.notifySupervisorsOfSavedAgenda(updated, user);
     }
 
     return this.toItem(
@@ -387,8 +432,24 @@ export class TeacherAgendaService {
     return row;
   }
 
+  private resolveStatusFromDto(
+    dto: UpsertTeacherAgendaDto,
+    fallback: number,
+  ): number {
+    if (dto.status) {
+      return agendaStatusCode(dto.status);
+    }
+    if (dto.published === true) {
+      return AGENDA_STATUS.published;
+    }
+    if (dto.published === false) {
+      return AGENDA_STATUS.saved;
+    }
+    return fallback;
+  }
+
   private async notifyParentsOfAgenda(row: AgendaRecord): Promise<void> {
-    if (row.status !== 1) {
+    if (row.status !== AGENDA_STATUS.published) {
       return;
     }
 
@@ -430,11 +491,11 @@ export class TeacherAgendaService {
     );
   }
 
-  private async notifySupervisorsOfDraftAgenda(
+  private async notifySupervisorsOfSavedAgenda(
     row: AgendaRecord,
     author: AuthenticatedTeacher,
   ): Promise<void> {
-    if (row.status === 1) {
+    if (row.status !== AGENDA_STATUS.saved) {
       return;
     }
 
@@ -479,7 +540,7 @@ export class TeacherAgendaService {
   }
 
   private async notifyAuthorAgendaPublished(row: AgendaRecord): Promise<void> {
-    if (row.status !== 1) {
+    if (row.status !== AGENDA_STATUS.published) {
       return;
     }
 
@@ -570,7 +631,8 @@ export class TeacherAgendaService {
       time: row.time,
       imageLink: row.imageLink || null,
       fileLink: normalizePublicMediaUrl(row.fileLink),
-      published: row.status === 1,
+      published: row.status === AGENDA_STATUS.published,
+      status: agendaStatusLabel(row.status),
       isOwn: row.personId === viewerPersonId,
       canPublish,
     };

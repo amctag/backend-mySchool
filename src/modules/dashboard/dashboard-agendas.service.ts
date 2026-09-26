@@ -350,6 +350,9 @@ export class DashboardAgendasService {
     }
     if (query.status !== undefined) {
       where.status = query.status;
+    } else {
+      // Hide teacher-only drafts (0); school sees saved (2) and published (1).
+      where.status = { in: [1, 2] };
     }
     if (query.agendaDate) {
       where.agendaDate = this.parseDateOnly(query.agendaDate);
