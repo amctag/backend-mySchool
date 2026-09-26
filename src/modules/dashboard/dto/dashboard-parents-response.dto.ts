@@ -46,7 +46,8 @@ export class DashboardParentItemDto {
 
   @ApiProperty({
     example: true,
-    description: 'Whether this school owns the parent Person and may create its account',
+    description:
+      'Whether this school owns the parent Person and may create its account',
   })
   canCreateAccountingAccount!: boolean;
 }
@@ -74,4 +75,13 @@ export class DashboardParentOptionDto {
 
   @ApiProperty({ example: 'Khalil' })
   lastName!: string;
+
+  @ApiProperty({ example: 42, nullable: true })
+  accountId!: number | null;
+
+  @ApiProperty({ example: true })
+  hasAccountingAccount!: boolean;
+
+  @ApiProperty({ example: '100001', nullable: true })
+  accountCode!: string | null;
 }

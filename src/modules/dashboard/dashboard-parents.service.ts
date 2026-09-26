@@ -28,6 +28,18 @@ import { purgeStudentAndPerson } from './purge-student';
 
 const DEFAULT_PARENT_PASSWORD = 'password123';
 
+export function formatPersonAccountName(person: {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+}): string {
+  const fullName = [person.firstName, person.middleName, person.lastName]
+    .map((part) => part?.trim() ?? '')
+    .filter(Boolean)
+    .join(' ');
+  return fullName || 'Parent account';
+}
+
 const parentDetailInclude = { person: true } as const;
 
 type ParentDetailRecord = {
@@ -154,12 +166,18 @@ export class DashboardParentsService {
           parentId: number;
           personId: number;
           accountId: number | null;
+          firstName: string;
+          middleName: string;
+          lastName: string;
         }>
       >`
         SELECT
           parent.id AS "parentId",
           person.id AS "personId",
-          person.account_id AS "accountId"
+          person.account_id AS "accountId",
+          person.first_name AS "firstName",
+          person.middle_name AS "middleName",
+          person.last_name AS "lastName"
         FROM parents parent
         JOIN persons person ON person.id = parent.person_id
         WHERE parent.id = ${parentId}
@@ -192,7 +210,12 @@ export class DashboardParentsService {
       }
 
       const account = await tx.account.create({
-        data: { code: sequence.code, schoolId: user.schoolId },
+        data: {
+          code: sequence.code,
+          name: formatPersonAccountName(parent),
+          type: 'PERSON',
+          schoolId: user.schoolId,
+        },
         select: { id: true, code: true, schoolId: true },
       });
       await tx.person.update({
@@ -233,6 +256,10 @@ export class DashboardParentsService {
             firstName: true,
             middleName: true,
             lastName: true,
+            accountId: true,
+            account: {
+              select: { id: true, code: true, schoolId: true },
+            },
           },
         },
       },
@@ -249,6 +276,17 @@ export class DashboardParentsService {
       firstName: parent.person.firstName,
       middleName: parent.person.middleName,
       lastName: parent.person.lastName,
+      accountId:
+        parent.person.account?.schoolId === schoolId
+          ? parent.person.accountId
+          : null,
+      hasAccountingAccount:
+        parent.person.accountId !== null &&
+        parent.person.account?.schoolId === schoolId,
+      accountCode:
+        parent.person.account?.schoolId === schoolId
+          ? parent.person.account.code
+          : null,
     }));
   }
 
@@ -265,7 +303,10 @@ export class DashboardParentsService {
     user: AuthenticatedSchool,
     dto: CreateDashboardParentDto,
   ): Promise<DashboardParentDetailDto> {
-    const location = await this.resolveLocation(dto.governorateId, dto.regionId);
+    const location = await this.resolveLocation(
+      dto.governorateId,
+      dto.regionId,
+    );
     await this.assertLookups(dto.nationalityId, dto.currentJobId);
 
     const identityNumber = emptyToNull(dto.identityNumber);
@@ -324,7 +365,7 @@ export class DashboardParentsService {
         });
       });
 
-      return this.toDetail(parent as unknown as ParentDetailRecord);
+      return this.toDetail(parent);
     } catch (error) {
       this.rethrowWriteError(error);
     }
@@ -382,20 +423,20 @@ export class DashboardParentsService {
     const location = await this.resolveLocation(
       dto.governorateId !== undefined
         ? dto.governorateId
-        : existing.person.governorateId ?? undefined,
+        : (existing.person.governorateId ?? undefined),
       dto.regionId !== undefined
         ? dto.regionId
-        : existing.person.regionId ?? undefined,
+        : (existing.person.regionId ?? undefined),
     );
 
     if (dto.nationalityId !== undefined || dto.currentJobId !== undefined) {
       await this.assertLookups(
         dto.nationalityId !== undefined
           ? dto.nationalityId
-          : existing.person.nationalityId ?? undefined,
+          : (existing.person.nationalityId ?? undefined),
         dto.currentJobId !== undefined
           ? dto.currentJobId
-          : existing.currentJobId ?? undefined,
+          : (existing.currentJobId ?? undefined),
       );
     }
 
@@ -451,13 +492,9 @@ export class DashboardParentsService {
                 ? dto.landline
                 : existing.person.landline,
             address:
-              dto.address !== undefined
-                ? dto.address
-                : existing.person.address,
+              dto.address !== undefined ? dto.address : existing.person.address,
             village:
-              dto.village !== undefined
-                ? dto.village
-                : existing.person.village,
+              dto.village !== undefined ? dto.village : existing.person.village,
             placeOfBirth:
               dto.placeOfBirth !== undefined
                 ? dto.placeOfBirth
@@ -467,11 +504,8 @@ export class DashboardParentsService {
                 ? this.parseDate(dto.birthday)
                 : existing.person.birthday,
             status:
-              dto.status !== undefined
-                ? dto.status
-                : existing.person.status,
-            paid:
-              dto.paid !== undefined ? dto.paid : existing.person.paid,
+              dto.status !== undefined ? dto.status : existing.person.status,
+            paid: dto.paid !== undefined ? dto.paid : existing.person.paid,
           },
         });
 
@@ -491,7 +525,7 @@ export class DashboardParentsService {
         });
       });
 
-      return this.toDetail(parent as unknown as ParentDetailRecord);
+      return this.toDetail(parent);
     } catch (error) {
       this.rethrowWriteError(error);
     }
@@ -563,7 +597,7 @@ export class DashboardParentsService {
       throw new NotFoundException('Parent not found');
     }
 
-    return parent as unknown as ParentDetailRecord;
+    return parent;
   }
 
   private toDetail(parent: ParentDetailRecord): DashboardParentDetailDto {
