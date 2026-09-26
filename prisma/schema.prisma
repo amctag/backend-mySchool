@@ -40,6 +40,9 @@ model School {
   teacherTasks        TeacherTask[]
   accountingRegisters AccountingRegister[]
   accounts            Account[]
+  documentCounters  AccountingDocumentCounter[]
+  receipts          AccountingReceipt[]
+  payments          AccountingPayment[]
   items               Item[]
 
   @@map("school")
@@ -1164,14 +1167,17 @@ model AccountingRegisterType {
   name String @unique @db.VarChar(255)
 
   registers AccountingRegister[]
+  documentCounters AccountingDocumentCounter[]
 
   @@map("accounting_register_types")
 }
 
 model Account {
-  id       Int    @id @default(autoincrement())
-  code     String @unique @db.VarChar(255)
-  schoolId Int    @map("school_id")
+  id       Int         @id @default(autoincrement())
+  code     String      @unique @db.VarChar(255)
+  name     String      @db.VarChar(255)
+  type     AccountType
+  schoolId Int         @map("school_id")
 
   school       School            @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   persons      Person[]
@@ -1180,6 +1186,13 @@ model Account {
 
   @@index([schoolId])
   @@map("accounts")
+}
+
+enum AccountType {
+  PERSON
+  CASH
+  SALES
+  PURCHASES
 }
 
 model AccountingRegister {
@@ -1193,6 +1206,7 @@ model AccountingRegister {
   currencyRate             Decimal? @map("currency_rate") @db.Decimal(18, 6)
   schoolId                 Int      @map("school_id")
   userId                   Int?     @map("user_id")
+  idempotencyKey           String?  @map("idempotency_key") @db.VarChar(100)
 
   accountingRegisterType AccountingRegisterType     @relation(fields: [accountingRegisterTypeId], references: [id], onDelete: Restrict)
   school                 School                     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
@@ -1207,6 +1221,7 @@ model AccountingRegister {
 
   @@index([accountingRegisterTypeId])
   @@index([schoolId])
+  @@unique([schoolId, idempotencyKey])
   @@map("accounting_register")
 }
 
@@ -1230,11 +1245,14 @@ model AccountingReceipt {
   id                   Int @id @default(autoincrement())
   accountingRegisterId Int @map("accounting_register_id")
   nb                   Int
+  schoolId             Int @map("school_id")
 
   accountingRegister AccountingRegister @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+  school             School             @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   installments       Installment[]
 
   @@index([accountingRegisterId])
+  @@unique([schoolId, nb])
   @@map("accounting_receipts")
 }
 
@@ -1242,11 +1260,26 @@ model AccountingPayment {
   id                   Int @id @default(autoincrement())
   accountingRegisterId Int @map("accounting_register_id")
   nb                   Int
+  schoolId             Int @map("school_id")
 
   accountingRegister AccountingRegister @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+  school             School             @relation(fields: [schoolId], references: [id], onDelete: Restrict)
 
   @@index([accountingRegisterId])
+  @@unique([schoolId, nb])
   @@map("accounting_payments")
+}
+
+model AccountingDocumentCounter {
+  schoolId                 Int @map("school_id")
+  accountingRegisterTypeId Int @map("accounting_register_type_id")
+  lastNb                   Int @default(0) @map("last_nb")
+
+  school                 School                 @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  accountingRegisterType AccountingRegisterType @relation(fields: [accountingRegisterTypeId], references: [id], onDelete: Restrict)
+
+  @@id([schoolId, accountingRegisterTypeId])
+  @@map("accounting_document_counters")
 }
 
 model AccountingSale {

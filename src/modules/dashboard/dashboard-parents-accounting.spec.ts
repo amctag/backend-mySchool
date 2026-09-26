@@ -6,6 +6,9 @@ function accountingTransaction(overrides?: {
     parentId: number;
     personId: number;
     accountId: number | null;
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
   }>;
   account?: { id: number; code: string; schoolId: number } | null;
 }) {
@@ -13,7 +16,14 @@ function accountingTransaction(overrides?: {
     .fn()
     .mockResolvedValueOnce(
       overrides?.lockedParent ?? [
-        { parentId: 7, personId: 70, accountId: null },
+        {
+          parentId: 7,
+          personId: 70,
+          accountId: null,
+          firstName: 'Ahmad',
+          middleName: 'Hassan',
+          lastName: 'Khalil',
+        },
       ],
     )
     .mockResolvedValueOnce([{ code: '100001' }]);
@@ -28,7 +38,9 @@ function accountingTransaction(overrides?: {
   return { $queryRaw, account, person };
 }
 
-function serviceWithTransaction(transaction: ReturnType<typeof accountingTransaction>) {
+function serviceWithTransaction(
+  transaction: ReturnType<typeof accountingTransaction>,
+) {
   const prisma = {
     $transaction: jest.fn(
       async (callback: (tx: typeof transaction) => Promise<unknown>) =>
@@ -44,17 +56,19 @@ describe('DashboardParentsService accounting accounts', () => {
     const service = serviceWithTransaction(transaction);
 
     await expect(
-      service.createAccountingAccount(
-        { schoolId: 3 } as never,
-        7,
-      ),
+      service.createAccountingAccount({ schoolId: 3 } as never, 7),
     ).resolves.toEqual({
       accountId: 12,
       accountCode: '100001',
       hasAccountingAccount: true,
     });
     expect(transaction.account.create).toHaveBeenCalledWith({
-      data: { code: '100001', schoolId: 3 },
+      data: {
+        code: '100001',
+        name: 'Ahmad Hassan Khalil',
+        type: 'PERSON',
+        schoolId: 3,
+      },
       select: { id: true, code: true, schoolId: true },
     });
     expect(transaction.person.update).toHaveBeenCalledWith({
@@ -71,10 +85,7 @@ describe('DashboardParentsService accounting accounts', () => {
     const service = serviceWithTransaction(transaction);
 
     await expect(
-      service.createAccountingAccount(
-        { schoolId: 3 } as never,
-        7,
-      ),
+      service.createAccountingAccount({ schoolId: 3 } as never, 7),
     ).resolves.toEqual({
       accountId: 12,
       accountCode: '100001',
@@ -89,10 +100,7 @@ describe('DashboardParentsService accounting accounts', () => {
     const service = serviceWithTransaction(transaction);
 
     await expect(
-      service.createAccountingAccount(
-        { schoolId: 3 } as never,
-        7,
-      ),
+      service.createAccountingAccount({ schoolId: 3 } as never, 7),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(transaction.account.create).not.toHaveBeenCalled();
   });
