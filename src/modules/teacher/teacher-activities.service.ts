@@ -36,7 +36,13 @@ const activityInclude = {
       section: {
         select: {
           id: true,
-          class: { select: { className: true } },
+          class: {
+            select: {
+              id: true,
+              className: true,
+              stage: { select: { id: true, title: true } },
+            },
+          },
           sectionTitle: { select: { title: true } },
         },
       },
@@ -118,27 +124,21 @@ export class TeacherActivitiesService {
     dto: UpsertTeacherActivityDto,
   ): Promise<TeacherActivityItemDto> {
     this.teacherAccess.ensureTeacherRole(user);
-    const assignment = await this.teacherAccess.getAssignment(
-      user,
-      dto.assignmentId,
-    );
-    if (assignment.sectionId !== dto.classId) {
-      throw new BadRequestException(
-        'classId does not match the teaching assignment',
-      );
-    }
+    const target = await this.resolveActivityTarget(user, dto);
 
     const created = await this.prisma.activity.create({
       data: {
         title: dto.title.trim(),
         content: dto.content.trim(),
-        date: dto.date ? parseDateOnly(dto.date) : parseDateOnly(formatDateOnly(new Date())),
+        date: dto.date
+          ? parseDateOnly(dto.date)
+          : parseDateOnly(formatDateOnly(new Date())),
         image: normalizePublicMediaUrl(dto.image) ?? '',
         personId: user.id,
-        yearId: assignment.yearId,
-        courseId: assignment.courseId,
+        yearId: target.yearId,
+        courseId: target.courseId,
         sections: {
-          create: { sectionId: assignment.sectionId },
+          create: target.sectionIds.map((sectionId) => ({ sectionId })),
         },
       },
       include: activityInclude,
@@ -148,14 +148,144 @@ export class TeacherActivitiesService {
 
     return this.toItem(
       created,
-      new Map([
-        [
-          this.key(assignment.courseId, assignment.sectionId),
-          assignment.id,
-        ],
-      ]),
+      target.courseId != null
+        ? new Map([
+            [
+              this.key(target.courseId, target.sectionIds[0]),
+              target.assignmentId,
+            ],
+          ])
+        : new Map(),
       user.id,
     );
+  }
+
+  private async resolveActivityTarget(
+    user: AuthenticatedTeacher,
+    dto: UpsertTeacherActivityDto,
+  ): Promise<{
+    yearId: number;
+    courseId: number | null;
+    sectionIds: number[];
+    assignmentId: number;
+  }> {
+    const scope = dto.scopeType ?? 'section_course';
+
+    if (scope === 'section_course') {
+      if (dto.assignmentId == null || dto.classId == null) {
+        throw new BadRequestException(
+          'assignmentId and classId are required for section_course scope',
+        );
+      }
+      const assignment = await this.teacherAccess.getAssignment(
+        user,
+        dto.assignmentId,
+      );
+      if (assignment.sectionId !== dto.classId) {
+        throw new BadRequestException(
+          'classId does not match the teaching assignment',
+        );
+      }
+      return {
+        yearId: assignment.yearId,
+        courseId: assignment.courseId,
+        sectionIds: [assignment.sectionId],
+        assignmentId: assignment.id,
+      };
+    }
+
+    if (scope === 'section') {
+      if (dto.classId == null) {
+        throw new BadRequestException(
+          'classId is required for section scope',
+        );
+      }
+      await this.teacherAccess.assertAssignedSection(user, dto.classId);
+      const teach = await this.prisma.teach.findFirst({
+        where: {
+          teacherId: user.teacherId,
+          sectionId: dto.classId,
+          section: { schoolId: user.schoolId },
+        },
+        select: { id: true, yearId: true, sectionId: true },
+        orderBy: { id: 'asc' },
+      });
+      if (!teach) {
+        throw new BadRequestException(
+          'No teaching assignment found for this section',
+        );
+      }
+      return {
+        yearId: teach.yearId,
+        courseId: null,
+        sectionIds: [teach.sectionId],
+        assignmentId: teach.id,
+      };
+    }
+
+    const yearId = await this.teacherAccess.currentYearId(user.schoolId);
+
+    if (scope === 'class') {
+      if (dto.schoolClassId == null) {
+        throw new BadRequestException(
+          'schoolClassId is required for class scope',
+        );
+      }
+      const teaches = await this.prisma.teach.findMany({
+        where: {
+          teacherId: user.teacherId,
+          section: {
+            schoolId: user.schoolId,
+            classId: dto.schoolClassId,
+          },
+          ...(yearId ? { yearId } : {}),
+        },
+        select: { id: true, yearId: true, sectionId: true },
+        orderBy: { id: 'asc' },
+      });
+      const sectionIds = [
+        ...new Set(teaches.map((row) => row.sectionId)),
+      ];
+      if (sectionIds.length === 0) {
+        throw new BadRequestException(
+          'No assigned sections found for this class',
+        );
+      }
+      return {
+        yearId: teaches[0].yearId,
+        courseId: null,
+        sectionIds,
+        assignmentId: teaches[0].id,
+      };
+    }
+
+    if (dto.stageId == null) {
+      throw new BadRequestException('stageId is required for stage scope');
+    }
+    const teaches = await this.prisma.teach.findMany({
+      where: {
+        teacherId: user.teacherId,
+        section: {
+          schoolId: user.schoolId,
+          class: { stageId: dto.stageId },
+        },
+        ...(yearId ? { yearId } : {}),
+      },
+      select: { id: true, yearId: true, sectionId: true },
+      orderBy: { id: 'asc' },
+    });
+    const sectionIds = [...new Set(teaches.map((row) => row.sectionId))];
+    if (sectionIds.length === 0) {
+      throw new BadRequestException(
+        'No assigned sections found for this stage',
+      );
+    }
+    return {
+      yearId: teaches[0].yearId,
+      courseId: null,
+      sectionIds,
+      assignmentId: teaches[0].id,
+    };
   }
 
   private async buildWhere(
@@ -281,15 +411,19 @@ export class TeacherActivitiesService {
     assignmentIds: Map<string, number>,
     viewerPersonId: number,
   ): TeacherActivityItemDto {
-    const section = row.sections[0]?.section;
-    const classLabel = section
-      ? formatClassLabel(
-          section.class.className,
-          section.sectionTitle.title,
-        )
-      : null;
+    const sections = row.sections.map((item) => item.section);
+    const section = sections[0];
     const courseTitle = row.course?.title ?? null;
-    const isSectionScoped = section != null;
+    const isSectionScoped = sections.length > 0;
+    const classLabel =
+      sections.length === 1
+        ? formatClassLabel(
+            section.class.className,
+            section.sectionTitle.title,
+          )
+        : sections.length > 1
+          ? this.multiSectionClassLabel(sections)
+          : null;
 
     return {
       id: row.id,
@@ -310,6 +444,27 @@ export class TeacherActivitiesService {
       courseTitle,
       isOwn: row.personId === viewerPersonId,
     };
+  }
+
+  private multiSectionClassLabel(
+    sections: Array<{
+      class: { className: string; stage: { title: string } };
+      sectionTitle: { title: string };
+    }>,
+  ): string {
+    const classNames = [
+      ...new Set(sections.map((item) => item.class.className)),
+    ];
+    const stageTitles = [
+      ...new Set(sections.map((item) => item.class.stage.title)),
+    ];
+    if (classNames.length === 1) {
+      return `${classNames[0]} · ${sections.length} sections`;
+    }
+    if (stageTitles.length === 1) {
+      return `${stageTitles[0]} · ${sections.length} sections`;
+    }
+    return `${sections.length} sections`;
   }
 
   private key(courseId: number, sectionId: number): string {

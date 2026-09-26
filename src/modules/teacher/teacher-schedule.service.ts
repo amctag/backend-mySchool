@@ -208,7 +208,11 @@ export class TeacherScheduleService {
       course: { title: string };
       year: { title: string };
       section: {
-        class: { className: string; stage: { title: string } };
+        class: {
+          id: number;
+          className: string;
+          stage: { id: number; title: string };
+        };
         sectionTitle: { title: string };
       };
     },
@@ -225,9 +229,11 @@ export class TeacherScheduleService {
     return {
       id: row.id,
       classId: row.sectionId,
+      schoolClassId: row.section.class.id,
       className: row.section.class.className,
       sectionTitle: row.section.sectionTitle.title,
       yearTitle: row.year.title,
+      stageId: row.section.class.stage.id,
       stage: row.section.class.stage.title,
       courseTitle: row.course.title,
       dayName: mapped?.dayName ?? '',

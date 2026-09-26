@@ -28,6 +28,12 @@ export class TeacherAssignmentItemDto {
   })
   classId!: number;
 
+  @ApiProperty({
+    example: 3,
+    description: 'School class id (classes.id) for class-scoped activities.',
+  })
+  schoolClassId!: number;
+
   @ApiProperty({ example: 'Grade 4' })
   className!: string;
 
@@ -36,6 +42,9 @@ export class TeacherAssignmentItemDto {
 
   @ApiProperty({ example: '2025-2026' })
   yearTitle!: string;
+
+  @ApiProperty({ example: 2, description: 'Stage id for stage-scoped activities.' })
+  stageId!: number;
 
   @ApiProperty({ example: 'Primary' })
   stage!: string;

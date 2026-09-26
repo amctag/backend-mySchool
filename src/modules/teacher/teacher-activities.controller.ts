@@ -56,13 +56,14 @@ export class TeacherActivitiesController {
 
   @Post('me/activities')
   @ApiOperation({
-    summary: 'Create an activity for a class',
+    summary: 'Create an activity',
     description:
-      'Creates an activity for one teaching assignment (class section + course). Parents of children in that section are notified.',
+      'Creates an activity for a section+course, a single section, all taught sections of a class, or all taught sections of a stage. Parents of children in those sections are notified.',
   })
   @ApiCreatedResponse({ type: TeacherActivityItemDto })
   @ApiBadRequestResponse({
-    description: 'Validation failed or classId does not match the assignment',
+    description:
+      'Validation failed or scope target does not match teaching assignments',
   })
   @ApiForbiddenResponse({ description: 'Teacher is not assigned to this class' })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })

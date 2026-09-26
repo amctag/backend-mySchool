@@ -2,33 +2,90 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { PaginationMetaDto } from '../../../common/dto/pagination-meta.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
+export const ACTIVITY_SCOPE_TYPES = [
+  'section_course',
+  'section',
+  'class',
+  'stage',
+] as const;
+
+export type ActivityScopeType = (typeof ACTIVITY_SCOPE_TYPES)[number];
+
 export class TeacherActivitiesQueryDto extends PaginationQueryDto {}
 
 export class UpsertTeacherActivityDto {
-  @ApiProperty({ example: 12, description: 'Teach assignment id' })
+  @ApiPropertyOptional({
+    enum: ACTIVITY_SCOPE_TYPES,
+    default: 'section_course',
+    description:
+      'section_course: one section + course. section: one section. class: all taught sections of a school class. stage: all taught sections of a stage.',
+  })
+  @IsOptional()
+  @IsIn(ACTIVITY_SCOPE_TYPES)
+  scopeType?: ActivityScopeType;
+
+  @ApiPropertyOptional({
+    example: 12,
+    description: 'Required for section_course. Teach assignment id.',
+  })
+  @ValidateIf(
+    (dto: UpsertTeacherActivityDto) =>
+      (dto.scopeType ?? 'section_course') === 'section_course',
+  )
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  assignmentId!: number;
+  assignmentId?: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 5,
-    description: 'Section id. Must match the assignment section.',
+    description:
+      'Section id. Required for section_course and section. Must match the assignment when scope is section_course.',
+  })
+  @ValidateIf((dto: UpsertTeacherActivityDto) => {
+    const scope = dto.scopeType ?? 'section_course';
+    return scope === 'section_course' || scope === 'section';
   })
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  classId!: number;
+  classId?: number;
+
+  @ApiPropertyOptional({
+    example: 3,
+    description: 'School class id (classes.id). Required when scopeType is class.',
+  })
+  @ValidateIf(
+    (dto: UpsertTeacherActivityDto) => dto.scopeType === 'class',
+  )
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  schoolClassId?: number;
+
+  @ApiPropertyOptional({
+    example: 2,
+    description: 'Stage id. Required when scopeType is stage.',
+  })
+  @ValidateIf(
+    (dto: UpsertTeacherActivityDto) => dto.scopeType === 'stage',
+  )
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  stageId?: number;
 
   @ApiProperty({ example: 'Sports Day' })
   @IsString()

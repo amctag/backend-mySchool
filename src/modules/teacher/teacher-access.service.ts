@@ -17,8 +17,9 @@ export const assignmentInclude = {
       schoolId: true,
       class: {
         select: {
+          id: true,
           className: true,
-          stage: { select: { title: true } },
+          stage: { select: { id: true, title: true } },
         },
       },
       sectionTitle: { select: { title: true } },
