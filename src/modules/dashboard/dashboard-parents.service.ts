@@ -9,6 +9,7 @@ import * as bcrypt from 'bcrypt';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { CreateDashboardParentDto } from './dto/create-dashboard-parent.dto';
+import { DashboardParentAccountDto } from './dto/dashboard-parent-account.dto';
 import { DashboardParentDetailDto } from './dto/dashboard-parent-detail.dto';
 import { DashboardParentsQueryDto } from './dto/dashboard-parents-query.dto';
 import {
@@ -86,6 +87,11 @@ export class DashboardParentsService {
               birthday: true,
               status: true,
               paid: true,
+              schoolId: true,
+              accountId: true,
+              account: {
+                select: { id: true, code: true, schoolId: true },
+              },
             },
           },
           _count: {
@@ -116,6 +122,18 @@ export class DashboardParentsService {
         childrenCount: parent._count.students,
         status: parent.person.status,
         paid: parent.person.paid,
+        accountId:
+          parent.person.account?.schoolId === schoolId
+            ? parent.person.accountId
+            : null,
+        hasAccountingAccount:
+          parent.person.accountId !== null &&
+          parent.person.account?.schoolId === schoolId,
+        accountCode:
+          parent.person.account?.schoolId === schoolId
+            ? parent.person.account.code
+            : null,
+        canCreateAccountingAccount: parent.person.schoolId === schoolId,
       })),
       pagination: {
         page,
@@ -124,6 +142,66 @@ export class DashboardParentsService {
         totalPages: total === 0 ? 0 : Math.ceil(total / limit),
       },
     };
+  }
+
+  async createAccountingAccount(
+    user: AuthenticatedSchool,
+    parentId: number,
+  ): Promise<DashboardParentAccountDto> {
+    return this.prisma.$transaction(async (tx) => {
+      const [parent] = await tx.$queryRaw<
+        Array<{
+          parentId: number;
+          personId: number;
+          accountId: number | null;
+        }>
+      >`
+        SELECT
+          parent.id AS "parentId",
+          person.id AS "personId",
+          person.account_id AS "accountId"
+        FROM parents parent
+        JOIN persons person ON person.id = parent.person_id
+        WHERE parent.id = ${parentId}
+          AND person.school_id = ${user.schoolId}
+        FOR UPDATE OF person
+      `;
+
+      if (!parent) {
+        throw new NotFoundException('Parent not found');
+      }
+
+      if (parent.accountId !== null) {
+        const existing = await tx.account.findFirst({
+          where: { id: parent.accountId, schoolId: user.schoolId },
+          select: { id: true, code: true },
+        });
+        if (!existing) {
+          throw new ConflictException(
+            'Parent account does not belong to the authenticated school',
+          );
+        }
+        return this.toAccountResponse(existing);
+      }
+
+      const [sequence] = await tx.$queryRaw<Array<{ code: string }>>`
+        SELECT nextval('"account_code_seq"')::text AS code
+      `;
+      if (!sequence) {
+        throw new ConflictException('Could not allocate an account code');
+      }
+
+      const account = await tx.account.create({
+        data: { code: sequence.code, schoolId: user.schoolId },
+        select: { id: true, code: true, schoolId: true },
+      });
+      await tx.person.update({
+        where: { id: parent.personId },
+        data: { accountId: account.id },
+      });
+
+      return this.toAccountResponse(account);
+    });
   }
 
   async listParentOptions(
@@ -697,6 +775,12 @@ export class DashboardParentsService {
         query.status === 'closed' ? { person: { status: false } } : {},
         query.paid === 'paid' ? { person: { paid: true } } : {},
         query.paid === 'unpaid' ? { person: { paid: false } } : {},
+        query.accountStatus === 'hasAccount'
+          ? { person: { schoolId, account: { schoolId } } }
+          : {},
+        query.accountStatus === 'noAccount'
+          ? { person: { schoolId, accountId: null } }
+          : {},
         nameContains ? { person: nameContains } : {},
         firstName
           ? {
@@ -722,6 +806,17 @@ export class DashboardParentsService {
         childrenCountFilter,
         searchContains,
       ],
+    };
+  }
+
+  private toAccountResponse(account: {
+    id: number;
+    code: string;
+  }): DashboardParentAccountDto {
+    return {
+      accountId: account.id,
+      accountCode: account.code,
+      hasAccountingAccount: true,
     };
   }
 

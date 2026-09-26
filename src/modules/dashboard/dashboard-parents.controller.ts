@@ -24,6 +24,7 @@ import type { Request } from 'express';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateDashboardParentDto } from './dto/create-dashboard-parent.dto';
+import { DashboardParentAccountDto } from './dto/dashboard-parent-account.dto';
 import { DashboardChildrenQueryDto } from './dto/dashboard-children-query.dto';
 import { DashboardChildrenResponseDto } from './dto/dashboard-children-response.dto';
 import { DashboardParentDetailDto } from './dto/dashboard-parent-detail.dto';
@@ -98,6 +99,19 @@ export class DashboardParentsController {
     @Body() dto: CreateDashboardParentDto,
   ): Promise<DashboardParentDetailDto> {
     return this.dashboardParentsService.createParent(request.user, dto);
+  }
+
+  @Post(':id/account')
+  @ApiOperation({ summary: 'Create or return a parent Accounting account' })
+  @ApiCreatedResponse({ type: DashboardParentAccountDto })
+  createAccountingAccount(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<DashboardParentAccountDto> {
+    return this.dashboardParentsService.createAccountingAccount(
+      request.user,
+      id,
+    );
   }
 
   @Get(':id/children')

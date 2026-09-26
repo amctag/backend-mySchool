@@ -146,6 +146,17 @@ export class DashboardParentsQueryDto {
   paid?: 'paid' | 'unpaid';
 
   @ApiPropertyOptional({
+    description: 'Filter by Accounting account status. Omit for all.',
+    enum: ['hasAccount', 'noAccount'],
+    example: 'hasAccount',
+  })
+  @IsOptional()
+  @Allow()
+  @IsString()
+  @IsIn(['hasAccount', 'noAccount'])
+  accountStatus?: 'hasAccount' | 'noAccount';
+
+  @ApiPropertyOptional({
     description:
       'Filter by exact number of children in this school. Omit for all.',
     example: 2,

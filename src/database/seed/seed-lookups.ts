@@ -38,6 +38,20 @@ type LookupPrisma = {
       update: Record<string, never>;
     }) => Promise<unknown>;
   };
+  accountingRegisterType: {
+    upsert: (args: {
+      where: { name: string };
+      create: { name: string };
+      update: Record<string, never>;
+    }) => Promise<unknown>;
+  };
+  itemType: {
+    upsert: (args: {
+      where: { name: string };
+      create: { name: string };
+      update: Record<string, never>;
+    }) => Promise<unknown>;
+  };
 };
 
 export async function seedLookups(prisma: LookupPrisma): Promise<void> {
@@ -93,5 +107,28 @@ export async function seedLookups(prisma: LookupPrisma): Promise<void> {
         update: {},
       });
     }
+  }
+
+  for (const name of [
+    'Receipt',
+    'Payment',
+    'Sales',
+    'Purchase',
+    'Sales Return',
+    'Purchase Return',
+  ]) {
+    await prisma.accountingRegisterType.upsert({
+      where: { name },
+      create: { name },
+      update: {},
+    });
+  }
+
+  for (const name of ['Product', 'Services']) {
+    await prisma.itemType.upsert({
+      where: { name },
+      create: { name },
+      update: {},
+    });
   }
 }
