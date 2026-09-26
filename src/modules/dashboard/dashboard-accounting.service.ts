@@ -9,14 +9,21 @@ import { AccountType, Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import {
+  CreateDashboardAccountDto,
   CreateDashboardPaymentDto,
   CreateDashboardReceiptDto,
   DashboardAccountDto,
+  DashboardAccountsQueryDto,
+  DashboardAccountsResponseDto,
   DashboardAccountingDocumentQueryDto,
+  DashboardCurrencyDto,
   DashboardPaymentDto,
   DashboardPaymentsResponseDto,
+  DashboardReceiptAllocationDto,
+  DashboardReceiptCurrencyDto,
   DashboardReceiptDto,
   DashboardReceiptsResponseDto,
+  UpdateDashboardAccountDto,
 } from './dto/dashboard-accounting.dto';
 
 const SYSTEM_ACCOUNT_DEFINITIONS: Array<{ type: AccountType; name: string }> = [
@@ -24,6 +31,32 @@ const SYSTEM_ACCOUNT_DEFINITIONS: Array<{ type: AccountType; name: string }> = [
   { type: 'SALES', name: 'Sales' },
   { type: 'PURCHASES', name: 'Purchases' },
 ];
+
+/** Account types managed by the system. Manual create/edit is blocked for these. */
+const PROTECTED_ACCOUNT_TYPES: ReadonlySet<string> = new Set([
+  'PERSON',
+  'CASH',
+  'SALES',
+  'PURCHASES',
+]);
+
+/** Account types eligible as receipt destinations in Phase 2C. */
+const RECEIPT_DESTINATION_TYPES: ReadonlySet<string> = new Set([
+  'CASH',
+  'GENERAL',
+]);
+
+const ACCOUNT_TYPES: ReadonlySet<string> = new Set([
+  'PERSON',
+  'CASH',
+  'SALES',
+  'PURCHASES',
+  'GENERAL',
+]);
+
+const MAX_ALLOCATIONS = 50;
+const MAX_ACCOUNT_LIST_LIMIT = 500;
+const DEFAULT_ACCOUNT_LIST_LIMIT = 100;
 
 type LockedParentAccount = {
   parentId: number;
@@ -36,24 +69,217 @@ type LockedParentAccount = {
   accountSchoolId: number | null;
 };
 
+type AccountRow = {
+  id: number;
+  code: string;
+  name: string;
+  type: AccountType;
+};
+
+type AllocationInput = {
+  accountId: number;
+  amount: Prisma.Decimal;
+  description: string | null;
+  accountCode: string;
+  accountName: string;
+};
+
+type ReceiptDetailRow = {
+  accountId: number;
+  amount: Prisma.Decimal | number | string;
+  description: string | null;
+  account: { id: number; code: string; name: string };
+};
+
+type JournalLine = {
+  accountId: number;
+  debit: Prisma.Decimal | number | string;
+  credit: Prisma.Decimal | number | string;
+  account: { id: number; code: string; name?: string };
+};
+
+type RegisterBlock = {
+  description: string | null;
+  currencyId: number | null;
+  currencyRate: Prisma.Decimal | number | string | null;
+  notes: string | null;
+  comments: string | null;
+  dateCreated: Date;
+  currency: {
+    id: number;
+    title: string;
+    shortCode: string;
+    symbol: string;
+    rate: Prisma.Decimal | number | string;
+  } | null;
+  dailyEntries: JournalLine[];
+};
+
 @Injectable()
 export class DashboardAccountingService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async listCurrencies(): Promise<DashboardCurrencyDto[]> {
+    const currencies = await this.prisma.currency.findMany({
+      select: {
+        id: true,
+        title: true,
+        shortCode: true,
+        symbol: true,
+        rate: true,
+      },
+      orderBy: { id: 'asc' },
+    });
+    return currencies.map((currency) => ({
+      id: currency.id,
+      title: currency.title,
+      shortCode: currency.shortCode,
+      symbol: currency.symbol,
+      rate: new Prisma.Decimal(currency.rate).toString(),
+    }));
+  }
+
   async listAccounts(
     user: AuthenticatedSchool,
-  ): Promise<DashboardAccountDto[]> {
-    const accounts = await this.prisma.account.findMany({
-      where: { schoolId: user.schoolId },
+    query: DashboardAccountsQueryDto,
+  ): Promise<DashboardAccountsResponseDto> {
+    const page = query.page ?? 1;
+    const limit = Math.min(
+      query.limit ?? DEFAULT_ACCOUNT_LIST_LIMIT,
+      MAX_ACCOUNT_LIST_LIMIT,
+    );
+    const search = query.search?.trim() || undefined;
+    if (query.type !== undefined && !ACCOUNT_TYPES.has(query.type)) {
+      throw new BadRequestException('Invalid account type filter');
+    }
+    const where: Prisma.AccountWhereInput = { schoolId: user.schoolId };
+    if (query.type !== undefined) {
+      where.type = query.type as AccountType;
+    }
+    if (search) {
+      where.OR = [
+        { code: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [total, accounts] = await this.prisma.$transaction([
+      this.prisma.account.count({ where }),
+      this.prisma.account.findMany({
+        where,
+        select: { id: true, code: true, name: true, type: true },
+        orderBy: [{ code: 'asc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    const personByAccountId = await this.resolveAccountPersons(
+      accounts.map((account) => account.id),
+    );
+
+    return {
+      items: accounts.map((account) =>
+        this.toAccountDto(account, personByAccountId.get(account.id) ?? null),
+      ),
+      page,
+      limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    };
+  }
+
+  async getAccount(
+    user: AuthenticatedSchool,
+    id: number,
+  ): Promise<DashboardAccountDto> {
+    const account = await this.prisma.account.findFirst({
+      where: { id, schoolId: user.schoolId },
       select: { id: true, code: true, name: true, type: true },
-      orderBy: [{ type: 'asc' }, { code: 'asc' }],
     });
-    return accounts.map((account) => ({
-      id: account.id,
-      code: account.code,
-      name: account.name,
-      type: account.type,
-    }));
+    if (!account) {
+      throw new NotFoundException('Account not found');
+    }
+    const personByAccountId = await this.resolveAccountPersons([account.id]);
+    return this.toAccountDto(
+      account,
+      personByAccountId.get(account.id) ?? null,
+    );
+  }
+
+  async createAccount(
+    user: AuthenticatedSchool,
+    dto: CreateDashboardAccountDto,
+  ): Promise<DashboardAccountDto> {
+    if (dto.type !== 'GENERAL') {
+      throw new BadRequestException(
+        'Only GENERAL accounts can be created manually',
+      );
+    }
+    const name = dto.name.trim();
+    if (!name) {
+      throw new BadRequestException('Account name must not be empty');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const [sequence] = await tx.$queryRaw<Array<{ code: string }>>`
+        SELECT nextval('"account_code_seq"')::text AS code
+      `;
+      if (!sequence) {
+        throw new ConflictException('Could not allocate an account code');
+      }
+      try {
+        const created = await tx.account.create({
+          data: {
+            code: sequence.code,
+            name,
+            type: 'GENERAL',
+            schoolId: user.schoolId,
+          },
+          select: { id: true, code: true, name: true, type: true },
+        });
+        return this.toAccountDto(created, null);
+      } catch (error) {
+        if (this.isUniqueViolation(error)) {
+          throw new ConflictException(
+            'Account could not be created because it already exists',
+          );
+        }
+        throw error;
+      }
+    });
+  }
+
+  async updateAccount(
+    user: AuthenticatedSchool,
+    id: number,
+    dto: UpdateDashboardAccountDto,
+  ): Promise<DashboardAccountDto> {
+    const account = await this.prisma.account.findFirst({
+      where: { id, schoolId: user.schoolId },
+      select: { id: true, code: true, name: true, type: true },
+    });
+    if (!account) {
+      throw new NotFoundException('Account not found');
+    }
+    if (PROTECTED_ACCOUNT_TYPES.has(account.type)) {
+      throw new BadRequestException(
+        `Accounts of type ${account.type} cannot be edited manually`,
+      );
+    }
+    const name = dto.name.trim();
+    if (!name) {
+      throw new BadRequestException('Account name must not be empty');
+    }
+    const updated = await this.prisma.account.update({
+      where: { id: account.id },
+      data: { name },
+      select: { id: true, code: true, name: true, type: true },
+    });
+    const personByAccountId = await this.resolveAccountPersons([updated.id]);
+    return this.toAccountDto(
+      updated,
+      personByAccountId.get(updated.id) ?? null,
+    );
   }
 
   async ensureSystemAccounts(
@@ -105,18 +331,41 @@ export class DashboardAccountingService {
         );
       }
 
-      const cash = await this.ensureSystemAccount(
+      const currency = await tx.currency.findUnique({
+        where: { id: dto.currencyId },
+        select: {
+          id: true,
+          title: true,
+          shortCode: true,
+          symbol: true,
+          rate: true,
+        },
+      });
+      if (!currency) {
+        throw new BadRequestException('Invalid currency');
+      }
+
+      const allocations = await this.resolveAllocations(
         tx,
         user.schoolId,
-        'CASH',
-        'Cash',
+        dto.allocations,
       );
-      const amount = this.toDocumentAmount(dto.amount);
+      const total = allocations.reduce(
+        (sum, allocation) => sum.plus(allocation.amount),
+        new Prisma.Decimal(0),
+      );
+      if (total.lte(0)) {
+        throw new BadRequestException(
+          'Receipt total must be greater than zero',
+        );
+      }
+
       const numbering = await this.nextDocumentNumber(
         tx,
         user.schoolId,
         'Receipt',
       );
+      const currencyRate = new Prisma.Decimal(currency.rate);
 
       let register: { id: number; dateCreated: Date };
       try {
@@ -124,13 +373,10 @@ export class DashboardAccountingService {
           data: {
             description: dto.description ?? null,
             accountingRegisterTypeId: numbering.registerTypeId,
-            currencyId: dto.currencyId ?? null,
+            currencyId: currency.id,
             notes: dto.notes ?? null,
             comments: dto.comments ?? null,
-            currencyRate:
-              dto.currencyRate === undefined
-                ? null
-                : new Prisma.Decimal(dto.currencyRate.toFixed(6)),
+            currencyRate,
             schoolId: user.schoolId,
             idempotencyKey: dto.idempotencyKey ?? null,
           },
@@ -171,43 +417,67 @@ export class DashboardAccountingService {
         throw error;
       }
 
+      await tx.accountingReceiptDetail.createMany({
+        data: allocations.map((allocation) => ({
+          accountingReceiptId: receiptRow.id,
+          accountId: allocation.accountId,
+          amount: allocation.amount,
+          description: allocation.description,
+        })),
+      });
+
       await tx.accountingDaily.createMany({
         data: [
-          {
-            accountId: cash.id,
-            debit: amount,
+          ...allocations.map((allocation) => ({
+            accountId: allocation.accountId,
+            debit: allocation.amount,
             credit: new Prisma.Decimal(0),
-            description: dto.description ?? null,
+            description: allocation.description ?? dto.description ?? null,
             accountingRegisterId: register.id,
-          },
+          })),
           {
             accountId: locked.accountId,
             debit: new Prisma.Decimal(0),
-            credit: amount,
+            credit: total,
             description: dto.description ?? null,
             accountingRegisterId: register.id,
           },
         ],
       });
 
-      await this.assertBalancedJournal(tx, register.id, [
-        cash.id,
-        locked.accountId,
-      ]);
+      await this.assertBalancedJournal(
+        tx,
+        register.id,
+        allocations.length + 1,
+        total,
+      );
 
+      const parentName = this.formatPersonName(locked);
       return {
         id: receiptRow.id,
         nb: numbering.nb,
         parentId: locked.parentId,
-        parentName: this.formatPersonName(locked),
+        parentName,
         accountId: locked.accountId,
         accountCode: locked.accountCode ?? '',
-        amount: amount.toFixed(2),
-        currencyId: dto.currencyId ?? null,
-        currencyRate:
-          dto.currencyRate === undefined
-            ? null
-            : new Prisma.Decimal(dto.currencyRate.toFixed(6)).toString(),
+        amount: total.toFixed(2),
+        total: total.toFixed(2),
+        allocations: allocations.map((allocation) => ({
+          accountId: allocation.accountId,
+          accountCode: allocation.accountCode,
+          accountName: allocation.accountName,
+          amount: allocation.amount.toFixed(2),
+          description: allocation.description,
+        })),
+        currency: {
+          id: currency.id,
+          title: currency.title,
+          shortCode: currency.shortCode,
+          symbol: currency.symbol,
+          rate: currencyRate.toString(),
+        },
+        currencyId: currency.id,
+        currencyRate: currencyRate.toString(),
         description: dto.description ?? null,
         notes: dto.notes ?? null,
         comments: dto.comments ?? null,
@@ -230,8 +500,12 @@ export class DashboardAccountingService {
         where,
         include: {
           accountingRegister: {
-            include: { dailyEntries: { include: { account: true } } },
+            include: {
+              currency: true,
+              dailyEntries: { include: { account: true } },
+            },
           },
+          details: { include: { account: true } },
         },
         orderBy: [{ nb: 'desc' }, { id: 'desc' }],
         skip: (page - 1) * limit,
@@ -268,8 +542,12 @@ export class DashboardAccountingService {
       where: { id, schoolId: user.schoolId },
       include: {
         accountingRegister: {
-          include: { dailyEntries: { include: { account: true } } },
+          include: {
+            currency: true,
+            dailyEntries: { include: { account: true } },
+          },
         },
+        details: { include: { account: true } },
       },
     });
     if (!receipt) {
@@ -402,10 +680,7 @@ export class DashboardAccountingService {
         ],
       });
 
-      await this.assertBalancedJournal(tx, register.id, [
-        destination.id,
-        cash.id,
-      ]);
+      await this.assertBalancedJournal(tx, register.id, 2, amount);
 
       return {
         id: paymentRow.id,
@@ -479,6 +754,60 @@ export class DashboardAccountingService {
     return this.toPaymentDto(payment, payment.accountingRegister);
   }
 
+  private async resolveAllocations(
+    tx: Prisma.TransactionClient,
+    schoolId: number,
+    rows: Array<{ accountId: number; amount: number; description?: string }>,
+  ): Promise<AllocationInput[]> {
+    if (rows.length === 0) {
+      throw new BadRequestException(
+        'Receipt must include at least one allocation',
+      );
+    }
+    if (rows.length > MAX_ALLOCATIONS) {
+      throw new BadRequestException(
+        `Receipt cannot include more than ${MAX_ALLOCATIONS} allocations`,
+      );
+    }
+    const seen = new Set<number>();
+    const allocations: AllocationInput[] = [];
+    for (const row of rows) {
+      if (seen.has(row.accountId)) {
+        throw new BadRequestException(
+          'Duplicate destination account in receipt allocations',
+        );
+      }
+      seen.add(row.accountId);
+      const destination = await tx.account.findFirst({
+        where: { id: row.accountId, schoolId },
+        select: { id: true, code: true, name: true, type: true },
+      });
+      if (!destination) {
+        throw new BadRequestException(
+          'Destination account does not belong to the authenticated school',
+        );
+      }
+      if (destination.type === 'PERSON') {
+        throw new BadRequestException(
+          'Person accounts cannot be receipt destinations',
+        );
+      }
+      if (!RECEIPT_DESTINATION_TYPES.has(destination.type)) {
+        throw new BadRequestException(
+          `Accounts of type ${destination.type} are not eligible receipt destinations`,
+        );
+      }
+      allocations.push({
+        accountId: destination.id,
+        amount: this.toDocumentAmount(row.amount),
+        description: row.description?.trim() ? row.description.trim() : null,
+        accountCode: destination.code,
+        accountName: destination.name,
+      });
+    }
+    return allocations;
+  }
+
   private async ensureSystemAccount(
     tx: Prisma.TransactionClient,
     schoolId: number,
@@ -490,7 +819,7 @@ export class DashboardAccountingService {
       select: { id: true, code: true, name: true, type: true },
     });
     if (existing) {
-      return this.toAccountDto(existing);
+      return this.toAccountDto(existing, null);
     }
 
     const [sequence] = await tx.$queryRaw<Array<{ code: string }>>`
@@ -505,7 +834,7 @@ export class DashboardAccountingService {
         data: { code: sequence.code, name, type, schoolId },
         select: { id: true, code: true, name: true, type: true },
       });
-      return this.toAccountDto(created);
+      return this.toAccountDto(created, null);
     } catch (error) {
       if (this.isUniqueViolation(error)) {
         const winner = await tx.account.findFirst({
@@ -513,7 +842,7 @@ export class DashboardAccountingService {
           select: { id: true, code: true, name: true, type: true },
         });
         if (winner) {
-          return this.toAccountDto(winner);
+          return this.toAccountDto(winner, null);
         }
       }
       throw error;
@@ -583,22 +912,16 @@ export class DashboardAccountingService {
   private async assertBalancedJournal(
     tx: Prisma.TransactionClient,
     registerId: number,
-    expectedAccountIds: number[],
+    expectedLineCount: number,
+    expectedTotal: Prisma.Decimal,
   ): Promise<void> {
     const lines = await tx.accountingDaily.findMany({
       where: { accountingRegisterId: registerId },
       select: { accountId: true, debit: true, credit: true },
     });
-    if (lines.length !== 2) {
+    if (lines.length !== expectedLineCount) {
       throw new InternalServerErrorException(
-        'Journal must contain exactly two entries',
-      );
-    }
-    const actual = [...lines.map((line) => line.accountId)].sort();
-    const expected = [...expectedAccountIds].sort();
-    if (actual[0] !== expected[0] || actual[1] !== expected[1]) {
-      throw new InternalServerErrorException(
-        'Journal entries reference unexpected accounts',
+        'Journal must contain exactly the posted entries',
       );
     }
     let totalDebit = new Prisma.Decimal(0);
@@ -614,7 +937,11 @@ export class DashboardAccountingService {
       totalDebit = totalDebit.plus(debit);
       totalCredit = totalCredit.plus(credit);
     }
-    if (totalDebit.isZero() || !totalDebit.equals(totalCredit)) {
+    if (
+      totalDebit.isZero() ||
+      !totalDebit.equals(totalCredit) ||
+      !totalDebit.equals(expectedTotal)
+    ) {
       throw new InternalServerErrorException('Journal is out of balance');
     }
   }
@@ -627,7 +954,8 @@ export class DashboardAccountingService {
     const register = await tx.accountingRegister.findFirst({
       where: { schoolId, idempotencyKey },
       include: {
-        receipts: true,
+        currency: true,
+        receipts: { include: { details: { include: { account: true } } } },
         dailyEntries: { include: { account: true } },
       },
     });
@@ -639,7 +967,11 @@ export class DashboardAccountingService {
       register.dailyEntries.map((entry) => entry.accountId),
       tx,
     );
-    return this.toReceiptDto(receipt, register, parentByAccountId);
+    return this.toReceiptDto(
+      { ...receipt, details: receipt.details },
+      register,
+      parentByAccountId,
+    );
   }
 
   private async findPaymentByIdempotencyKey(
@@ -659,6 +991,41 @@ export class DashboardAccountingService {
       return null;
     }
     return this.toPaymentDto(payment, register);
+  }
+
+  private async resolveAccountPersons(
+    accountIds: number[],
+    client?: Prisma.TransactionClient,
+  ): Promise<Map<number, { parentId: number | null; fullName: string }>> {
+    const unique = [...new Set(accountIds)];
+    if (unique.length === 0) {
+      return new Map();
+    }
+    const reader = client ?? this.prisma;
+    const persons = await reader.person.findMany({
+      where: { accountId: { in: unique } },
+      select: {
+        accountId: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        parent: { select: { id: true } },
+      },
+    });
+    const resolved = new Map<
+      number,
+      { parentId: number | null; fullName: string }
+    >();
+    for (const person of persons) {
+      if (person.accountId === null) {
+        continue;
+      }
+      resolved.set(person.accountId, {
+        parentId: person.parent?.id ?? null,
+        fullName: this.formatPersonName(person),
+      });
+    }
+    return resolved;
   }
 
   private async resolveReceiptParents(
@@ -697,21 +1064,8 @@ export class DashboardAccountingService {
   }
 
   private toReceiptDto(
-    receipt: { id: number; nb: number },
-    register: {
-      description: string | null;
-      currencyId: number | null;
-      currencyRate: Prisma.Decimal | number | string | null;
-      notes: string | null;
-      comments: string | null;
-      dateCreated: Date;
-      dailyEntries: Array<{
-        accountId: number;
-        debit: Prisma.Decimal | number | string;
-        credit: Prisma.Decimal | number | string;
-        account: { id: number; code: string };
-      }>;
-    },
+    receipt: { id: number; nb: number; details?: ReceiptDetailRow[] },
+    register: RegisterBlock,
     parentByAccountId: Map<number, { parentId: number; parentName: string }>,
   ): DashboardReceiptDto {
     const creditLine = register.dailyEntries.find((entry) =>
@@ -724,7 +1078,11 @@ export class DashboardAccountingService {
     if (!parent) {
       throw new InternalServerErrorException('Receipt parent is missing');
     }
-    const amount = new Prisma.Decimal(creditLine.credit);
+    const total = new Prisma.Decimal(creditLine.credit);
+    const allocations = this.toAllocationDtos(
+      receipt.details ?? [],
+      register.dailyEntries,
+    );
     return {
       id: receipt.id,
       nb: receipt.nb,
@@ -732,7 +1090,10 @@ export class DashboardAccountingService {
       parentName: parent.parentName,
       accountId: creditLine.account.id,
       accountCode: creditLine.account.code,
-      amount: amount.toFixed(2),
+      amount: total.toFixed(2),
+      total: total.toFixed(2),
+      allocations,
+      currency: this.toReceiptCurrencyDto(register.currency),
       currencyId: register.currencyId,
       currencyRate:
         register.currencyRate === null || register.currencyRate === undefined
@@ -742,6 +1103,47 @@ export class DashboardAccountingService {
       notes: register.notes,
       comments: register.comments,
       dateCreated: register.dateCreated.toISOString(),
+    };
+  }
+
+  private toAllocationDtos(
+    details: ReceiptDetailRow[],
+    dailyEntries: JournalLine[],
+  ): DashboardReceiptAllocationDto[] {
+    if (details.length > 0) {
+      return details.map((detail) => ({
+        accountId: detail.account.id,
+        accountCode: detail.account.code,
+        accountName: detail.account.name,
+        amount: new Prisma.Decimal(detail.amount).toFixed(2),
+        description: detail.description,
+      }));
+    }
+    // Legacy Phase 2B receipts predate receipt details: expose the original
+    // debit lines so old documents keep rendering without a backfill.
+    return dailyEntries
+      .filter((entry) => new Prisma.Decimal(entry.debit).gt(0))
+      .map((entry) => ({
+        accountId: entry.account.id,
+        accountCode: entry.account.code,
+        accountName: entry.account.name ?? entry.account.code,
+        amount: new Prisma.Decimal(entry.debit).toFixed(2),
+        description: null,
+      }));
+  }
+
+  private toReceiptCurrencyDto(
+    currency: RegisterBlock['currency'],
+  ): DashboardReceiptCurrencyDto | null {
+    if (!currency) {
+      return null;
+    }
+    return {
+      id: currency.id,
+      title: currency.title,
+      shortCode: currency.shortCode,
+      symbol: currency.symbol,
+      rate: new Prisma.Decimal(currency.rate).toString(),
     };
   }
 
@@ -785,17 +1187,20 @@ export class DashboardAccountingService {
     };
   }
 
-  private toAccountDto(account: {
-    id: number;
-    code: string;
-    name: string;
-    type: AccountType;
-  }): DashboardAccountDto {
+  private toAccountDto(
+    account: AccountRow,
+    relatedPerson: { parentId: number | null; fullName: string } | null,
+  ): DashboardAccountDto {
     return {
       id: account.id,
       code: account.code,
       name: account.name,
       type: account.type,
+      protected: PROTECTED_ACCOUNT_TYPES.has(account.type),
+      relatedPerson:
+        account.type === 'PERSON'
+          ? (relatedPerson ?? { parentId: null, fullName: '' })
+          : null,
     };
   }
 

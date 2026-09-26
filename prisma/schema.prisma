@@ -1185,6 +1185,7 @@ model Account {
   persons      Person[]
   dailyEntries AccountingDaily[]
   installments Installment[]
+  receiptDetails AccountingReceiptDetail[]
 
   @@index([schoolId])
   @@map("accounts")
@@ -1195,6 +1196,21 @@ enum AccountType {
   CASH
   SALES
   PURCHASES
+  GENERAL
+}
+
+model Currency {
+  id        Int      @id @default(autoincrement())
+  title     String   @db.VarChar(255)
+  shortCode String   @unique @map("short_code") @db.VarChar(16)
+  symbol    String   @db.VarChar(16)
+  rate      Decimal  @db.Decimal(18, 6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  registers AccountingRegister[]
+
+  @@map("currency")
 }
 
 model AccountingRegister {
@@ -1212,6 +1228,7 @@ model AccountingRegister {
 
   accountingRegisterType AccountingRegisterType     @relation(fields: [accountingRegisterTypeId], references: [id], onDelete: Restrict)
   school                 School                     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  currency               Currency?                  @relation(fields: [currencyId], references: [id], onDelete: Restrict)
   dailyEntries           AccountingDaily[]
   receipts               AccountingReceipt[]
   payments               AccountingPayment[]
@@ -1223,6 +1240,7 @@ model AccountingRegister {
 
   @@index([accountingRegisterTypeId])
   @@index([schoolId])
+  @@index([currencyId])
   @@unique([schoolId, idempotencyKey])
   @@map("accounting_register")
 }
@@ -1252,10 +1270,27 @@ model AccountingReceipt {
   accountingRegister AccountingRegister @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
   school             School             @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   installments       Installment[]
+  details            AccountingReceiptDetail[]
 
   @@index([accountingRegisterId])
   @@unique([schoolId, nb])
   @@map("accounting_receipts")
+}
+
+model AccountingReceiptDetail {
+  id                   Int      @id @default(autoincrement())
+  accountingReceiptId  Int      @map("accounting_receipt_id")
+  accountId            Int      @map("account_id")
+  amount               Decimal  @db.Decimal(18, 2)
+  description          String?  @db.Text
+  dateCreated          DateTime @default(now()) @map("date_created") @db.Timestamptz(6)
+
+  receipt AccountingReceipt @relation(fields: [accountingReceiptId], references: [id], onDelete: Cascade)
+  account Account           @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountingReceiptId])
+  @@index([accountId])
+  @@map("accounting_receipt_details")
 }
 
 model AccountingPayment {

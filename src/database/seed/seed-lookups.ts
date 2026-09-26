@@ -52,6 +52,18 @@ type LookupPrisma = {
       update: Record<string, never>;
     }) => Promise<unknown>;
   };
+  currency: {
+    upsert: (args: {
+      where: { shortCode: string };
+      create: {
+        title: string;
+        shortCode: string;
+        symbol: string;
+        rate: number;
+      };
+      update: Record<string, never>;
+    }) => Promise<unknown>;
+  };
 };
 
 export async function seedLookups(prisma: LookupPrisma): Promise<void> {
@@ -128,6 +140,17 @@ export async function seedLookups(prisma: LookupPrisma): Promise<void> {
     await prisma.itemType.upsert({
       where: { name },
       create: { name },
+      update: {},
+    });
+  }
+
+  for (const currency of [
+    { title: 'US Dollar', shortCode: 'USD', symbol: '$', rate: 1 },
+    { title: 'Lebanese Pound', shortCode: 'LBP', symbol: 'L.L', rate: 1 },
+  ]) {
+    await prisma.currency.upsert({
+      where: { shortCode: currency.shortCode },
+      create: currency,
       update: {},
     });
   }

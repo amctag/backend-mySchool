@@ -66,9 +66,12 @@ describe('Accounting Phase 1 Prisma contract', () => {
     );
   });
 
-  it('keeps currencyId and userId nullable and relation-free', () => {
+  it('keeps userId nullable and relation-free; currencyId links to Currency (Phase 2C)', () => {
     expect(modelBlock('AccountingRegister')).toMatch(
       /currencyId\s+Int\?\s+@map\("currency_id"\)/,
+    );
+    expect(modelBlock('AccountingRegister')).toMatch(
+      /currency\s+Currency\?\s+@relation\(fields:\s*\[currencyId\],\s*references:\s*\[id\],\s*onDelete:\s*Restrict\)/,
     );
     expect(modelBlock('AccountingRegister')).toMatch(
       /userId\s+Int\?\s+@map\("user_id"\)/,
@@ -79,7 +82,6 @@ describe('Accounting Phase 1 Prisma contract', () => {
     expect(modelBlock('AccountingRegistrationPackageItem')).toMatch(
       /currencyId\s+Int\?\s+@map\("currency_id"\)/,
     );
-    expect(schema).not.toMatch(/model Currency\s+\{/);
     expect(schema).not.toMatch(/model User\s+\{/);
   });
 
