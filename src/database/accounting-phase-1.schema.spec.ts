@@ -33,8 +33,7 @@ describe('Accounting Phase 1 Prisma contract', () => {
     ItemType: 'item_types',
     Item: 'items',
     AccountingRegistrationPackage: 'accounting_registration_package',
-    AccountingRegistrationPackageItem:
-      'accounting_registration_package_items',
+    AccountingRegistrationPackageItem: 'accounting_registration_package_items',
     AccountingRegistrationPackageClass:
       'accounting_registration_package_classes',
     Installment: 'installment',
@@ -56,11 +55,15 @@ describe('Accounting Phase 1 Prisma contract', () => {
     expect(person).toContain('@@index([accountId])');
   });
 
-  it('keeps Account business columns limited to id and unique code', () => {
+  it('extends Account with name and controlled type (Phase 2B)', () => {
     const account = modelBlock('Account');
     expect(account).toMatch(/id\s+Int\s+@id\s+@default\(autoincrement\(\)\)/);
     expect(account).toMatch(/code\s+String\s+@unique\s+@db\.VarChar\(255\)/);
-    expect(account).not.toMatch(/name\s+String|typeId|currencyId/);
+    expect(account).toMatch(/name\s+String\s+@db\.VarChar\(255\)/);
+    expect(account).toMatch(/type\s+AccountType/);
+    expect(schema).toMatch(
+      /enum AccountType \{[\s\S]*?PERSON[\s\S]*?CASH[\s\S]*?SALES[\s\S]*?PURCHASES/,
+    );
   });
 
   it('keeps currencyId and userId nullable and relation-free', () => {
@@ -102,10 +105,14 @@ describe('Accounting Phase 1 Prisma contract', () => {
     );
   });
 
-  it('does not add premature document-number uniqueness', () => {
+  it('scopes receipt/payment numbering per school with uniqueness (Phase 2B)', () => {
+    for (const modelName of ['AccountingReceipt', 'AccountingPayment']) {
+      const model = modelBlock(modelName);
+      expect(model).toMatch(/nb\s+Int/);
+      expect(model).toMatch(/schoolId\s+Int\s+@map\("school_id"\)/);
+      expect(model).toMatch(/@@unique\(\[schoolId, nb\]\)/);
+    }
     for (const modelName of [
-      'AccountingReceipt',
-      'AccountingPayment',
       'AccountingSale',
       'AccountingPurchase',
       'AccountingSalesReturn',
@@ -116,5 +123,18 @@ describe('Accounting Phase 1 Prisma contract', () => {
       expect(model).not.toMatch(/nb\s+Int\s+@unique/);
       expect(model).not.toMatch(/@@unique\([^\n]*nb/);
     }
+  });
+
+  it('adds school-scoped document counters and register idempotency keys (Phase 2B)', () => {
+    const counter = modelBlock('AccountingDocumentCounter');
+    expect(counter).toContain('@@map("accounting_document_counters")');
+    expect(counter).toMatch(/schoolId\s+Int\s+@map\("school_id"\)/);
+    expect(counter).toMatch(
+      /accountingRegisterTypeId\s+Int\s+@map\("accounting_register_type_id"\)/,
+    );
+    expect(counter).toMatch(/lastNb\s+Int\s+@default\(0\)\s+@map\("last_nb"\)/);
+    expect(modelBlock('AccountingRegister')).toMatch(
+      /idempotencyKey\s+String\?\s+@map\("idempotency_key"\)/,
+    );
   });
 });
