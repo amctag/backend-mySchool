@@ -158,6 +158,8 @@ export class TeacherNoticesService {
     dto: UpsertTeacherNoticeDto,
   ): Promise<TeacherNoticeItemDto> {
     const context = await this.assertWritableTarget(user, dto);
+    const studentIds =
+      dto.targetType === 'student' ? context.studentIds : [];
 
     const created = await this.prisma.notice.create({
       data: {
@@ -168,8 +170,12 @@ export class TeacherNoticesService {
         date: parseDateOnly(dto.publishDate),
         status: true,
         sections: { create: { sectionId: context.sectionId } },
-        ...(dto.targetType === 'student'
-          ? { students: { create: { studentId: dto.targetId } } }
+        ...(studentIds.length > 0
+          ? {
+              students: {
+                create: studentIds.map((studentId) => ({ studentId })),
+              },
+            }
           : {}),
       },
       include: noticeInclude,
@@ -190,6 +196,8 @@ export class TeacherNoticesService {
   ): Promise<TeacherNoticeItemDto> {
     await this.findOwnNotice(user, noticeId);
     const context = await this.assertWritableTarget(user, dto);
+    const studentIds =
+      dto.targetType === 'student' ? context.studentIds : [];
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.noticeStudent.deleteMany({ where: { noticeId } });
@@ -198,9 +206,9 @@ export class TeacherNoticesService {
       await tx.noticeSection.create({
         data: { noticeId, sectionId: context.sectionId },
       });
-      if (dto.targetType === 'student') {
-        await tx.noticeStudent.create({
-          data: { noticeId, studentId: dto.targetId },
+      if (studentIds.length > 0) {
+        await tx.noticeStudent.createMany({
+          data: studentIds.map((studentId) => ({ noticeId, studentId })),
         });
       }
 
@@ -251,7 +259,7 @@ export class TeacherNoticesService {
   private async assertWritableTarget(
     user: AuthenticatedTeacher,
     dto: UpsertTeacherNoticeDto,
-  ) {
+  ): Promise<{ sectionId: number; studentIds: number[] }> {
     this.teacherAccess.ensureTeacherRole(user);
 
     if (dto.assignmentId) {
@@ -274,26 +282,39 @@ export class TeacherNoticesService {
           'targetId must match classId for section notices',
         );
       }
-      return { sectionId: dto.classId };
+      return { sectionId: dto.classId, studentIds: [] };
     }
 
-    const registration = await this.prisma.registration.findFirst({
+    const rawStudentIds = dto.studentIds?.length
+      ? dto.studentIds
+      : dto.targetId != null
+        ? [dto.targetId]
+        : [];
+    const studentIds = [
+      ...new Set(
+        rawStudentIds.filter((id): id is number => id != null && id > 0),
+      ),
+    ];
+    if (studentIds.length === 0) {
+      throw new BadRequestException('Select at least one student');
+    }
+
+    const registrations = await this.prisma.registration.findMany({
       where: {
-        studentId: dto.targetId,
+        studentId: { in: studentIds },
         sectionId: dto.classId,
         schoolId: user.schoolId,
         status: true,
       },
-      select: { id: true },
+      select: { studentId: true },
     });
-
-    if (!registration) {
+    if (registrations.length !== studentIds.length) {
       throw new BadRequestException(
-        'Student is not registered in this class',
+        'One or more students are not registered in this class',
       );
     }
 
-    return { sectionId: dto.classId };
+    return { sectionId: dto.classId, studentIds };
   }
 
   private async resolveAssignmentIds(
@@ -327,25 +348,33 @@ export class TeacherNoticesService {
     row: NoticeRecord,
     assignmentIds: Map<number, number>,
   ): TeacherNoticeItemDto {
-    const student = row.students[0]?.student;
+    const students = row.students.map((item) => item.student);
     const section = row.sections[0]?.section;
-    const targetType: 'student' | 'section' = student ? 'student' : 'section';
+    const targetType: 'student' | 'section' =
+      students.length > 0 ? 'student' : 'section';
     const classId = section?.id ?? 0;
     const classLabel = section
       ? formatClassLabel(section.class.className, section.sectionTitle.title)
       : '';
+    const targetIds = students.map((student) => student.id);
+    const names = students.map((student) => formatFullName(student.person));
+    const targetLabel =
+      names.length === 0
+        ? section
+          ? `Section ${section.sectionTitle.title}`
+          : ''
+        : names.length === 1
+          ? names[0]
+          : `${names[0]} +${names.length - 1}`;
 
     return {
       id: row.id,
       assignmentId: classId ? assignmentIds.get(classId) ?? null : null,
       classId: classId ?? 0,
       targetType,
-      targetId: student?.id ?? section?.id ?? 0,
-      targetLabel: student
-        ? formatFullName(student.person)
-        : section
-          ? `Section ${section.sectionTitle.title}`
-          : '',
+      targetId: targetIds[0] ?? section?.id ?? 0,
+      targetIds,
+      targetLabel,
       classLabel,
       title: row.title || 'Notice',
       content: row.description,
