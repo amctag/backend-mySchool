@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { normalizeAttendanceMode } from '../school/school-attendance-policy.service';
 import {
+  AttendanceModeSetting,
   DashboardSchoolSettingsDto,
   UpdateDashboardSchoolSettingsDto,
 } from './dto/dashboard-school-settings.dto';
@@ -18,7 +20,7 @@ export class DashboardSchoolSettingsService {
       select: {
         id: true,
         teachersSeeAllClassCourses: true,
-        attendancePerCourse: true,
+        attendanceMode: true,
         teachersCanPublishAgenda: true,
         teachersCanPublishGrades: true,
       },
@@ -33,14 +35,21 @@ export class DashboardSchoolSettingsService {
     user: AuthenticatedSchool,
     dto: UpdateDashboardSchoolSettingsDto,
   ): Promise<DashboardSchoolSettingsDto> {
+    const attendanceMode = dto.attendanceMode
+      ? normalizeAttendanceMode(dto.attendanceMode)
+      : undefined;
     const school = await this.prisma.school.update({
       where: { id: user.schoolId },
       data: {
         ...(dto.teachersSeeAllClassCourses !== undefined
           ? { teachersSeeAllClassCourses: dto.teachersSeeAllClassCourses }
           : {}),
-        ...(dto.attendancePerCourse !== undefined
-          ? { attendancePerCourse: dto.attendancePerCourse }
+        ...(attendanceMode !== undefined
+          ? {
+              attendanceMode,
+              // Keep legacy flag in sync for any remaining readers.
+              attendancePerCourse: attendanceMode === 'teacher_course',
+            }
           : {}),
         ...(dto.teachersCanPublishAgenda !== undefined
           ? { teachersCanPublishAgenda: dto.teachersCanPublishAgenda }
@@ -52,7 +61,7 @@ export class DashboardSchoolSettingsService {
       select: {
         id: true,
         teachersSeeAllClassCourses: true,
-        attendancePerCourse: true,
+        attendanceMode: true,
         teachersCanPublishAgenda: true,
         teachersCanPublishGrades: true,
       },
@@ -63,14 +72,16 @@ export class DashboardSchoolSettingsService {
   private toDto(school: {
     id: number;
     teachersSeeAllClassCourses: boolean;
-    attendancePerCourse: boolean;
+    attendanceMode: string;
     teachersCanPublishAgenda: boolean;
     teachersCanPublishGrades: boolean;
   }): DashboardSchoolSettingsDto {
     return {
       schoolId: school.id,
       teachersSeeAllClassCourses: school.teachersSeeAllClassCourses,
-      attendancePerCourse: school.attendancePerCourse,
+      attendanceMode: normalizeAttendanceMode(
+        school.attendanceMode,
+      ) as AttendanceModeSetting,
       teachersCanPublishAgenda: school.teachersCanPublishAgenda,
       teachersCanPublishGrades: school.teachersCanPublishGrades,
     };

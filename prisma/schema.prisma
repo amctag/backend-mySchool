@@ -13,6 +13,8 @@ model School {
   password                   String   @db.VarChar(255)
   isActive                   Boolean  @default(true) @map("is_active")
   teachersSeeAllClassCourses Boolean  @default(true) @map("teachers_see_all_class_courses")
+  /// school | teacher | teacher_course
+  attendanceMode             String   @default("school") @map("attendance_mode") @db.VarChar(32)
   attendancePerCourse        Boolean  @default(false) @map("attendance_per_course")
   teachersCanPublishAgenda   Boolean  @default(true) @map("teachers_can_publish_agenda")
   teachersCanPublishGrades   Boolean  @default(true) @map("teachers_can_publish_grades")

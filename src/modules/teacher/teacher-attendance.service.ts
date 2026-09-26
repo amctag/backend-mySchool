@@ -180,12 +180,17 @@ export class TeacherAttendanceService {
     return {
       attendancePerCourse: policy.attendancePerCourse,
       canTakeAttendance:
-        policy.attendancePerCourse ||
-        supervisedSectionIds.length > 0 ||
-        isFirstSessionTeacher,
-      defaultClassId,
-      defaultSectionId,
-      defaultCourseId,
+        policy.teachersCanTakeAttendance &&
+        (policy.attendancePerCourse ||
+          supervisedSectionIds.length > 0 ||
+          isFirstSessionTeacher),
+      defaultClassId: policy.teachersCanTakeAttendance ? defaultClassId : null,
+      defaultSectionId: policy.teachersCanTakeAttendance
+        ? defaultSectionId
+        : null,
+      defaultCourseId: policy.teachersCanTakeAttendance
+        ? defaultCourseId
+        : null,
       classes: [...classes.values()].map((item) => ({
         id: item.id,
         name: item.name,

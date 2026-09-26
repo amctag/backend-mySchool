@@ -1,7 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma/prisma.service';
 
+export type AttendanceMode = 'school' | 'teacher' | 'teacher_course';
+
 export type SchoolAttendancePolicy = {
+  attendanceMode: AttendanceMode;
+  /** Derived: teachers may take attendance (not school-only). */
+  teachersCanTakeAttendance: boolean;
+  /** Derived: per-course sheets when mode is teacher_course. */
   attendancePerCourse: boolean;
 };
 
@@ -11,6 +17,13 @@ export type FirstSessionSlot = {
   sessionPosition: number;
 };
 
+export function normalizeAttendanceMode(value: unknown): AttendanceMode {
+  if (value === 'teacher' || value === 'teacher_course' || value === 'school') {
+    return value;
+  }
+  return 'school';
+}
+
 @Injectable()
 export class SchoolAttendancePolicyService {
   constructor(private readonly prisma: PrismaService) {}
@@ -18,9 +31,14 @@ export class SchoolAttendancePolicyService {
   async getPolicy(schoolId: number): Promise<SchoolAttendancePolicy> {
     const school = await this.prisma.school.findUnique({
       where: { id: schoolId },
-      select: { attendancePerCourse: true },
+      select: { attendanceMode: true },
     });
-    return { attendancePerCourse: school?.attendancePerCourse ?? false };
+    const attendanceMode = normalizeAttendanceMode(school?.attendanceMode);
+    return {
+      attendanceMode,
+      teachersCanTakeAttendance: attendanceMode !== 'school',
+      attendancePerCourse: attendanceMode === 'teacher_course',
+    };
   }
 
   weekdayPosition(date: Date): number {
@@ -82,6 +100,9 @@ export class SchoolAttendancePolicyService {
     courseId?: number | null;
   }): Promise<{ allowed: boolean; courseId: number | null }> {
     const policy = await this.getPolicy(params.schoolId);
+    if (!policy.teachersCanTakeAttendance) {
+      return { allowed: false, courseId: null };
+    }
 
     // Class-level attendance: only the teacher of the first session that day.
     if (!policy.attendancePerCourse) {

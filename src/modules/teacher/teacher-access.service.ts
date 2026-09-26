@@ -313,6 +313,9 @@ export class TeacherAccessService {
     }
 
     const policy = await this.attendancePolicy.getPolicy(params.user.schoolId);
+    if (!policy.teachersCanTakeAttendance) {
+      return { allowed: false, courseId: null };
+    }
     if (policy.attendancePerCourse) {
       const courseId = params.courseId ?? null;
       if (!courseId) {

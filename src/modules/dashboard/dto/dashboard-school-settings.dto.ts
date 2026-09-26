@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsOptional } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 
 function toOptionalBoolean({ value }: { value: unknown }): unknown {
   if (value === undefined || value === null || value === '') {
@@ -15,6 +15,9 @@ function toOptionalBoolean({ value }: { value: unknown }): unknown {
   return value;
 }
 
+export const ATTENDANCE_MODES = ['school', 'teacher', 'teacher_course'] as const;
+export type AttendanceModeSetting = (typeof ATTENDANCE_MODES)[number];
+
 export class DashboardSchoolSettingsDto {
   @ApiProperty({ example: 1 })
   schoolId!: number;
@@ -27,11 +30,12 @@ export class DashboardSchoolSettingsDto {
   teachersSeeAllClassCourses!: boolean;
 
   @ApiProperty({
-    example: false,
+    example: 'school',
+    enum: ATTENDANCE_MODES,
     description:
-      'When true, each course teacher takes attendance. When false, only the first-session teacher takes attendance for the class.',
+      'school = dashboard only; teacher = first-session teacher; teacher_course = each course teacher.',
   })
-  attendancePerCourse!: boolean;
+  attendanceMode!: AttendanceModeSetting;
 
   @ApiProperty({
     example: true,
@@ -60,14 +64,15 @@ export class UpdateDashboardSchoolSettingsDto {
   teachersSeeAllClassCourses?: boolean;
 
   @ApiPropertyOptional({
-    example: true,
+    example: 'teacher',
+    enum: ATTENDANCE_MODES,
     description:
-      'Take attendance per course. Off = one teacher (first session) for the class.',
+      'school = dashboard only; teacher = first-session teacher; teacher_course = each course teacher.',
   })
   @IsOptional()
-  @Transform(toOptionalBoolean)
-  @IsBoolean()
-  attendancePerCourse?: boolean;
+  @IsString()
+  @IsIn(ATTENDANCE_MODES)
+  attendanceMode?: AttendanceModeSetting;
 
   @ApiPropertyOptional({
     example: false,
