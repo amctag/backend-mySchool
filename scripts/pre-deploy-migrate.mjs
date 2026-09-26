@@ -9,9 +9,7 @@ const FAILED_MIGRATIONS_TO_RETRY = [
   '20260903140000_grade_form_average_int',
   '20260916110000_person_paid',
   '20260921140000_teacher_supervisors_class',
-  '20260926120000_add_accounting_phase_1',
   '20260926120000_agenda_draft_saved_status', // renamed → 20260926160000
-  '20260926150000_account_school_scope',
   '20260926160000_agenda_draft_saved_status',
   '20260926170000_school_attendance_mode',
   '20260926170000_teachers_can_take_attendance',
