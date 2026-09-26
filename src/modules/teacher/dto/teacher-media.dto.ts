@@ -77,15 +77,31 @@ export class UpsertTeacherActivityDto {
 
   @ApiPropertyOptional({
     example: 2,
-    description: 'Stage id. Required when scopeType is stage.',
+    description: 'Stage id. Required when scopeType is stage (or pass stageTitle).',
   })
   @ValidateIf(
-    (dto: UpsertTeacherActivityDto) => dto.scopeType === 'stage',
+    (dto: UpsertTeacherActivityDto) =>
+      dto.scopeType === 'stage' &&
+      (dto.stageTitle == null || dto.stageTitle.trim() === ''),
   )
   @Type(() => Number)
   @IsInt()
   @Min(1)
   stageId?: number;
+
+  @ApiPropertyOptional({
+    example: 'Primary',
+    description:
+      'Stage title. Used when scopeType is stage and stageId is not provided.',
+  })
+  @ValidateIf(
+    (dto: UpsertTeacherActivityDto) =>
+      dto.scopeType === 'stage' && dto.stageId == null,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  stageTitle?: string;
 
   @ApiProperty({ example: 'Sports Day' })
   @IsString()
