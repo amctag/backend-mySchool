@@ -50,6 +50,9 @@ export class TeacherAttendanceService {
     date?: string,
   ): Promise<TeacherAttendanceOptionsDto> {
     this.teacherAccess.ensureTeacherRole(user);
+    const day = date
+      ? parseDateOnly(date)
+      : parseDateOnly(formatDateOnly(new Date()));
     const [scopes, reasons, policy, supervisedSectionIds] = await Promise.all([
       this.eligibleScopes(user),
       this.prisma.attendanceReason.findMany({
@@ -109,10 +112,80 @@ export class TeacherAttendanceService {
       }
     }
 
+    let defaultClassId: number | null = null;
+    let defaultSectionId: number | null = null;
+    let defaultCourseId: number | null = null;
+    let isFirstSessionTeacher = false;
+
+    if (!policy.attendancePerCourse) {
+      const sectionIds = [...new Set(scopes.map((scope) => scope.sectionId))];
+      const firstSessions = await this.attendancePolicy.firstSessionsBySection(
+        user.schoolId,
+        sectionIds,
+        day,
+      );
+      const supervised = new Set(supervisedSectionIds);
+      const writableScopes: EligibleScope[] = [];
+      for (const scope of scopes) {
+        const first = firstSessions.get(scope.sectionId);
+        const canWrite =
+          first?.personId === user.id || supervised.has(scope.sectionId);
+        if (canWrite) {
+          if (first?.personId === user.id) {
+            isFirstSessionTeacher = true;
+          }
+          writableScopes.push(scope);
+          if (defaultSectionId == null && first?.personId === user.id) {
+            defaultClassId = scope.classId;
+            defaultSectionId = scope.sectionId;
+            defaultCourseId = null;
+          }
+        }
+      }
+      // Non-supervisors only see sections they can take today.
+      if (writableScopes.length > 0 && supervisedSectionIds.length === 0) {
+        classes.clear();
+        for (const scope of writableScopes) {
+          const mutableClass =
+            classes.get(scope.classId) ??
+            {
+              id: scope.classId,
+              name: scope.className,
+              sections: new Map<
+                number,
+                {
+                  id: number;
+                  title: string;
+                  courses: Map<number, { id: number; title: string }>;
+                }
+              >(),
+            };
+          classes.set(scope.classId, mutableClass);
+          const section =
+            mutableClass.sections.get(scope.sectionId) ??
+            {
+              id: scope.sectionId,
+              title: scope.sectionTitle,
+              courses: new Map<number, { id: number; title: string }>(),
+            };
+          mutableClass.sections.set(scope.sectionId, section);
+        }
+      }
+    } else if (scopes.length === 1 && scopes[0].courseId != null) {
+      defaultClassId = scopes[0].classId;
+      defaultSectionId = scopes[0].sectionId;
+      defaultCourseId = scopes[0].courseId;
+    }
+
     return {
       attendancePerCourse: policy.attendancePerCourse,
       canTakeAttendance:
-        policy.attendancePerCourse || supervisedSectionIds.length > 0,
+        policy.attendancePerCourse ||
+        supervisedSectionIds.length > 0 ||
+        isFirstSessionTeacher,
+      defaultClassId,
+      defaultSectionId,
+      defaultCourseId,
       classes: [...classes.values()].map((item) => ({
         id: item.id,
         name: item.name,
@@ -330,33 +403,24 @@ export class TeacherAttendanceService {
     this.teacherAccess.ensureTeacherRole(user);
     const day = parseDateOnly(dto.date);
     const policy = await this.attendancePolicy.getPolicy(user.schoolId);
-    const isSupervisor = await this.teacherAccess.isSupervisorOfSection(
-      user,
-      dto.sectionId,
-    );
 
     let courseId: number | null | undefined = dto.courseId;
+    const allowed = await this.teacherAccess.canTakeAttendance({
+      user,
+      sectionId: dto.sectionId,
+      date: day,
+      courseId,
+    });
+    if (!allowed.allowed) {
+      throw new ForbiddenException(
+        'You cannot take attendance for this class',
+      );
+    }
     if (policy.attendancePerCourse) {
-      const allowed = await this.teacherAccess.canTakeAttendance({
-        user,
-        sectionId: dto.sectionId,
-        date: day,
-        courseId,
-      });
-      if (!allowed.allowed) {
-        throw new ForbiddenException(
-          'You cannot take attendance for this class',
-        );
-      }
       if (!courseId) {
         throw new BadRequestException('courseId is required for this school');
       }
     } else {
-      if (!isSupervisor) {
-        throw new ForbiddenException(
-          'Teachers can only view class attendance for this school',
-        );
-      }
       courseId = null;
     }
 

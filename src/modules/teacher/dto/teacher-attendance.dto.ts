@@ -149,6 +149,30 @@ export class TeacherAttendanceOptionsDto {
   })
   canTakeAttendance!: boolean;
 
+  @ApiPropertyOptional({
+    example: 2,
+    nullable: true,
+    description:
+      'Suggested class when the teacher has a first session today (class-level attendance).',
+  })
+  defaultClassId!: number | null;
+
+  @ApiPropertyOptional({
+    example: 5,
+    nullable: true,
+    description:
+      'Suggested section when the teacher has a first session today (class-level attendance).',
+  })
+  defaultSectionId!: number | null;
+
+  @ApiPropertyOptional({
+    example: 10,
+    nullable: true,
+    description:
+      'Suggested course when attendance is per-course (otherwise null).',
+  })
+  defaultCourseId!: number | null;
+
   @ApiProperty({ type: [TeacherAttendanceClassOptionDto] })
   classes!: TeacherAttendanceClassOptionDto[];
 

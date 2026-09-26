@@ -82,8 +82,17 @@ export class SchoolAttendancePolicyService {
     courseId?: number | null;
   }): Promise<{ allowed: boolean; courseId: number | null }> {
     const policy = await this.getPolicy(params.schoolId);
+
+    // Class-level attendance: only the teacher of the first session that day.
     if (!policy.attendancePerCourse) {
-      return { allowed: false, courseId: null };
+      const first = await this.findFirstSession(
+        params.schoolId,
+        params.sectionId,
+        params.date,
+      );
+      const isFirstSessionTeacher =
+        first != null && first.personId === params.teacherPersonId;
+      return { allowed: isFirstSessionTeacher, courseId: null };
     }
 
     const courseId = params.courseId ?? null;
