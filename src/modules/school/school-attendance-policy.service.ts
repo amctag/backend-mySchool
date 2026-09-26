@@ -17,6 +17,16 @@ export type FirstSessionSlot = {
   sessionPosition: number;
 };
 
+const WEEKDAY_NAMES = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+] as const;
+
 export function normalizeAttendanceMode(value: unknown): AttendanceMode {
   if (value === 'teacher' || value === 'teacher_course' || value === 'school') {
     return value;
@@ -46,6 +56,10 @@ export class SchoolAttendancePolicyService {
     return day === 0 ? 7 : day;
   }
 
+  weekdayName(date: Date): string {
+    return WEEKDAY_NAMES[date.getUTCDay()];
+  }
+
   async findFirstSession(
     schoolId: number,
     sectionId: number,
@@ -64,12 +78,17 @@ export class SchoolAttendancePolicyService {
     if (sectionIds.length === 0) {
       return result;
     }
+    const dayName = this.weekdayName(date);
+    const dayPosition = this.weekdayPosition(date);
     const rows = await this.prisma.weeklyScheduleDetail.findMany({
       where: {
         schedule: { sectionId: { in: sectionIds } },
-        day: { schoolId, position: this.weekdayPosition(date) },
+        day: {
+          schoolId,
+          OR: [{ dayName }, { position: dayPosition }],
+        },
       },
-      orderBy: { session: { position: 'asc' } },
+      orderBy: [{ session: { position: 'asc' } }, { id: 'asc' }],
       select: {
         courseId: true,
         personId: true,
@@ -88,7 +107,50 @@ export class SchoolAttendancePolicyService {
         sessionPosition: row.session.position,
       });
     }
+
+    await this.resolveMissingFirstSessionTeachers(result);
     return result;
+  }
+
+  /**
+   * When schedule personId is missing/stale, resolve from Teach for that
+   * section + first-session course.
+   */
+  private async resolveMissingFirstSessionTeachers(
+    slots: Map<number, FirstSessionSlot>,
+  ): Promise<void> {
+    const missing = [...slots.entries()].filter(
+      ([, slot]) => slot.personId == null,
+    );
+    if (missing.length === 0) {
+      return;
+    }
+
+    const teaches = await this.prisma.teach.findMany({
+      where: {
+        OR: missing.map(([sectionId, slot]) => ({
+          sectionId,
+          courseId: slot.courseId,
+        })),
+      },
+      select: {
+        sectionId: true,
+        courseId: true,
+        teacher: { select: { personId: true } },
+      },
+    });
+
+    for (const teach of teaches) {
+      const slot = slots.get(teach.sectionId);
+      if (
+        slot &&
+        slot.courseId === teach.courseId &&
+        slot.personId == null &&
+        teach.teacher.personId
+      ) {
+        slot.personId = teach.teacher.personId;
+      }
+    }
   }
 
   async canTeacherTakeAttendance(params: {
@@ -104,16 +166,16 @@ export class SchoolAttendancePolicyService {
       return { allowed: false, courseId: null };
     }
 
-    // Class-level attendance: only the teacher of the first session that day.
+    // Class-level attendance: any teacher assigned to the section.
     if (!policy.attendancePerCourse) {
-      const first = await this.findFirstSession(
-        params.schoolId,
-        params.sectionId,
-        params.date,
-      );
-      const isFirstSessionTeacher =
-        first != null && first.personId === params.teacherPersonId;
-      return { allowed: isFirstSessionTeacher, courseId: null };
+      const assignment = await this.prisma.teach.findFirst({
+        where: {
+          teacherId: params.teacherId,
+          sectionId: params.sectionId,
+        },
+        select: { id: true },
+      });
+      return { allowed: assignment != null, courseId: null };
     }
 
     const courseId = params.courseId ?? null;

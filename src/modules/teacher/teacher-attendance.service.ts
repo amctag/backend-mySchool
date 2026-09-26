@@ -115,7 +115,7 @@ export class TeacherAttendanceService {
     let defaultClassId: number | null = null;
     let defaultSectionId: number | null = null;
     let defaultCourseId: number | null = null;
-    let isFirstSessionTeacher = false;
+    let canWriteAny = false;
 
     if (!policy.attendancePerCourse) {
       const sectionIds = [...new Set(scopes.map((scope) => scope.sectionId))];
@@ -124,66 +124,40 @@ export class TeacherAttendanceService {
         sectionIds,
         day,
       );
-      const supervised = new Set(supervisedSectionIds);
-      const writableScopes: EligibleScope[] = [];
+
+      // Prefer the section where this teacher has the first session today.
       for (const scope of scopes) {
         const first = firstSessions.get(scope.sectionId);
-        const canWrite =
-          first?.personId === user.id || supervised.has(scope.sectionId);
-        if (canWrite) {
-          if (first?.personId === user.id) {
-            isFirstSessionTeacher = true;
-          }
-          writableScopes.push(scope);
-          if (defaultSectionId == null && first?.personId === user.id) {
-            defaultClassId = scope.classId;
-            defaultSectionId = scope.sectionId;
-            defaultCourseId = null;
-          }
+        if (first?.personId === user.id) {
+          defaultClassId = scope.classId;
+          defaultSectionId = scope.sectionId;
+          defaultCourseId = null;
+          break;
         }
       }
-      // Non-supervisors only see sections they can take today.
-      if (writableScopes.length > 0 && supervisedSectionIds.length === 0) {
-        classes.clear();
-        for (const scope of writableScopes) {
-          const mutableClass =
-            classes.get(scope.classId) ??
-            {
-              id: scope.classId,
-              name: scope.className,
-              sections: new Map<
-                number,
-                {
-                  id: number;
-                  title: string;
-                  courses: Map<number, { id: number; title: string }>;
-                }
-              >(),
-            };
-          classes.set(scope.classId, mutableClass);
-          const section =
-            mutableClass.sections.get(scope.sectionId) ??
-            {
-              id: scope.sectionId,
-              title: scope.sectionTitle,
-              courses: new Map<number, { id: number; title: string }>(),
-            };
-          mutableClass.sections.set(scope.sectionId, section);
+
+      for (const scope of scopes) {
+        canWriteAny = true;
+        if (defaultSectionId == null) {
+          defaultClassId = scope.classId;
+          defaultSectionId = scope.sectionId;
+          defaultCourseId = null;
         }
       }
     } else if (scopes.length === 1 && scopes[0].courseId != null) {
       defaultClassId = scopes[0].classId;
       defaultSectionId = scopes[0].sectionId;
       defaultCourseId = scopes[0].courseId;
+      canWriteAny = true;
+    } else if (scopes.length > 0) {
+      canWriteAny = true;
     }
 
     return {
       attendancePerCourse: policy.attendancePerCourse,
       canTakeAttendance:
         policy.teachersCanTakeAttendance &&
-        (policy.attendancePerCourse ||
-          supervisedSectionIds.length > 0 ||
-          isFirstSessionTeacher),
+        (canWriteAny || supervisedSectionIds.length > 0),
       defaultClassId: policy.teachersCanTakeAttendance ? defaultClassId : null,
       defaultSectionId: policy.teachersCanTakeAttendance
         ? defaultSectionId

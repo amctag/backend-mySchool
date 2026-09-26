@@ -33,7 +33,7 @@ export class DashboardSchoolSettingsDto {
     example: 'school',
     enum: ATTENDANCE_MODES,
     description:
-      'school = dashboard only; teacher = first-session teacher; teacher_course = each course teacher.',
+      'school = dashboard only; teacher = assigned section teachers; teacher_course = each course teacher.',
   })
   attendanceMode!: AttendanceModeSetting;
 
@@ -67,7 +67,7 @@ export class UpdateDashboardSchoolSettingsDto {
     example: 'teacher',
     enum: ATTENDANCE_MODES,
     description:
-      'school = dashboard only; teacher = first-session teacher; teacher_course = each course teacher.',
+      'school = dashboard only; teacher = assigned section teachers; teacher_course = each course teacher.',
   })
   @IsOptional()
   @IsString()
