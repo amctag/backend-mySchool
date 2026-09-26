@@ -272,7 +272,7 @@ describe('DashboardAccountingService manual accounts', () => {
       ],
     });
     type AccountWhere = { schoolId: number; type?: string; OR?: unknown[] };
-    let seenWhere: AccountWhere | null = null;
+    let seenWhere: AccountWhere = { schoolId: 0 };
     tx.account.findMany.mockImplementation((args: { where: AccountWhere }) => {
       seenWhere = args.where;
       return Promise.resolve(accounts);
@@ -288,7 +288,7 @@ describe('DashboardAccountingService manual accounts', () => {
     expect(tx.account.count).toHaveBeenCalled();
     expect(tx.account.findMany).toHaveBeenCalled();
     expect(seenWhere).toMatchObject({ schoolId: 3, type: 'GENERAL' });
-    expect(seenWhere?.OR).toHaveLength(2);
+    expect(seenWhere.OR).toHaveLength(2);
     expect(result).toMatchObject({
       page: 1,
       limit: 10,
@@ -404,6 +404,48 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
       },
       select: { id: true, dateCreated: true },
     });
+  });
+
+  it('posts Bank 1200 + Cash 300 debits with a single 1500 parent credit', async () => {
+    const { service, tx } = mocks({
+      queryRawResults: [[lockedParent], [{ nb: 7 }]],
+      accountFindFirst: [bankAccount, cashAccount],
+      currencyFindUnique: usdCurrency,
+      dailyRows: [
+        { accountId: 32, debit: '1200.00', credit: '0' },
+        { accountId: 31, debit: '300.00', credit: '0' },
+        { accountId: 12, debit: '0', credit: '1500.00' },
+      ],
+    });
+    type PostedLine = {
+      accountId: number;
+      debit: Prisma.Decimal;
+      credit: Prisma.Decimal;
+    };
+    let posted: PostedLine[] = [];
+    tx.accountingDaily.createMany.mockImplementation(
+      (args: { data: PostedLine[] }) => {
+        posted = args.data;
+        return Promise.resolve({ count: args.data.length });
+      },
+    );
+
+    const receipt = await service.createReceipt({ schoolId: 3 } as never, {
+      parentId: 7,
+      currencyId: 1,
+      allocations: [
+        { accountId: 32, amount: 1200 },
+        { accountId: 31, amount: 300 },
+      ],
+    });
+
+    expect(receipt).toMatchObject({ nb: 7, total: '1500.00' });
+    expect(receipt.allocations).toHaveLength(2);
+    expect(posted).toHaveLength(3);
+    expect(posted.map((line) => line.accountId)).toEqual([32, 31, 12]);
+    expect(posted[0].debit.equals(new Prisma.Decimal('1200.00'))).toBe(true);
+    expect(posted[1].debit.equals(new Prisma.Decimal('300.00'))).toBe(true);
+    expect(posted[2].credit.equals(new Prisma.Decimal('1500.00'))).toBe(true);
   });
 
   it('rejects an unbalanced journal', async () => {

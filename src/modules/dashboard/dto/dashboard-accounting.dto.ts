@@ -170,11 +170,6 @@ export class DashboardAccountingDocumentQueryDto {
 }
 
 class DashboardAccountingDocumentBody {
-  @ApiProperty({ example: 123.45 })
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @IsPositive()
-  amount!: number;
-
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()
   @Type(() => Number)
@@ -224,6 +219,7 @@ export class DashboardReceiptAllocationBody {
   accountId!: number;
 
   @ApiProperty({ example: 500 })
+  @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive()
   amount!: number;
@@ -272,6 +268,11 @@ export class CreateDashboardPaymentDto extends DashboardAccountingDocumentBody {
   @Type(() => Number)
   @IsInt()
   accountId!: number;
+
+  @ApiProperty({ example: 123.45 })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  amount!: number;
 
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()
