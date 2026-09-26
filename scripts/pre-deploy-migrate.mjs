@@ -39,10 +39,14 @@ function run(command, { inherit = false } = {}) {
 
 function tryResolve(name, flag) {
   try {
-    run(`npx prisma migrate resolve ${flag} ${name}`);
+    execSync(`npx prisma migrate resolve ${flag} ${name}`, {
+      stdio: 'pipe',
+      encoding: 'utf8',
+    });
     console.log(`Resolved migration ${name} (${flag})`);
     return true;
   } catch {
+    // Not failed / already applied — ignore.
     return false;
   }
 }
