@@ -10,6 +10,7 @@ describe('seedLookups accounting reference data', () => {
   it('upserts every accounting register type and item type by name', async () => {
     const accountingRegisterTypeUpsert = upsert();
     const itemTypeUpsert = upsert();
+    const currencyUpsert = upsert();
     const prisma = {
       nationality: { upsert: upsert() },
       parentJob: { upsert: upsert() },
@@ -20,11 +21,14 @@ describe('seedLookups accounting reference data', () => {
       region: { upsert: upsert() },
       accountingRegisterType: { upsert: accountingRegisterTypeUpsert },
       itemType: { upsert: itemTypeUpsert },
+      currency: { upsert: currencyUpsert },
     };
 
     await seedLookups(prisma);
 
-    expect(accountingRegisterTypeUpsert.mock.calls.map(([args]) => args)).toEqual(
+    expect(
+      accountingRegisterTypeUpsert.mock.calls.map(([args]) => args),
+    ).toEqual(
       [
         'Receipt',
         'Payment',
@@ -45,5 +49,22 @@ describe('seedLookups accounting reference data', () => {
         update: {},
       })),
     );
+    expect(currencyUpsert.mock.calls.map(([args]) => args)).toEqual([
+      {
+        where: { shortCode: 'USD' },
+        create: { title: 'US Dollar', shortCode: 'USD', symbol: '$', rate: 1 },
+        update: {},
+      },
+      {
+        where: { shortCode: 'LBP' },
+        create: {
+          title: 'Lebanese Pound',
+          shortCode: 'LBP',
+          symbol: 'L.L',
+          rate: 1,
+        },
+        update: {},
+      },
+    ]);
   });
 });

@@ -25,6 +25,7 @@ function baseTransaction(overrides?: {
   registerCreate?: { id: number };
   registerFindFirst?: unknown;
   receiptCreate?: unknown;
+  currency?: unknown;
   paymentCreate?: unknown;
   dailyRows?: Array<{ accountId: number; debit: unknown; credit: unknown }>;
   persons?: unknown[];
@@ -69,6 +70,14 @@ function baseTransaction(overrides?: {
       create: jest.fn(() =>
         Promise.resolve(overrides?.receiptCreate ?? { id: 10 }),
       ),
+    },
+    accountingReceiptDetail: {
+      createMany: jest.fn((args: { data: unknown[] }) =>
+        Promise.resolve({ count: args.data.length }),
+      ),
+    },
+    currency: {
+      findUnique: jest.fn(() => Promise.resolve(overrides?.currency ?? null)),
     },
     accountingPayment: {
       create: jest.fn(() =>
@@ -123,6 +132,14 @@ const balancedReceiptRows = [
 ];
 
 const cashAccount = { id: 31, code: '200001', name: 'Cash', type: 'CASH' };
+
+const usdCurrency = {
+  id: 1,
+  title: 'US Dollar',
+  shortCode: 'USD',
+  symbol: '$',
+  rate: '1',
+};
 
 const accountSelect = { id: true, code: true, name: true, type: true };
 
@@ -213,6 +230,8 @@ describe('DashboardAccountingService system accounts', () => {
       code: '200001',
       name: 'Cash',
       type: 'CASH',
+      protected: true,
+      relatedPerson: null,
     });
   });
 });
@@ -220,16 +239,17 @@ describe('DashboardAccountingService system accounts', () => {
 describe('DashboardAccountingService receipts', () => {
   it('posts a balanced receipt with Cash debit and Parent credit', async () => {
     const transaction = baseTransaction({
-      queryRawResults: [[lockedParent], [{ code: '200001' }], [{ nb: 1 }]],
-      accountFindFirst: null,
-      accountCreate: cashAccount,
+      queryRawResults: [[lockedParent], [{ nb: 1 }]],
+      accountFindFirst: cashAccount,
+      currency: usdCurrency,
       dailyRows: balancedReceiptRows,
     });
     const service = serviceWith(transaction);
 
     const receipt = await service.createReceipt({ schoolId: 3 } as never, {
       parentId: 7,
-      amount: 150,
+      currencyId: 1,
+      allocations: [{ accountId: 31, amount: 150 }],
     });
 
     expect(receipt).toMatchObject({
@@ -239,15 +259,26 @@ describe('DashboardAccountingService receipts', () => {
       accountId: 12,
       accountCode: '100001',
       amount: '150.00',
+      total: '150.00',
+      allocations: [
+        {
+          accountId: 31,
+          accountCode: '200001',
+          accountName: 'Cash',
+          amount: '150.00',
+          description: null,
+        },
+      ],
+      currency: { id: 1, shortCode: 'USD', symbol: '$' },
     });
     expect(transaction.accountingRegister.create).toHaveBeenCalledWith({
       data: {
         description: null,
         accountingRegisterTypeId: 9,
-        currencyId: null,
+        currencyId: 1,
         notes: null,
         comments: null,
-        currencyRate: null,
+        currencyRate: new Prisma.Decimal('1'),
         schoolId: 3,
         idempotencyKey: null,
       },
@@ -257,6 +288,18 @@ describe('DashboardAccountingService receipts', () => {
       data: { accountingRegisterId: 100, nb: 1, schoolId: 3 },
       select: { id: true },
     });
+    expect(transaction.accountingReceiptDetail.createMany).toHaveBeenCalledWith(
+      {
+        data: [
+          {
+            accountingReceiptId: 10,
+            accountId: 31,
+            amount: new Prisma.Decimal('150.00'),
+            description: null,
+          },
+        ],
+      },
+    );
     expect(transaction.accountingDaily.createMany).toHaveBeenCalledWith({
       data: [
         {
@@ -295,7 +338,8 @@ describe('DashboardAccountingService receipts', () => {
     await expect(
       service.createReceipt({ schoolId: 3 } as never, {
         parentId: 7,
-        amount: 50,
+        currencyId: 1,
+        allocations: [{ accountId: 31, amount: 50 }],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(transaction.accountingRegister.create).not.toHaveBeenCalled();
@@ -310,7 +354,8 @@ describe('DashboardAccountingService receipts', () => {
     await expect(
       service.createReceipt({ schoolId: 3 } as never, {
         parentId: 7,
-        amount: 50,
+        currencyId: 1,
+        allocations: [{ accountId: 31, amount: 50 }],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(transaction.accountingRegister.create).not.toHaveBeenCalled();
@@ -323,7 +368,8 @@ describe('DashboardAccountingService receipts', () => {
     await expect(
       service.createReceipt({ schoolId: 3 } as never, {
         parentId: 7,
-        amount: 50,
+        currencyId: 1,
+        allocations: [{ accountId: 31, amount: 50 }],
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
@@ -332,12 +378,13 @@ describe('DashboardAccountingService receipts', () => {
     const register = {
       id: 100,
       description: 'Tuition',
-      currencyId: null,
-      currencyRate: null,
+      currencyId: 1,
+      currencyRate: '1',
+      currency: usdCurrency,
       notes: null,
       comments: null,
       dateCreated: new Date('2026-09-26T10:00:00.000Z'),
-      receipts: [{ id: 10, nb: 4, schoolId: 3 }],
+      receipts: [{ id: 10, nb: 4, schoolId: 3, details: [] }],
       dailyEntries: [
         {
           accountId: 31,
@@ -369,7 +416,8 @@ describe('DashboardAccountingService receipts', () => {
 
     const receipt = await service.createReceipt({ schoolId: 3 } as never, {
       parentId: 7,
-      amount: 150,
+      currencyId: 1,
+      allocations: [{ accountId: 31, amount: 150 }],
       idempotencyKey: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
     });
 

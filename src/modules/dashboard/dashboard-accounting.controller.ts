@@ -5,6 +5,7 @@ import {
   HttpCode,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -21,14 +22,19 @@ import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface
 import { Roles } from '../../common/decorators/roles.decorator';
 import { DashboardAccountingService } from './dashboard-accounting.service';
 import {
+  CreateDashboardAccountDto,
   CreateDashboardPaymentDto,
   CreateDashboardReceiptDto,
   DashboardAccountDto,
   DashboardAccountingDocumentQueryDto,
+  DashboardAccountsQueryDto,
+  DashboardAccountsResponseDto,
+  DashboardCurrencyDto,
   DashboardPaymentDto,
   DashboardPaymentsResponseDto,
   DashboardReceiptDto,
   DashboardReceiptsResponseDto,
+  UpdateDashboardAccountDto,
 } from './dto/dashboard-accounting.dto';
 
 @ApiTags('Dashboard Accounting v1')
@@ -40,13 +46,56 @@ export class DashboardAccountingController {
     private readonly dashboardAccountingService: DashboardAccountingService,
   ) {}
 
+  @Get('currencies')
+  @ApiOperation({ summary: 'List database-backed accounting currencies' })
+  @ApiOkResponse({ type: [DashboardCurrencyDto] })
+  listCurrencies(): Promise<DashboardCurrencyDto[]> {
+    return this.dashboardAccountingService.listCurrencies();
+  }
+
   @Get('accounts')
   @ApiOperation({ summary: 'List accounting accounts owned by this school' })
-  @ApiOkResponse({ type: [DashboardAccountDto] })
+  @ApiOkResponse({ type: DashboardAccountsResponseDto })
   listAccounts(
     @Req() request: Request & { user: AuthenticatedSchool },
-  ): Promise<DashboardAccountDto[]> {
-    return this.dashboardAccountingService.listAccounts(request.user);
+    @Query() query: DashboardAccountsQueryDto,
+  ): Promise<DashboardAccountsResponseDto> {
+    return this.dashboardAccountingService.listAccounts(request.user, query);
+  }
+
+  @Get('accounts/:id')
+  @ApiOperation({ summary: 'Get an accounting account owned by this school' })
+  @ApiOkResponse({ type: DashboardAccountDto })
+  getAccount(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<DashboardAccountDto> {
+    return this.dashboardAccountingService.getAccount(request.user, id);
+  }
+
+  @Post('accounts')
+  @ApiOperation({
+    summary: 'Create a GENERAL accounting account for this school',
+  })
+  @ApiCreatedResponse({ type: DashboardAccountDto })
+  createAccount(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Body() dto: CreateDashboardAccountDto,
+  ): Promise<DashboardAccountDto> {
+    return this.dashboardAccountingService.createAccount(request.user, dto);
+  }
+
+  @Patch('accounts/:id')
+  @ApiOperation({
+    summary: 'Rename a GENERAL accounting account of this school',
+  })
+  @ApiOkResponse({ type: DashboardAccountDto })
+  updateAccount(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateDashboardAccountDto,
+  ): Promise<DashboardAccountDto> {
+    return this.dashboardAccountingService.updateAccount(request.user, id, dto);
   }
 
   @Post('system-accounts/setup')
