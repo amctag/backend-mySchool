@@ -81,8 +81,9 @@ export class TeacherScheduleService {
       assignments.length === 0
         ? []
         : await this.prisma.weeklyScheduleDetail.findMany({
+            // Match by Teach (section + course), not denormalized personId.
+            // personId is often null when Teach is added after the timetable is saved.
             where: {
-              personId: user.id,
               OR: assignments.map((row) => ({
                 courseId: row.courseId,
                 schedule: {
@@ -259,7 +260,6 @@ export class TeacherScheduleService {
 
     const details = await this.prisma.weeklyScheduleDetail.findMany({
       where: {
-        personId: user.id,
         OR: pairs.map((pair) => ({
           courseId: pair.courseId,
           schedule: { sectionId: pair.sectionId },
