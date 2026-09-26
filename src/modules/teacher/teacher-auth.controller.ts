@@ -12,6 +12,7 @@ import { AuthenticatedTeacher } from '../../auth/interfaces/jwt-payload.interfac
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import {
+  TeacherFcmTokenDto,
   TeacherLoginDto,
   TeacherLoginResponseDto,
   TeacherLogoutResponseDto,
@@ -65,5 +66,20 @@ export class TeacherAuthController {
     @Req() request: Request & { user: AuthenticatedTeacher },
   ): Promise<TeacherLogoutResponseDto> {
     return this.teacherAuthService.logout(request.user);
+  }
+
+  @Post('fcm-token')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Save this device FCM token',
+    description:
+      'Stores the browser or phone token for the signed-in teacher without removing other devices.',
+  })
+  @ApiOkResponse({ schema: { example: { saved: true } } })
+  saveFcmToken(
+    @Req() request: Request & { user: AuthenticatedTeacher },
+    @Body() body: TeacherFcmTokenDto,
+  ): Promise<{ saved: true }> {
+    return this.teacherAuthService.saveFcmToken(request.user, body.token);
   }
 }

@@ -113,6 +113,17 @@ export class TeacherLogoutResponseDto {
   message!: string;
 }
 
+export class TeacherFcmTokenDto {
+  @ApiProperty({
+    description: 'Firebase Cloud Messaging device or browser token',
+    example: 'dXNlci1kZXZpY2UtdG9rZW4',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(4096)
+  token!: string;
+}
+
 export class TeacherMessageResponseDto {
   @ApiProperty({ example: 'Deleted successfully' })
   message!: string;

@@ -160,6 +160,15 @@ export class TeacherAuthService {
     );
   }
 
+  async saveFcmToken(
+    user: AuthenticatedTeacher,
+    token: string,
+  ): Promise<{ saved: true }> {
+    this.teacherAccess.ensureTeacherRole(user);
+    await this.fcmTokens.save(user.id, token);
+    return { saved: true };
+  }
+
   async logout(user: AuthenticatedTeacher): Promise<TeacherLogoutResponseDto> {
     this.teacherAccess.ensureTeacherRole(user);
     await this.prisma.teacherSession.deleteMany({

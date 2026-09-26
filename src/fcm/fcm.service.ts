@@ -112,8 +112,14 @@ export class FcmService implements OnModuleInit {
           },
         },
         webpush: {
+          headers: { Urgency: 'high' },
           notification: {
+            title,
+            body,
             icon: 'https://amctag-my-school-teacher.38f0fz.easypanel.host/icons/Icon-192.png?v=2',
+          },
+          fcmOptions: {
+            link: 'https://amctag-my-school-teacher.38f0fz.easypanel.host/dashboard',
           },
         },
       });
