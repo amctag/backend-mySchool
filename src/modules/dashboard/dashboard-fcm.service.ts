@@ -6,6 +6,7 @@ import {
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { FcmService } from '../../fcm/fcm.service';
+import { FcmTokenStore } from '../../fcm/fcm-token.store';
 import {
   SendDashboardFcmTestDto,
   SendDashboardFcmTestResponseDto,
@@ -19,6 +20,7 @@ export class DashboardFcmService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly fcmService: FcmService,
+    private readonly fcmTokens: FcmTokenStore,
   ) {}
 
   async sendTest(
@@ -43,38 +45,44 @@ export class DashboardFcmService {
       throw new NotFoundException('Parent not found');
     }
 
-    const row = await this.prisma.fcmToken.findUnique({
+    const rows = await this.prisma.fcmToken.findMany({
       where: { personId: dto.personId },
     });
 
-    if (!row) {
+    if (rows.length === 0) {
       throw new NotFoundException('No FCM token for this parent');
     }
 
     const title = dto.title?.trim() || DEFAULT_TITLE;
     const body = dto.body?.trim() || DEFAULT_BODY;
 
-    try {
-      const messageId = await this.fcmService.sendNotification(
-        row.token,
-        title,
-        body,
-        {
-          type: 'test',
-          personId: String(dto.personId),
-        },
-      );
+    let messageId = '';
+      let sent = false;
+      for (const row of rows) {
+        try {
+          messageId = await this.fcmService.sendNotification(
+            row.token,
+            title,
+            body,
+            {
+              type: 'test',
+              personId: String(dto.personId),
+            },
+          );
+          sent = true;
+        } catch (error) {
+          if (this.fcmService.isInvalidTokenError(error)) {
+            await this.fcmTokens.deleteToken(row.token);
+            continue;
+          }
+          throw error;
+        }
+      }
 
-      return { sent: true, personId: dto.personId, messageId };
-    } catch (error) {
-      if (this.fcmService.isInvalidTokenError(error)) {
-        await this.prisma.fcmToken.deleteMany({
-          where: { personId: dto.personId },
-        });
+      if (!sent) {
         throw new BadRequestException('FCM token is invalid or expired');
       }
 
-      throw error;
-    }
+    return { sent: true, personId: dto.personId, messageId };
   }
 }

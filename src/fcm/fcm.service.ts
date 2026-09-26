@@ -100,11 +100,26 @@ export class FcmService implements OnModuleInit {
       return await getMessaging().send({
         token,
         notification: { title, body },
-        data,
+        data: {
+          ...data,
+          title,
+          body,
+        },
         android: { priority: 'high' },
         apns: {
           payload: {
             aps: { sound: 'default' },
+          },
+        },
+        webpush: {
+          headers: { Urgency: 'high' },
+          notification: {
+            title,
+            body,
+            icon: 'https://amctag-my-school-teacher.38f0fz.easypanel.host/icons/Icon-192.png?v=2',
+          },
+          fcmOptions: {
+            link: 'https://amctag-my-school-teacher.38f0fz.easypanel.host/dashboard',
           },
         },
       });

@@ -12,6 +12,7 @@ import { AuthenticatedTeacher } from '../../auth/interfaces/jwt-payload.interfac
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import {
+  TeacherFcmTokenDto,
   TeacherLoginDto,
   TeacherLoginResponseDto,
   TeacherLogoutResponseDto,
@@ -31,7 +32,7 @@ export class TeacherAuthController {
   @ApiOperation({
     summary: 'Teacher login',
     description:
-      'Authenticates a teacher by person ID or teacher ID and password. Optional fcmToken is stored when sent (one row per person). Returns an access token and refresh token. Multiple devices can stay logged in at the same time. If the teacher belongs to multiple schools, pass schoolId to choose one; otherwise the first active school is used.',
+      'Authenticates a teacher by person ID or teacher ID and password. Optional fcmToken is stored for this device and does not remove other devices for the same person. Returns an access token and refresh token. Multiple devices can stay logged in at the same time. If the teacher belongs to multiple schools, pass schoolId to choose one; otherwise the first active school is used.',
   })
   @ApiOkResponse({ type: TeacherLoginResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
@@ -65,5 +66,20 @@ export class TeacherAuthController {
     @Req() request: Request & { user: AuthenticatedTeacher },
   ): Promise<TeacherLogoutResponseDto> {
     return this.teacherAuthService.logout(request.user);
+  }
+
+  @Post('fcm-token')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Save this device FCM token',
+    description:
+      'Stores the browser or phone token for the signed-in teacher without removing other devices.',
+  })
+  @ApiOkResponse({ schema: { example: { saved: true } } })
+  saveFcmToken(
+    @Req() request: Request & { user: AuthenticatedTeacher },
+    @Body() body: TeacherFcmTokenDto,
+  ): Promise<{ saved: true }> {
+    return this.teacherAuthService.saveFcmToken(request.user, body.token);
   }
 }
