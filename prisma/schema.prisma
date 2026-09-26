@@ -39,6 +39,7 @@ model School {
   registrations       Registration[]
   teacherTasks        TeacherTask[]
   accountingRegisters AccountingRegister[]
+  accounts            Account[]
   items               Item[]
 
   @@map("school")
@@ -1166,13 +1167,16 @@ model AccountingRegisterType {
 }
 
 model Account {
-  id   Int    @id @default(autoincrement())
-  code String @unique @db.VarChar(255)
+  id       Int    @id @default(autoincrement())
+  code     String @unique @db.VarChar(255)
+  schoolId Int    @map("school_id")
 
+  school       School            @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   persons      Person[]
   dailyEntries AccountingDaily[]
   installments Installment[]
 
+  @@index([schoolId])
   @@map("accounts")
 }
 

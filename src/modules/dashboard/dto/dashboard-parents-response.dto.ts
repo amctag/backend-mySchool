@@ -31,9 +31,24 @@ export class DashboardParentItemDto {
 
   @ApiProperty({
     example: true,
-    description: 'Payment / billing flag shown as $ in the parents table',
+    description: 'Legacy person payment flag retained for API compatibility',
   })
   paid!: boolean;
+
+  @ApiProperty({ example: 42, nullable: true })
+  accountId!: number | null;
+
+  @ApiProperty({ example: true })
+  hasAccountingAccount!: boolean;
+
+  @ApiProperty({ example: '100001', nullable: true })
+  accountCode!: string | null;
+
+  @ApiProperty({
+    example: true,
+    description: 'Whether this school owns the parent Person and may create its account',
+  })
+  canCreateAccountingAccount!: boolean;
 }
 
 export class DashboardParentsResponseDto {
