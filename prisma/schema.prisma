@@ -48,6 +48,7 @@ model School {
   invoices            AccountingInvoice[]
   records             AccountingRecord[]
   items               Item[]
+  legacyMigrationBatches LegacyMigrationBatch[]
 
   @@map("school")
 }
@@ -1442,6 +1443,43 @@ model AccountingRecord {
   @@index([schoolId])
   @@index([accountingRegisterId])
   @@map("accounting_records")
+}
+
+model LegacyMigrationBatch {
+  id          Int       @id @default(autoincrement())
+  source      String    @db.VarChar(255)
+  schoolId    Int       @map("school_id")
+  status      String    @default("PENDING") @db.VarChar(32)
+  startedAt   DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  metadata    Json?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  school   School               @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  mappings LegacyMigrationMap[]
+
+  @@index([schoolId])
+  @@index([status])
+  @@map("legacy_migration_batches")
+}
+
+model LegacyMigrationMap {
+  id             Int      @id @default(autoincrement())
+  batchId        Int      @map("batch_id")
+  entityType     String   @map("entity_type") @db.VarChar(32)
+  legacyId       Int      @map("legacy_id")
+  newId          Int      @map("new_id")
+  status         String   @default("IMPORTED") @db.VarChar(32)
+  reviewReason   String?  @map("review_reason") @db.VarChar(1000)
+  sourceMetadata Json?    @map("source_metadata")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  batch LegacyMigrationBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
+
+  @@unique([batchId, entityType, legacyId])
+  @@index([batchId])
+  @@index([entityType, newId])
+  @@map("legacy_migration_map")
 }
 
 model ItemType {
