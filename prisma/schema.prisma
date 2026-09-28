@@ -46,6 +46,7 @@ model School {
   receipts            AccountingReceipt[]
   payments            AccountingPayment[]
   invoices            AccountingInvoice[]
+  records             AccountingRecord[]
   items               Item[]
 
   @@map("school")
@@ -1241,6 +1242,7 @@ model AccountingRegister {
   salesReturns           AccountingSalesReturn[]
   purchaseReturns        AccountingPurchaseReturn[]
   invoices               AccountingInvoice[]
+  records                AccountingRecord[]
 
   @@unique([schoolId, idempotencyKey])
   @@index([accountingRegisterTypeId])
@@ -1424,6 +1426,22 @@ model AccountingInvoiceDetail {
   @@index([itemId])
   @@index([forRegistrationId])
   @@map("accounting_invoice_details")
+}
+
+model AccountingRecord {
+  id                   Int      @id @default(autoincrement())
+  accountingRegisterId Int      @map("accounting_register_id")
+  nb                   Int
+  schoolId             Int      @map("school_id")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  accountingRegister AccountingRegister @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+  school             School             @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolId, nb])
+  @@index([schoolId])
+  @@index([accountingRegisterId])
+  @@map("accounting_records")
 }
 
 model ItemType {

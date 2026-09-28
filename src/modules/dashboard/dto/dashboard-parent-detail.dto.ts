@@ -75,4 +75,13 @@ export class DashboardParentDetailDto {
     description: 'Payment / billing flag shown as $ in the parents table',
   })
   paid!: boolean;
+
+  @ApiProperty({ example: 12, nullable: true })
+  accountId!: number | null;
+
+  @ApiProperty({ example: '100001', nullable: true })
+  accountCode!: string | null;
+
+  @ApiProperty({ example: true })
+  hasAccountingAccount!: boolean;
 }

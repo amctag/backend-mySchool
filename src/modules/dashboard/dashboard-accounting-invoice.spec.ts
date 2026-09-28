@@ -524,8 +524,7 @@ describe('Normal parent invoice with per-line registrations', () => {
   });
 });
 
-describe('CreateDashboardInvoiceDto contract', () => {
-  async function errors(body: Record<string, unknown>): Promise<string[]> {
+describe('CreateDashboardInvoiceDto contract', () => {  async function errors(body: Record<string, unknown>): Promise<string[]> {
     const dto = plainToInstance(CreateDashboardInvoiceDto, body as object);
     const list = await validate(dto);
     return list.map((error) => error.property);
@@ -565,5 +564,147 @@ describe('CreateDashboardInvoiceDto contract', () => {
         details: [{ itemId: 5, unitPrice: -10 }],
       }),
     ).resolves.toContain('details');
+  });
+});
+
+describe('Invoice duplicate items', () => {
+  function duplicateMocks() {
+    return invoiceTransaction({
+      queryRawResults: [[lockedParent], [{ nb: 1007 }]],
+      currency: usdCurrency,
+      items: [{ id: 8, name: 'Pants', price: '150' }],
+      parentRegistrations: [
+        {
+          id: 450,
+          student: {
+            parentId: 7,
+            person: { firstName: 'Adam', middleName: '', lastName: 'X' },
+          },
+          section: { schoolId: 3, class: { className: 'Grade 3' } },
+        },
+        {
+          id: 701,
+          student: {
+            parentId: 7,
+            person: { firstName: 'Ziad', middleName: '', lastName: 'Y' },
+          },
+          section: { schoolId: 3, class: { className: 'Grade 3' } },
+        },
+      ],
+      dailyRows: [
+        { accountId: 12, debit: '300.00', credit: '0' },
+        { accountId: 55, debit: '0', credit: '300.00' },
+      ],
+    });
+  }
+
+  it('accepts the same item on two lines with different registrations', async () => {
+    const { tx, service } = duplicateMocks();
+    jest.spyOn(service, 'getInvoice').mockResolvedValue({ id: 902 } as never);
+
+    await service.createInvoice({ schoolId: 3 } as never, {
+      parentId: 7,
+      currencyId: 1,
+      details: [
+        { itemId: 8, unitPrice: 150, forRegistrationId: 450 },
+        { itemId: 8, unitPrice: 150, forRegistrationId: 701 },
+      ],
+    });
+
+    const details = tx.accountingInvoiceDetail.createMany.mock.calls[0][0].data;
+    expect(details).toHaveLength(2);
+    expect(details[0]).toEqual(
+      expect.objectContaining({ itemId: 8, forRegistrationId: 450 }),
+    );
+    expect(details[1]).toEqual(
+      expect.objectContaining({ itemId: 8, forRegistrationId: 701 }),
+    );
+  });
+
+  it('accepts the same item twice with NULL registrations', async () => {
+    const { tx, service } = duplicateMocks();
+    jest.spyOn(service, 'getInvoice').mockResolvedValue({ id: 903 } as never);
+
+    await service.createInvoice({ schoolId: 3 } as never, {
+      parentId: 7,
+      currencyId: 1,
+      details: [
+        { itemId: 8, unitPrice: 150 },
+        { itemId: 8, unitPrice: 150 },
+      ],
+    });
+
+    const details = tx.accountingInvoiceDetail.createMany.mock.calls[0][0].data;
+    expect(details).toHaveLength(2);
+    expect(details).toEqual([
+      expect.objectContaining({ itemId: 8, forRegistrationId: null }),
+      expect.objectContaining({ itemId: 8, forRegistrationId: null }),
+    ]);
+  });
+});
+
+describe('Mandatory package items', () => {
+  const mandatoryPackage = {
+    ...grade1Package,
+    items: [
+      { ...grade1Package.items[0], mandatory: true },
+      { ...grade1Package.items[1], mandatory: false },
+    ],
+  };
+
+  function mandatoryMocks() {
+    return invoiceTransaction({
+      queryRawResults: [[lockedParent], [{ nb: 1008 }]],
+      studentRow: { id: 11, parentId: 7 },
+      sectionRow: { id: 9, yearId: 2 },
+      packageRow: mandatoryPackage,
+      items: [
+        { id: 3, name: 'Registration Fee', price: '100' },
+        { id: 4, name: 'Books', price: '75' },
+      ],
+      currency: usdCurrency,
+      dailyRows: [
+        { accountId: 12, debit: '100.00', credit: '0' },
+        { accountId: 55, debit: '0', credit: '100.00' },
+      ],
+    });
+  }
+
+  it('rejects a request omitting a mandatory package item', async () => {
+    const { tx, service } = mandatoryMocks();
+    await expect(
+      service.createRegistrationWithInvoice({ schoolId: 3 } as never, {
+        studentId: 11,
+        classId: 4,
+        sectionId: 9,
+        currencyId: 1,
+        items: [{ itemId: 4 }],
+      }),
+    ).rejects.toThrow('mandatory');
+    expect(tx.registration.create).not.toHaveBeenCalled();
+    expect(tx.accountingInvoice.create).not.toHaveBeenCalled();
+  });
+
+  it('accepts a request containing the mandatory package item', async () => {
+    const { tx, service } = mandatoryMocks();
+    jest.spyOn(service, 'getInvoice').mockResolvedValue({ id: 904 } as never);
+
+    const result = await service.createRegistrationWithInvoice(
+      { schoolId: 3 } as never,
+      {
+        studentId: 11,
+        classId: 4,
+        sectionId: 9,
+        currencyId: 1,
+        items: [{ itemId: 3 }],
+      },
+    );
+
+    expect(result.registrationId).toBe(450);
+    expect(tx.accountingInvoiceDetail.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({ itemId: 3, forRegistrationId: 450 }),
+      ],
+    });
   });
 });

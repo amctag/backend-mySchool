@@ -37,6 +37,7 @@ import {
   CreateDashboardInvoiceDto,
   CreateDashboardPaymentDto,
   CreateDashboardReceiptDto,
+  CreateDashboardRecordDto,
   CreateDashboardRegistrationInvoiceDto,
   DashboardAccountDto,
   DashboardAccountingDocumentQueryDto,
@@ -53,8 +54,12 @@ import {
   DashboardPaymentsResponseDto,
   DashboardReceiptDto,
   DashboardReceiptsResponseDto,
+  DashboardRecordDto,
+  DashboardRecordsResponseDto,
   DashboardRegistrationPackagePreviewDto,
   DashboardRegistrationWithInvoiceDto,
+  DashboardStatementDto,
+  DashboardStatementQueryDto,
   UpdateDashboardAccountDto,
 } from './dto/dashboard-accounting.dto';
 
@@ -266,6 +271,57 @@ export class DashboardAccountingController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DashboardInvoiceDto> {
     return this.dashboardAccountingService.getInvoice(request.user, id);
+  }
+
+  @Get('records')
+  @ApiOperation({ summary: 'List manual Record documents for this school' })
+  @ApiOkResponse({ type: DashboardRecordsResponseDto })
+  listRecords(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardAccountingDocumentQueryDto,
+  ): Promise<DashboardRecordsResponseDto> {
+    return this.dashboardAccountingService.listRecords(request.user, query);
+  }
+
+  @Post('records')
+  @ApiOperation({
+    summary:
+      'Post a manual balanced Record (one register, one record, balanced journal)',
+  })
+  @ApiCreatedResponse({ type: DashboardRecordDto })
+  createRecord(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Body() dto: CreateDashboardRecordDto,
+  ): Promise<DashboardRecordDto> {
+    return this.dashboardAccountingService.createRecord(request.user, dto);
+  }
+
+  @Get('records/:id')
+  @ApiOperation({ summary: 'Get a manual Record document for this school' })
+  @ApiOkResponse({ type: DashboardRecordDto })
+  getRecord(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<DashboardRecordDto> {
+    return this.dashboardAccountingService.getRecord(request.user, id);
+  }
+
+  @Get('accounts/:id/statement')
+  @ApiOperation({
+    summary:
+      'Statement of account from the journal with running balances grouped by currency',
+  })
+  @ApiOkResponse({ type: DashboardStatementDto })
+  getAccountStatement(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: DashboardStatementQueryDto,
+  ): Promise<DashboardStatementDto> {
+    return this.dashboardAccountingService.getAccountStatement(
+      request.user,
+      id,
+      query,
+    );
   }
 
   @Post('registrations/with-invoice')

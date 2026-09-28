@@ -13,6 +13,7 @@ import {
   CreateDashboardInvoiceDto,
   CreateDashboardPaymentDto,
   CreateDashboardReceiptDto,
+  CreateDashboardRecordDto,
   CreateDashboardRegistrationInvoiceDto,
   DashboardAccountDto,
   DashboardAccountsQueryDto,
@@ -30,9 +31,13 @@ import {
   DashboardReceiptCurrencyDto,
   DashboardReceiptDto,
   DashboardReceiptsResponseDto,
+  DashboardRecordDto,
+  DashboardRecordsResponseDto,
   DashboardRegistrationInvoiceItemBody,
   DashboardRegistrationPackagePreviewDto,
   DashboardRegistrationWithInvoiceDto,
+  DashboardStatementDto,
+  DashboardStatementQueryDto,
   UpdateDashboardAccountDto,
 } from './dto/dashboard-accounting.dto';
 
@@ -111,6 +116,7 @@ type JournalLine = {
   accountId: number;
   debit: Prisma.Decimal | number | string;
   credit: Prisma.Decimal | number | string;
+  description?: string | null;
   account: { id: number; code: string; name?: string };
 };
 
@@ -160,6 +166,7 @@ type PackageItemRef = {
   itemId: number;
   price: Prisma.Decimal | number | string;
   currencyId: number | null;
+  mandatory: boolean;
 };
 
 type InvoiceRegistrationLabel = {
@@ -1466,6 +1473,17 @@ export class DashboardAccountingService {
       const packageItemsByItemId = new Map(
         (registrationPackage?.items ?? []).map((row) => [row.itemId, row]),
       );
+      if (registrationPackage) {
+        const submittedItemIds = new Set(dto.items.map((row) => row.itemId));
+        const missingMandatory = registrationPackage.items.filter(
+          (row) => row.mandatory && !submittedItemIds.has(row.itemId),
+        );
+        if (missingMandatory.length > 0) {
+          throw new BadRequestException(
+            'Registration invoice is missing mandatory package items',
+          );
+        }
+      }
 
       const effectiveCurrencyId = this.resolveRegistrationCurrency(
         dto.currencyId,
@@ -1535,6 +1553,498 @@ export class DashboardAccountingService {
     });
     const invoice = await this.getInvoice(user, created.invoiceId);
     return { registrationId: created.registrationId, invoice };
+  }
+
+  async createRecord(
+    user: AuthenticatedSchool,
+    dto: CreateDashboardRecordDto,
+  ): Promise<DashboardRecordDto> {
+    const created = await this.prisma.$transaction(async (tx) => {
+      if (dto.idempotencyKey) {
+        const existing = await this.findRecordIdByIdempotencyKey(
+          tx,
+          user.schoolId,
+          dto.idempotencyKey,
+        );
+        if (existing !== null) {
+          return existing;
+        }
+      }
+      if (dto.rows.length < 2 || dto.rows.length > MAX_INVOICE_LINES) {
+        throw new BadRequestException(
+          `Record must include 2 to ${MAX_INVOICE_LINES} journal rows`,
+        );
+      }
+      const accountIds = [...new Set(dto.rows.map((row) => row.accountId))];
+      const accounts = await tx.account.findMany({
+        where: { id: { in: accountIds }, schoolId: user.schoolId },
+        select: { id: true },
+      });
+      const foundAccountIds = new Set(accounts.map((row) => row.id));
+      const missingAccountIds = accountIds.filter(
+        (id) => !foundAccountIds.has(id),
+      );
+      if (missingAccountIds.length > 0) {
+        throw new BadRequestException(
+          'Record account does not belong to the authenticated school',
+        );
+      }
+      const currency = await this.requireCurrency(tx, dto.currencyId);
+      const postings = dto.rows.map((row, index) => {
+        const debit = row.debit ?? 0;
+        const credit = row.credit ?? 0;
+        const debitAmount = new Prisma.Decimal(debit);
+        const creditAmount = new Prisma.Decimal(credit);
+        const hasDebit = debitAmount.gt(0);
+        const hasCredit = creditAmount.gt(0);
+        if (hasDebit && hasCredit) {
+          throw new BadRequestException(
+            `Record row ${index + 1}: debit and credit cannot both be set`,
+          );
+        }
+        if (!hasDebit && !hasCredit) {
+          throw new BadRequestException(
+            `Record row ${index + 1}: debit or credit must be positive`,
+          );
+        }
+        if (debitAmount.isNegative() || creditAmount.isNegative()) {
+          throw new BadRequestException(
+            `Record row ${index + 1}: amounts must not be negative`,
+          );
+        }
+        return {
+          accountId: row.accountId,
+          debit: new Prisma.Decimal(debitAmount.toFixed(2)),
+          credit: new Prisma.Decimal(creditAmount.toFixed(2)),
+          description: row.description?.trim() ? row.description.trim() : null,
+        };
+      });
+      const totalDebit = postings.reduce(
+        (sum, row) => sum.plus(row.debit),
+        new Prisma.Decimal(0),
+      );
+      const totalCredit = postings.reduce(
+        (sum, row) => sum.plus(row.credit),
+        new Prisma.Decimal(0),
+      );
+      if (totalDebit.lte(0) || !totalDebit.equals(totalCredit)) {
+        throw new BadRequestException(
+          'Record is out of balance: total debit must equal total credit and be greater than zero',
+        );
+      }
+      const numbering = await this.nextDocumentNumber(
+        tx,
+        user.schoolId,
+        'Record',
+      );
+      const currencyRate = new Prisma.Decimal(currency.rate);
+
+      let registerId: number;
+      try {
+        const register = await tx.accountingRegister.create({
+          data: {
+            description: dto.description ?? null,
+            dateCreated: dto.date ? new Date(dto.date) : undefined,
+            accountingRegisterTypeId: numbering.registerTypeId,
+            currencyId: currency.id,
+            notes: dto.notes ?? null,
+            comments: dto.comments ?? null,
+            currencyRate,
+            schoolId: user.schoolId,
+            idempotencyKey: dto.idempotencyKey ?? null,
+          },
+          select: { id: true },
+        });
+        registerId = register.id;
+      } catch (error) {
+        if (this.isUniqueViolation(error) && dto.idempotencyKey) {
+          const existing = await this.findRecordIdByIdempotencyKey(
+            tx,
+            user.schoolId,
+            dto.idempotencyKey,
+          );
+          if (existing !== null) {
+            return existing;
+          }
+        }
+        throw new ConflictException(
+          'Record could not be created because it already exists',
+        );
+      }
+
+      let recordId: number;
+      try {
+        const created = await tx.accountingRecord.create({
+          data: {
+            accountingRegisterId: registerId,
+            nb: numbering.nb,
+            schoolId: user.schoolId,
+          },
+          select: { id: true },
+        });
+        recordId = created.id;
+      } catch (error) {
+        if (this.isUniqueViolation(error)) {
+          throw new ConflictException(
+            'Record number is already used for this school',
+          );
+        }
+        throw error;
+      }
+
+      await tx.accountingDaily.createMany({
+        data: postings.map((row) => ({
+          accountId: row.accountId,
+          debit: row.debit,
+          credit: row.credit,
+          description: row.description ?? dto.description ?? null,
+          accountingRegisterId: registerId,
+        })),
+      });
+
+      await this.assertBalancedJournal(
+        tx,
+        registerId,
+        postings.length,
+        totalDebit,
+      );
+      return recordId;
+    });
+    return this.getRecord(user, created);
+  }
+
+  async listRecords(
+    user: AuthenticatedSchool,
+    query: DashboardAccountingDocumentQueryDto,
+  ): Promise<DashboardRecordsResponseDto> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const where: Prisma.AccountingRecordWhereInput = {
+      schoolId: user.schoolId,
+      accountingRegister: this.documentRegisterFilter(query),
+    };
+    const [total, records] = await this.prisma.$transaction([
+      this.prisma.accountingRecord.count({ where }),
+      this.prisma.accountingRecord.findMany({
+        where,
+        include: {
+          accountingRegister: {
+            include: {
+              currency: true,
+              dailyEntries: { include: { account: true } },
+            },
+          },
+        },
+        orderBy: [{ nb: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+    return {
+      items: records.map((record) =>
+        this.toRecordDto(record, record.accountingRegister),
+      ),
+      page,
+      limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    };
+  }
+
+  async getRecord(
+    user: AuthenticatedSchool,
+    id: number,
+  ): Promise<DashboardRecordDto> {
+    const record = await this.prisma.accountingRecord.findFirst({
+      where: { id, schoolId: user.schoolId },
+      include: {
+        accountingRegister: {
+          include: {
+            currency: true,
+            dailyEntries: { include: { account: true } },
+          },
+        },
+      },
+    });
+    if (!record) {
+      throw new NotFoundException('Record not found');
+    }
+    return this.toRecordDto(record, record.accountingRegister);
+  }
+
+  async getAccountStatement(
+    user: AuthenticatedSchool,
+    accountId: number,
+    query: DashboardStatementQueryDto,
+  ): Promise<DashboardStatementDto> {
+    const schoolId = user.schoolId;
+    const account = await this.prisma.account.findFirst({
+      where: { id: accountId, schoolId },
+      select: { id: true, code: true, name: true, type: true },
+    });
+    if (!account) {
+      throw new NotFoundException('Account not found');
+    }
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? 50, 100);
+    const dateFrom = query.dateFrom ? new Date(query.dateFrom) : undefined;
+    const dateTo = query.dateTo ? new Date(query.dateTo) : undefined;
+    const documentType = query.documentType?.trim() || undefined;
+    const search = query.search?.trim() || undefined;
+
+    const openingByCurrency = new Map<string, Prisma.Decimal>();
+    if (dateFrom) {
+      const preRows = await this.prisma.$queryRaw<
+        Array<{ currencyId: number | null; debit: unknown; credit: unknown }>
+      >`
+        SELECT reg."currency_id" AS "currencyId",
+          COALESCE(SUM(d."debit"), 0) AS debit,
+          COALESCE(SUM(d."credit"), 0) AS credit
+        FROM "accounting_daily" AS d
+        JOIN "accounting_register" AS reg
+          ON reg."id" = d."accounting_register_id"
+        WHERE d."account_id" = ${accountId}
+          AND reg."school_id" = ${schoolId}
+          AND reg."date_created" < ${dateFrom}
+        GROUP BY reg."currency_id"
+      `;
+      for (const pre of preRows) {
+        const key = pre.currencyId === null ? 'none' : String(pre.currencyId);
+        openingByCurrency.set(
+          key,
+          new Prisma.Decimal(pre.credit as number | string).minus(
+            new Prisma.Decimal(pre.debit as number | string),
+          ),
+        );
+      }
+    }
+
+    const rangeRows = await this.prisma.accountingDaily.findMany({
+      where: {
+        accountId,
+        accountingRegister: {
+          schoolId,
+          ...(dateFrom || dateTo
+            ? {
+                dateCreated: {
+                  ...(dateFrom ? { gte: dateFrom } : {}),
+                  ...(dateTo ? { lte: dateTo } : {}),
+                },
+              }
+            : {}),
+          ...(documentType
+            ? { accountingRegisterType: { name: documentType } }
+            : {}),
+          ...(search
+            ? { description: { contains: search, mode: 'insensitive' } }
+            : {}),
+        },
+      },
+      select: {
+        id: true,
+        debit: true,
+        credit: true,
+        description: true,
+        accountingRegisterId: true,
+        accountingRegister: {
+          select: {
+            id: true,
+            dateCreated: true,
+            description: true,
+            currencyId: true,
+            currency: true,
+            accountingRegisterType: { select: { name: true } },
+            receipts: { select: { id: true, nb: true }, take: 1 },
+            payments: { select: { id: true, nb: true }, take: 1 },
+            invoices: { select: { id: true, nb: true }, take: 1 },
+            records: { select: { id: true, nb: true }, take: 1 },
+          },
+        },
+      },
+      orderBy: [
+        { accountingRegister: { dateCreated: 'asc' } },
+        { accountingRegisterId: 'asc' },
+        { id: 'asc' },
+      ],
+      take: 10001,
+    });
+    if (rangeRows.length > 10000) {
+      throw new BadRequestException(
+        'Statement range is too large, narrow the date filters',
+      );
+    }
+
+    const currencyKeyOf = (row: (typeof rangeRows)[number]): string =>
+      row.accountingRegister.currencyId === null
+        ? 'none'
+        : String(row.accountingRegister.currencyId);
+    const running = new Map<string, Prisma.Decimal>();
+    const totals = new Map<
+      string,
+      {
+        currencyId: number | null;
+        shortCode: string;
+        symbol: string;
+        debit: Prisma.Decimal;
+        credit: Prisma.Decimal;
+      }
+    >();
+    const withBalance = rangeRows.map((row) => {
+      const key = currencyKeyOf(row);
+      const currency = row.accountingRegister.currency;
+      if (!totals.has(key)) {
+        totals.set(key, {
+          currencyId: row.accountingRegister.currencyId,
+          shortCode: currency?.shortCode ?? '—',
+          symbol: currency?.symbol ?? '',
+          debit: new Prisma.Decimal(0),
+          credit: new Prisma.Decimal(0),
+        });
+      }
+      const bucket = totals.get(key);
+      if (bucket) {
+        bucket.debit = bucket.debit.plus(row.debit);
+        bucket.credit = bucket.credit.plus(row.credit);
+      }
+      const before =
+        running.get(key) ?? openingByCurrency.get(key) ?? new Prisma.Decimal(0);
+      const after = before.plus(row.credit).minus(row.debit);
+      running.set(key, after);
+      return { row, balance: after };
+    });
+
+    const total = withBalance.length;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+    const pageRows = withBalance.slice((page - 1) * limit, page * limit);
+
+    return {
+      accountId: account.id,
+      accountCode: account.code,
+      accountName: account.name,
+      accountType: account.type,
+      summaries: [...totals.entries()].map(([key, bucket]) => {
+        const opening = openingByCurrency.get(key) ?? new Prisma.Decimal(0);
+        return {
+          currencyId: bucket.currencyId ?? 0,
+          shortCode: bucket.shortCode,
+          symbol: bucket.symbol,
+          openingBalance: opening.toFixed(2),
+          totalDebit: bucket.debit.toFixed(2),
+          totalCredit: bucket.credit.toFixed(2),
+          closingBalance: opening.plus(bucket.credit).minus(bucket.debit).toFixed(2),
+        };
+      }),
+      rows: pageRows.map(({ row, balance }) => {
+        const info = this.statementDocumentInfo(row.accountingRegister);
+        const currency = row.accountingRegister.currency;
+        return {
+          date: row.accountingRegister.dateCreated.toISOString(),
+          documentType: info.type,
+          documentNb: info.nb,
+          documentId: info.id,
+          documentKind: info.kind,
+          description: row.description ?? row.accountingRegister.description,
+          debit: new Prisma.Decimal(row.debit).toFixed(2),
+          credit: new Prisma.Decimal(row.credit).toFixed(2),
+          balance: balance.toFixed(2),
+          currencyShortCode: currency?.shortCode ?? '—',
+          currencySymbol: currency?.symbol ?? '',
+        };
+      }),
+      page,
+      limit,
+      total,
+      totalPages,
+    };
+  }
+
+  private statementDocumentInfo(register: {
+    accountingRegisterType: { name: string };
+    receipts: Array<{ id: number; nb: number }>;
+    payments: Array<{ id: number; nb: number }>;
+    invoices: Array<{ id: number; nb: number }>;
+    records: Array<{ id: number; nb: number }>;
+  }): {
+    type: string;
+    nb: number | null;
+    id: number | null;
+    kind: string | null;
+  } {
+    const receipt = register.receipts[0];
+    if (receipt) {
+      return { type: 'Receipt', nb: receipt.nb, id: receipt.id, kind: 'receipts' };
+    }
+    const payment = register.payments[0];
+    if (payment) {
+      return { type: 'Payment', nb: payment.nb, id: payment.id, kind: 'payments' };
+    }
+    const invoice = register.invoices[0];
+    if (invoice) {
+      return { type: 'Invoice', nb: invoice.nb, id: invoice.id, kind: 'invoices' };
+    }
+    const record = register.records[0];
+    if (record) {
+      return { type: 'Record', nb: record.nb, id: record.id, kind: 'records' };
+    }
+    return { type: register.accountingRegisterType.name, nb: null, id: null, kind: null };
+  }
+
+  private async findRecordIdByIdempotencyKey(
+    tx: Prisma.TransactionClient,
+    schoolId: number,
+    idempotencyKey: string,
+  ): Promise<number | null> {
+    const register = await tx.accountingRegister.findFirst({
+      where: { schoolId, idempotencyKey },
+      select: { records: { select: { id: true }, take: 1 } },
+    });
+    return register?.records[0]?.id ?? null;
+  }
+
+  private toRecordDto(
+    record: { id: number; nb: number },
+    register: RegisterBlock & {
+      dailyEntries: Array<{
+        debit: Prisma.Decimal | number | string;
+        credit: Prisma.Decimal | number | string;
+        account: { id: number; code: string; name: string };
+        description?: string | null;
+      }>;
+    },
+  ): DashboardRecordDto {
+    let totalDebit = new Prisma.Decimal(0);
+    let totalCredit = new Prisma.Decimal(0);
+    const rows = register.dailyEntries.map((entry) => {
+      const debit = new Prisma.Decimal(entry.debit);
+      const credit = new Prisma.Decimal(entry.credit);
+      totalDebit = totalDebit.plus(debit);
+      totalCredit = totalCredit.plus(credit);
+      return {
+        accountId: entry.account.id,
+        accountCode: entry.account.code,
+        accountName: entry.account.name ?? '',
+        debit: debit.toFixed(2),
+        credit: credit.toFixed(2),
+        description: entry.description ?? null,
+      };
+    });
+    return {
+      id: record.id,
+      nb: record.nb,
+      totalDebit: totalDebit.toFixed(2),
+      totalCredit: totalCredit.toFixed(2),
+      rows,
+      currency: this.toReceiptCurrencyDto(register.currency),
+      currencyId: register.currencyId,
+      currencyRate:
+        register.currencyRate === null || register.currencyRate === undefined
+          ? null
+          : new Prisma.Decimal(register.currencyRate).toString(),
+      description: register.description,
+      notes: register.notes,
+      comments: register.comments,
+      dateCreated: register.dateCreated.toISOString(),
+    };
   }
 
   private async previewStudentParent(
@@ -1706,7 +2216,6 @@ export class DashboardAccountingService {
         `Invoice must include 1 to ${MAX_INVOICE_LINES} lines`,
       );
     }
-    const seenItems = new Set<number>();
     const forRegistrationIds = [
       ...new Set(
         args.rows
@@ -1728,12 +2237,6 @@ export class DashboardAccountingService {
     });
     const itemById = new Map(items.map((item) => [item.id, item]));
     return args.rows.map((row, index) => {
-      if (seenItems.has(row.itemId)) {
-        throw new BadRequestException(
-          `Invoice line ${index + 1}: duplicate item in invoice`,
-        );
-      }
-      seenItems.add(row.itemId);
       const item = itemById.get(row.itemId);
       if (!item) {
         throw new BadRequestException(
@@ -1791,7 +2294,6 @@ export class DashboardAccountingService {
         `Invoice must include 1 to ${MAX_INVOICE_LINES} lines`,
       );
     }
-    const seenItems = new Set<number>();
     const itemIds = args.rows.map((row) => row.itemId);
     const items = await tx.item.findMany({
       where: { id: { in: itemIds }, schoolId: args.schoolId },
@@ -1799,12 +2301,6 @@ export class DashboardAccountingService {
     });
     const itemById = new Map(items.map((item) => [item.id, item]));
     return args.rows.map((row, index) => {
-      if (seenItems.has(row.itemId)) {
-        throw new BadRequestException(
-          `Invoice line ${index + 1}: duplicate item in invoice`,
-        );
-      }
-      seenItems.add(row.itemId);
       const item = itemById.get(row.itemId);
       if (!item) {
         throw new BadRequestException(
@@ -1855,7 +2351,7 @@ export class DashboardAccountingService {
           new Prisma.Decimal(0),
           new Prisma.Decimal(0),
         ),
-        description: null,
+        description: row.description?.trim() ? row.description.trim() : null,
         forRegistrationId: null,
       };
     });
@@ -1959,7 +2455,7 @@ export class DashboardAccountingService {
         id: true,
         name: true,
         items: {
-          select: { itemId: true, price: true, currencyId: true },
+          select: { itemId: true, price: true, currencyId: true, mandatory: true },
         },
       },
     });

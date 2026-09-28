@@ -40,7 +40,7 @@ export function formatPersonAccountName(person: {
   return fullName || 'Parent account';
 }
 
-const parentDetailInclude = { person: true } as const;
+const parentDetailInclude = { person: { include: { account: true } } } as const;
 
 type ParentDetailRecord = {
   id: number;
@@ -67,6 +67,8 @@ type ParentDetailRecord = {
     birthday: Date | null;
     status: boolean;
     paid: boolean;
+    accountId: number | null;
+    account: { id: number; code: string; schoolId: number } | null;
   };
 };
 
@@ -626,6 +628,9 @@ export class DashboardParentsService {
         : null,
       status: parent.person.status,
       paid: parent.person.paid,
+      accountId: parent.person.accountId,
+      accountCode: parent.person.account?.code ?? null,
+      hasAccountingAccount: parent.person.accountId !== null,
     };
   }
 

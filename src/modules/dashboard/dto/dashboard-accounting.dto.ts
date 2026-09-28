@@ -790,6 +790,273 @@ export class DashboardRegistrationWithInvoiceDto {
   invoice!: DashboardInvoiceDto;
 }
 
+export class DashboardRecordRowBody {
+  @ApiProperty({
+    example: 12,
+    description: 'Same-school account of any type for manual journal entries',
+  })
+  @Type(() => Number)
+  @IsInt()
+  accountId!: number;
+
+  @ApiPropertyOptional({ example: 500 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  debit?: number;
+
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  credit?: number;
+
+  @ApiPropertyOptional({ example: 'Tuition accrual' })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(10000)
+  description?: string;
+}
+
+export class CreateDashboardRecordDto extends DashboardAccountingDocumentBody {
+  @ApiProperty({
+    example: 1,
+    description: 'Single record currency for all journal rows.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  currencyId!: number;
+
+  @ApiProperty({
+    type: [DashboardRecordRowBody],
+    description:
+      'Two or more journal rows. Each row carries either a debit or a credit, never both. Totals must balance exactly.',
+  })
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => DashboardRecordRowBody)
+  rows!: DashboardRecordRowBody[];
+}
+
+export class DashboardRecordRowDto {
+  @ApiProperty({ example: 12 })
+  accountId!: number;
+
+  @ApiProperty({ example: '100001' })
+  accountCode!: string;
+
+  @ApiProperty({ example: 'Maya Joseph Hassan' })
+  accountName!: string;
+
+  @ApiProperty({ example: '500.00' })
+  debit!: string;
+
+  @ApiProperty({ example: '0.00' })
+  credit!: string;
+
+  @ApiProperty({ example: 'Tuition accrual', nullable: true })
+  description!: string | null;
+}
+
+export class DashboardRecordDto {
+  @ApiProperty({ example: 1 })
+  id!: number;
+
+  @ApiProperty({ example: 1 })
+  nb!: number;
+
+  @ApiProperty({ example: '1800.00' })
+  totalDebit!: string;
+
+  @ApiProperty({ example: '1800.00' })
+  totalCredit!: string;
+
+  @ApiProperty({ type: [DashboardRecordRowDto] })
+  rows!: DashboardRecordRowDto[];
+
+  @ApiProperty({ type: () => DashboardReceiptCurrencyDto, nullable: true })
+  currency!: DashboardReceiptCurrencyDto | null;
+
+  @ApiProperty({ example: 1, nullable: true })
+  currencyId!: number | null;
+
+  @ApiProperty({ example: '1', nullable: true })
+  currencyRate!: string | null;
+
+  @ApiProperty({ example: 'Year-end accrual', nullable: true })
+  description!: string | null;
+
+  @ApiProperty({ example: 'Audited', nullable: true })
+  notes!: string | null;
+
+  @ApiProperty({ example: 'Board approved', nullable: true })
+  comments!: string | null;
+
+  @ApiProperty({ example: '2026-09-30T10:00:00.000Z' })
+  dateCreated!: string;
+}
+
+export class DashboardRecordsResponseDto {
+  @ApiProperty({ type: [DashboardRecordDto] })
+  items!: DashboardRecordDto[];
+
+  @ApiProperty({ example: 1 })
+  page!: number;
+
+  @ApiProperty({ example: 10 })
+  limit!: number;
+
+  @ApiProperty({ example: 42 })
+  total!: number;
+
+  @ApiProperty({ example: 5 })
+  totalPages!: number;
+}
+
+export class DashboardStatementQueryDto {
+  @ApiPropertyOptional({
+    example: 12,
+    description: 'Supplied by the route; an explicit query value is ignored.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  accountId?: number;
+
+  @ApiPropertyOptional({ example: '2026-09-01' })
+  @IsOptional()
+  @IsDateString()
+  dateFrom?: string;
+
+  @ApiPropertyOptional({ example: '2026-09-30' })
+  @IsOptional()
+  @IsDateString()
+  dateTo?: string;
+
+  @ApiPropertyOptional({ example: 'Invoice' })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(100)
+  documentType?: string;
+
+  @ApiPropertyOptional({ example: 'tuition' })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(255)
+  search?: string;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ example: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number;
+}
+
+export class DashboardStatementRowDto {
+  @ApiProperty({ example: '2026-09-28T10:00:00.000Z' })
+  date!: string;
+
+  @ApiProperty({ example: 'Invoice' })
+  documentType!: string;
+
+  @ApiProperty({ example: 1005 })
+  documentNb!: number | null;
+
+  @ApiProperty({ example: 900, nullable: true })
+  documentId!: number | null;
+
+  @ApiProperty({ example: 'invoices', nullable: true })
+  documentKind!: string | null;
+
+  @ApiProperty({ example: 'Registration Invoice', nullable: true })
+  description!: string | null;
+
+  @ApiProperty({ example: '150.00' })
+  debit!: string;
+
+  @ApiProperty({ example: '0.00' })
+  credit!: string;
+
+  @ApiProperty({ example: '-150.00' })
+  balance!: string;
+
+  @ApiProperty({ example: 'USD' })
+  currencyShortCode!: string;
+
+  @ApiProperty({ example: '$' })
+  currencySymbol!: string;
+}
+
+export class DashboardStatementCurrencySummaryDto {
+  @ApiProperty({ example: 1 })
+  currencyId!: number;
+
+  @ApiProperty({ example: 'USD' })
+  shortCode!: string;
+
+  @ApiProperty({ example: '$' })
+  symbol!: string;
+
+  @ApiProperty({ example: 'Opening balance', nullable: true })
+  openingBalance!: string;
+
+  @ApiProperty({ example: '1500.00' })
+  totalDebit!: string;
+
+  @ApiProperty({ example: '1000.00' })
+  totalCredit!: string;
+
+  @ApiProperty({ example: '-500.00' })
+  closingBalance!: string;
+}
+
+export class DashboardStatementDto {
+  @ApiProperty({ example: 12 })
+  accountId!: number;
+
+  @ApiProperty({ example: '100001' })
+  accountCode!: string;
+
+  @ApiProperty({ example: 'Maya Joseph Hassan' })
+  accountName!: string;
+
+  @ApiProperty({ example: 'PERSON' })
+  accountType!: string;
+
+  @ApiProperty({ type: [DashboardStatementCurrencySummaryDto] })
+  summaries!: DashboardStatementCurrencySummaryDto[];
+
+  @ApiProperty({ type: [DashboardStatementRowDto] })
+  rows!: DashboardStatementRowDto[];
+
+  @ApiProperty({ example: 1 })
+  page!: number;
+
+  @ApiProperty({ example: 50 })
+  limit!: number;
+
+  @ApiProperty({ example: 4 })
+  total!: number;
+
+  @ApiProperty({ example: 1 })
+  totalPages!: number;
+}
+
 export class DashboardRegistrationInvoiceItemBody {
   @ApiProperty({ example: 3 })
   @Type(() => Number)
@@ -813,6 +1080,13 @@ export class DashboardRegistrationInvoiceItemBody {
   @IsNumber({ maxDecimalPlaces: 3 })
   @IsPositive()
   quantity?: number;
+
+  @ApiPropertyOptional({ example: 'School uniform pants - size 10' })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(10000)
+  description?: string;
 }
 
 export class CreateDashboardRegistrationInvoiceDto extends DashboardAccountingDocumentBody {
