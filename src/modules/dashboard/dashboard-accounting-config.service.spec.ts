@@ -1,11 +1,31 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { DashboardAccountingConfigService } from './dashboard-accounting-config.service';
 
 function createPrisma() {
   const tx = {
-    accountingRegistrationPackageItem: { deleteMany: jest.fn() },
-    accountingRegistrationPackageClass: { deleteMany: jest.fn() },
-    accountingRegistrationPackage: { delete: jest.fn() },
+    year: { findFirst: jest.fn() },
+    item: { count: jest.fn() },
+    currency: { count: jest.fn() },
+    class: { count: jest.fn() },
+    accountingRegistrationPackageItem: {
+      deleteMany: jest.fn(),
+      createMany: jest.fn(),
+    },
+    accountingRegistrationPackageClass: {
+      deleteMany: jest.fn(),
+      createMany: jest.fn(),
+    },
+    accountingRegistrationPackage: {
+      delete: jest.fn(),
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
   };
   return {
     tx,
@@ -50,6 +70,31 @@ function createPrisma() {
 }
 
 describe('DashboardAccountingConfigService', () => {
+  it('stores item prices as decimals on create and edit', async () => {
+    const { prisma } = createPrisma();
+    prisma.itemType.findUnique.mockResolvedValue({ id: 2 });
+    prisma.item.findFirst.mockResolvedValue({ id: 4 });
+    const service = new DashboardAccountingConfigService(prisma as never);
+
+    await service.createItem({ schoolId: 3 } as never, {
+      name: 'Registration',
+      itemTypeId: 2,
+      price: 100.25,
+    });
+    await service.updateItem({ schoolId: 3 } as never, 4, {
+      name: 'Registration',
+      itemTypeId: 2,
+      price: 80.5,
+    });
+
+    expect(prisma.item.create.mock.calls[0][0].data.price).toEqual(
+      new Prisma.Decimal('100.25'),
+    );
+    expect(prisma.item.update.mock.calls[0][0].data.price).toEqual(
+      new Prisma.Decimal('80.5'),
+    );
+  });
+
   it('rejects cross-school item reads', async () => {
     const { prisma } = createPrisma();
     prisma.item.findFirst.mockResolvedValue(null);
@@ -132,5 +177,86 @@ describe('DashboardAccountingConfigService', () => {
         classIds: [3, 99],
       }),
     ).rejects.toThrow('One or more classes do not belong to this school');
+  });
+
+  it('scopes available package classes to the authenticated school and selected year', async () => {
+    const { prisma } = createPrisma();
+    prisma.year.findFirst.mockResolvedValue({ id: 5 });
+    prisma.class.findMany.mockResolvedValue([{ id: 10 }]);
+    const service = new DashboardAccountingConfigService(prisma as never);
+
+    await expect(
+      service.listAvailableClasses({ schoolId: 3 } as never, 5),
+    ).resolves.toEqual([{ id: 10 }]);
+    expect(prisma.class.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          stage: { schoolId: 3 },
+          sections: { some: { schoolId: 3, yearId: 5, status: 1 } },
+        },
+      }),
+    );
+  });
+
+  it('creates a complete package with two items and three classes in one transaction', async () => {
+    const { prisma, tx } = createPrisma();
+    tx.year.findFirst.mockResolvedValue({ id: 5 });
+    tx.item.count.mockResolvedValue(2);
+    tx.currency.count.mockResolvedValue(1);
+    tx.class.count.mockResolvedValue(3);
+    tx.accountingRegistrationPackage.create.mockResolvedValue({ id: 8 });
+    prisma.accountingRegistrationPackage.findFirst.mockResolvedValue({
+      id: 8,
+      items: [],
+      classes: [],
+    });
+    const service = new DashboardAccountingConfigService(prisma as never);
+
+    await service.createCompletePackage({ schoolId: 3 } as never, {
+      name: 'Package A',
+      yearId: 5,
+      items: [
+        { itemId: 1, price: 80, mandatory: true, currencyId: 1 },
+        { itemId: 2, price: 45, mandatory: false, currencyId: 1 },
+      ],
+      classIds: [10, 11, 12],
+    });
+
+    expect(
+      tx.accountingRegistrationPackageItem.createMany,
+    ).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ itemId: 1 }),
+        expect.objectContaining({ itemId: 2 }),
+      ]),
+    });
+    expect(
+      tx.accountingRegistrationPackageClass.createMany,
+    ).toHaveBeenCalledWith({
+      data: [
+        { accountingRegistrationPackageId: 8, classId: 10 },
+        { accountingRegistrationPackageId: 8, classId: 11 },
+        { accountingRegistrationPackageId: 8, classId: 12 },
+      ],
+    });
+  });
+
+  it('does not create a package when a class fails school/year validation', async () => {
+    const { prisma, tx } = createPrisma();
+    tx.year.findFirst.mockResolvedValue({ id: 5 });
+    tx.item.count.mockResolvedValue(1);
+    tx.currency.count.mockResolvedValue(1);
+    tx.class.count.mockResolvedValue(0);
+    const service = new DashboardAccountingConfigService(prisma as never);
+
+    await expect(
+      service.createCompletePackage({ schoolId: 3 } as never, {
+        name: 'Package A',
+        yearId: 5,
+        items: [{ itemId: 1, price: 80, mandatory: true, currencyId: 1 }],
+        classIds: [99],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.accountingRegistrationPackage.create).not.toHaveBeenCalled();
   });
 });

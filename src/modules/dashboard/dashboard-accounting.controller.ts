@@ -26,10 +26,11 @@ import { DashboardAccountingConfigService } from './dashboard-accounting-config.
 import {
   AssignDashboardPackageClassesDto,
   DashboardItemsQueryDto,
+  DashboardPackageClassesQueryDto,
   DashboardPackagesQueryDto,
   SaveDashboardItemDto,
-  SaveDashboardPackageDto,
   SaveDashboardPackageItemDto,
+  SaveCompleteDashboardPackageDto,
 } from './dto/dashboard-accounting-config.dto';
 import {
   CreateDashboardAccountDto,
@@ -152,6 +153,19 @@ export class DashboardAccountingController {
     return this.dashboardAccountingService.getReceipt(request.user, id);
   }
 
+  @Patch('receipts/:id')
+  @ApiOperation({
+    summary: 'Update a Receipt while preserving its number and register',
+  })
+  @ApiOkResponse({ type: DashboardReceiptDto })
+  updateReceipt(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateDashboardReceiptDto,
+  ): Promise<DashboardReceiptDto> {
+    return this.dashboardAccountingService.updateReceipt(request.user, id, dto);
+  }
+
   @Get('payments')
   @ApiOperation({ summary: 'List Payment documents for this school' })
   @ApiOkResponse({ type: DashboardPaymentsResponseDto })
@@ -180,6 +194,19 @@ export class DashboardAccountingController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DashboardPaymentDto> {
     return this.dashboardAccountingService.getPayment(request.user, id);
+  }
+
+  @Patch('payments/:id')
+  @ApiOperation({
+    summary: 'Update a Payment while preserving its number and register',
+  })
+  @ApiOkResponse({ type: DashboardPaymentDto })
+  updatePayment(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateDashboardPaymentDto,
+  ): Promise<DashboardPaymentDto> {
+    return this.dashboardAccountingService.updatePayment(request.user, id, dto);
   }
 
   @Get('item-types')
@@ -236,6 +263,17 @@ export class DashboardAccountingController {
     return this.accountingConfigService.listPackages(request.user, query);
   }
 
+  @Get('registration-packages/available-classes')
+  listAvailablePackageClasses(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardPackageClassesQueryDto,
+  ) {
+    return this.accountingConfigService.listAvailableClasses(
+      request.user,
+      query.yearId,
+    );
+  }
+
   @Get('registration-packages/:id')
   getPackage(
     @Req() request: Request & { user: AuthenticatedSchool },
@@ -247,18 +285,25 @@ export class DashboardAccountingController {
   @Post('registration-packages')
   createPackage(
     @Req() request: Request & { user: AuthenticatedSchool },
-    @Body() dto: SaveDashboardPackageDto,
+    @Body() dto: SaveCompleteDashboardPackageDto,
   ) {
-    return this.accountingConfigService.createPackage(request.user, dto);
+    return this.accountingConfigService.createCompletePackage(
+      request.user,
+      dto,
+    );
   }
 
   @Patch('registration-packages/:id')
   updatePackage(
     @Req() request: Request & { user: AuthenticatedSchool },
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: SaveDashboardPackageDto,
+    @Body() dto: SaveCompleteDashboardPackageDto,
   ) {
-    return this.accountingConfigService.updatePackage(request.user, id, dto);
+    return this.accountingConfigService.updateCompletePackage(
+      request.user,
+      id,
+      dto,
+    );
   }
 
   @Delete('registration-packages/:id')

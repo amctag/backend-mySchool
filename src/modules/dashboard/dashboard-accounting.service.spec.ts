@@ -69,16 +69,19 @@ function baseTransaction(overrides?: {
       findFirst: jest.fn(() =>
         Promise.resolve(overrides?.registerFindFirst ?? null),
       ),
+      update: jest.fn(),
     },
     accountingReceipt: {
       create: jest.fn(() =>
         Promise.resolve(overrides?.receiptCreate ?? { id: 10 }),
       ),
+      findFirst: jest.fn(),
     },
     accountingReceiptDetail: {
       createMany: jest.fn((args: { data: unknown[] }) =>
         Promise.resolve({ count: args.data.length }),
       ),
+      deleteMany: jest.fn(),
     },
     currency: {
       findUnique: jest.fn(() => Promise.resolve(overrides?.currency ?? null)),
@@ -87,17 +90,20 @@ function baseTransaction(overrides?: {
       create: jest.fn(() =>
         Promise.resolve(overrides?.paymentCreate ?? { id: 11 }),
       ),
+      findFirst: jest.fn(),
     },
     accountingPaymentDetail: {
       createMany: jest.fn((args: { data: unknown[] }) =>
         Promise.resolve({ count: args.data.length }),
       ),
+      deleteMany: jest.fn(),
     },
     accountingDaily: {
       createMany: jest.fn((args: { data: PostedJournalLine[] }) =>
         Promise.resolve({ count: args.data.length }),
       ),
       findMany: jest.fn(() => Promise.resolve(overrides?.dailyRows ?? [])),
+      deleteMany: jest.fn(),
     },
     person: {
       findMany: jest.fn(() => Promise.resolve(overrides?.persons ?? [])),
@@ -151,6 +157,122 @@ const usdCurrency = {
 };
 
 const accountSelect = { id: true, code: true, name: true, type: true };
+
+describe('DashboardAccountingService document edits', () => {
+  it('rebuilds a receipt journal on the same register and preserves its document identity', async () => {
+    const transaction = baseTransaction({
+      queryRawResults: [[lockedParent]],
+      accountFindFirst: cashAccount,
+      currency: usdCurrency,
+      dailyRows: balancedReceiptRows,
+    });
+    transaction.accountingReceipt.findFirst.mockResolvedValue({
+      id: 10,
+      accountingRegisterId: 100,
+    });
+    const service = serviceWith(transaction);
+    jest.spyOn(service, 'getReceipt').mockResolvedValue({
+      id: 10,
+      nb: 42,
+    } as never);
+
+    const edited = await service.updateReceipt({ schoolId: 3 } as never, 10, {
+      parentId: 7,
+      currencyId: 1,
+      allocations: [{ accountId: 31, amount: 150 }],
+    });
+
+    expect(edited).toEqual(expect.objectContaining({ id: 10, nb: 42 }));
+    expect(transaction.accountingRegister.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 100 } }),
+    );
+    expect(transaction.accountingRegister.create).not.toHaveBeenCalled();
+    expect(transaction.accountingReceipt.create).not.toHaveBeenCalled();
+    expect(transaction.accountingDaily.deleteMany).toHaveBeenCalledWith({
+      where: { accountingRegisterId: 100 },
+    });
+    expect(transaction.accountingDaily.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          accountId: 31,
+          debit: new Prisma.Decimal(150),
+        }),
+        expect.objectContaining({
+          accountId: 12,
+          credit: new Prisma.Decimal(150),
+        }),
+      ]),
+    });
+  });
+
+  it('rebuilds a balanced payment journal on the same register', async () => {
+    const transaction = baseTransaction({
+      accountFindFirst: {
+        id: 12,
+        code: '100001',
+        name: 'Parent',
+        type: 'PERSON',
+      },
+      accountFindMany: [cashAccount],
+      currency: usdCurrency,
+      dailyRows: [
+        { accountId: 12, debit: '150.00', credit: '0' },
+        { accountId: 31, debit: '0', credit: '150.00' },
+      ],
+    });
+    transaction.accountingPayment.findFirst.mockResolvedValue({
+      id: 11,
+      accountingRegisterId: 101,
+    });
+    const service = serviceWith(transaction);
+    jest
+      .spyOn(service, 'getPayment')
+      .mockResolvedValue({ id: 11, nb: 9 } as never);
+
+    const edited = await service.updatePayment({ schoolId: 3 } as never, 11, {
+      accountId: 12,
+      currencyId: 1,
+      allocations: [{ accountId: 31, amount: 150 }],
+    });
+
+    expect(edited).toEqual(expect.objectContaining({ id: 11, nb: 9 }));
+    expect(transaction.accountingRegister.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 101 } }),
+    );
+    expect(transaction.accountingRegister.create).not.toHaveBeenCalled();
+    expect(transaction.accountingPayment.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects editing a receipt outside the authenticated school', async () => {
+    const transaction = baseTransaction();
+    transaction.accountingReceipt.findFirst.mockResolvedValue(null);
+    const service = serviceWith(transaction);
+
+    await expect(
+      service.updateReceipt({ schoolId: 3 } as never, 99, {
+        parentId: 7,
+        currencyId: 1,
+        allocations: [{ accountId: 31, amount: 150 }],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(transaction.accountingRegister.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects editing a payment outside the authenticated school', async () => {
+    const transaction = baseTransaction();
+    transaction.accountingPayment.findFirst.mockResolvedValue(null);
+    const service = serviceWith(transaction);
+
+    await expect(
+      service.updatePayment({ schoolId: 3 } as never, 99, {
+        accountId: 7,
+        currencyId: 1,
+        allocations: [{ accountId: 31, amount: 150 }],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(transaction.accountingRegister.update).not.toHaveBeenCalled();
+  });
+});
 
 describe('DashboardAccountingService system accounts', () => {
   it('creates Cash, Sales and Purchases once per school', async () => {

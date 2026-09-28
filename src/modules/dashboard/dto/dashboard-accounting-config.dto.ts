@@ -7,9 +7,12 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  ArrayMinSize,
+  ArrayUnique,
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -55,6 +58,11 @@ export class SaveDashboardItemDto {
   @IsInt()
   @Min(1)
   itemTypeId!: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  price!: number;
 }
 
 export class DashboardPackagesQueryDto extends DashboardConfigQueryDto {
@@ -103,4 +111,27 @@ export class AssignDashboardPackageClassesDto {
   @Type(() => Number)
   @IsInt({ each: true })
   classIds!: number[];
+}
+
+export class SaveCompleteDashboardPackageDto extends SaveDashboardPackageDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => SaveDashboardPackageItemDto)
+  items!: SaveDashboardPackageItemDto[];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayUnique()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  classIds!: number[];
+}
+
+export class DashboardPackageClassesQueryDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  yearId!: number;
 }

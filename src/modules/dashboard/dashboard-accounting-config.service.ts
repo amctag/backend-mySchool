@@ -12,7 +12,7 @@ import {
   DashboardItemsQueryDto,
   DashboardPackagesQueryDto,
   SaveDashboardItemDto,
-  SaveDashboardPackageDto,
+  SaveCompleteDashboardPackageDto,
   SaveDashboardPackageItemDto,
 } from './dto/dashboard-accounting-config.dto';
 
@@ -59,7 +59,11 @@ export class DashboardAccountingConfigService {
   async createItem(user: AuthenticatedSchool, dto: SaveDashboardItemDto) {
     await this.requireItemType(dto.itemTypeId);
     return this.prisma.item.create({
-      data: { ...dto, schoolId: user.schoolId },
+      data: {
+        ...dto,
+        price: new Prisma.Decimal(dto.price),
+        schoolId: user.schoolId,
+      },
       include: { itemType: true },
     });
   }
@@ -75,7 +79,7 @@ export class DashboardAccountingConfigService {
     ]);
     return this.prisma.item.update({
       where: { id },
-      data: dto,
+      data: { ...dto, price: new Prisma.Decimal(dto.price) },
       include: { itemType: true },
     });
   }
@@ -153,24 +157,71 @@ export class DashboardAccountingConfigService {
     return registrationPackage;
   }
 
-  async createPackage(user: AuthenticatedSchool, dto: SaveDashboardPackageDto) {
-    await this.requireYear(user.schoolId, dto.yearId);
-    return this.prisma.accountingRegistrationPackage.create({ data: dto });
+  async listAvailableClasses(user: AuthenticatedSchool, yearId: number) {
+    await this.requireYear(user.schoolId, yearId);
+    return this.prisma.class.findMany({
+      where: {
+        stage: { schoolId: user.schoolId },
+        sections: { some: { schoolId: user.schoolId, yearId, status: 1 } },
+      },
+      select: {
+        id: true,
+        className: true,
+        classLevel: true,
+        position: true,
+        stageId: true,
+        stage: { select: { title: true, position: true } },
+      },
+      orderBy: [
+        { stage: { position: 'asc' } },
+        { position: 'asc' },
+        { className: 'asc' },
+      ],
+    });
   }
 
-  async updatePackage(
+  async createCompletePackage(
+    user: AuthenticatedSchool,
+    dto: SaveCompleteDashboardPackageDto,
+  ) {
+    const id = await this.prisma.$transaction(async (tx) => {
+      await this.validateCompletePackage(tx, user.schoolId, dto);
+      const created = await tx.accountingRegistrationPackage.create({
+        data: { name: dto.name, yearId: dto.yearId },
+        select: { id: true },
+      });
+      await this.replacePackageRelations(tx, created.id, dto);
+      return created.id;
+    });
+    return this.getPackage(user, id);
+  }
+
+  async updateCompletePackage(
     user: AuthenticatedSchool,
     id: number,
-    dto: SaveDashboardPackageDto,
+    dto: SaveCompleteDashboardPackageDto,
   ) {
-    await Promise.all([
-      this.getPackage(user, id),
-      this.requireYear(user.schoolId, dto.yearId),
-    ]);
-    return this.prisma.accountingRegistrationPackage.update({
-      where: { id },
-      data: dto,
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.accountingRegistrationPackage.findFirst({
+        where: { id, year: { schoolId: user.schoolId } },
+        select: { id: true },
+      });
+      if (!existing)
+        throw new NotFoundException('Registration package not found');
+      await this.validateCompletePackage(tx, user.schoolId, dto);
+      await tx.accountingRegistrationPackage.update({
+        where: { id },
+        data: { name: dto.name, yearId: dto.yearId },
+      });
+      await tx.accountingRegistrationPackageItem.deleteMany({
+        where: { accountingRegistrationPackageId: id },
+      });
+      await tx.accountingRegistrationPackageClass.deleteMany({
+        where: { accountingRegistrationPackageId: id },
+      });
+      await this.replacePackageRelations(tx, id, dto);
     });
+    return this.getPackage(user, id);
   }
 
   async deletePackage(user: AuthenticatedSchool, id: number) {
@@ -317,6 +368,69 @@ export class DashboardAccountingConfigService {
         'School year does not belong to this school',
       );
     }
+  }
+
+  private async validateCompletePackage(
+    tx: Prisma.TransactionClient,
+    schoolId: number,
+    dto: SaveCompleteDashboardPackageDto,
+  ) {
+    const itemIds = dto.items.map((item) => item.itemId);
+    if (new Set(itemIds).size !== itemIds.length) {
+      throw new BadRequestException('Duplicate package item selection');
+    }
+    const currencyIds = [...new Set(dto.items.map((item) => item.currencyId))];
+    const [year, itemCount, currencyCount, classCount] = await Promise.all([
+      tx.year.findFirst({
+        where: { id: dto.yearId, schoolId },
+        select: { id: true },
+      }),
+      tx.item.count({ where: { id: { in: itemIds }, schoolId } }),
+      tx.currency.count({ where: { id: { in: currencyIds } } }),
+      tx.class.count({
+        where: {
+          id: { in: dto.classIds },
+          stage: { schoolId },
+          sections: { some: { schoolId, yearId: dto.yearId, status: 1 } },
+        },
+      }),
+    ]);
+    if (!year)
+      throw new BadRequestException(
+        'School year does not belong to this school',
+      );
+    if (itemCount !== itemIds.length)
+      throw new BadRequestException(
+        'One or more items do not belong to this school',
+      );
+    if (currencyCount !== currencyIds.length)
+      throw new BadRequestException('Invalid currency');
+    if (classCount !== dto.classIds.length)
+      throw new BadRequestException(
+        'One or more classes are not available for this school year',
+      );
+  }
+
+  private async replacePackageRelations(
+    tx: Prisma.TransactionClient,
+    packageId: number,
+    dto: SaveCompleteDashboardPackageDto,
+  ) {
+    await tx.accountingRegistrationPackageItem.createMany({
+      data: dto.items.map((item) => ({
+        accountingRegistrationPackageId: packageId,
+        itemId: item.itemId,
+        price: new Prisma.Decimal(item.price),
+        mandatory: item.mandatory,
+        currencyId: item.currencyId,
+      })),
+    });
+    await tx.accountingRegistrationPackageClass.createMany({
+      data: dto.classIds.map((classId) => ({
+        accountingRegistrationPackageId: packageId,
+        classId,
+      })),
+    });
   }
 
   private isUniqueViolation(error: unknown): boolean {

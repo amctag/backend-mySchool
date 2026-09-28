@@ -1428,6 +1428,7 @@ model ItemType {
 model Item {
   id         Int      @id @default(autoincrement())
   name       String   @db.VarChar(255)
+  price      Decimal  @default(0) @db.Decimal(18, 2)
   schoolId   Int      @map("school_id")
   itemTypeId Int      @map("item_type_id")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

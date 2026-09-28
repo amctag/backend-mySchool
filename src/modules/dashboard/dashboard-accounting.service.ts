@@ -571,6 +571,104 @@ export class DashboardAccountingService {
     );
   }
 
+  async updateReceipt(
+    user: AuthenticatedSchool,
+    id: number,
+    dto: CreateDashboardReceiptDto,
+  ): Promise<DashboardReceiptDto> {
+    await this.prisma.$transaction(async (tx) => {
+      const receipt = await tx.accountingReceipt.findFirst({
+        where: {
+          id,
+          schoolId: user.schoolId,
+          accountingRegister: { schoolId: user.schoolId },
+        },
+        select: { id: true, accountingRegisterId: true },
+      });
+      if (!receipt) throw new NotFoundException('Receipt not found');
+      const parent = await this.lockParentAccount(
+        tx,
+        user.schoolId,
+        dto.parentId,
+      );
+      if (
+        parent.accountId === null ||
+        parent.accountSchoolId !== user.schoolId
+      ) {
+        throw new BadRequestException(
+          'Parent has no accounting account for this school',
+        );
+      }
+      const currency = await tx.currency.findUnique({
+        where: { id: dto.currencyId },
+      });
+      if (!currency) throw new BadRequestException('Invalid currency');
+      const allocations = await this.resolveAllocations(
+        tx,
+        user.schoolId,
+        dto.allocations,
+      );
+      const total = allocations.reduce(
+        (sum, row) => sum.plus(row.amount),
+        new Prisma.Decimal(0),
+      );
+      if (total.lte(0))
+        throw new BadRequestException(
+          'Receipt total must be greater than zero',
+        );
+      await tx.accountingRegister.update({
+        where: { id: receipt.accountingRegisterId },
+        data: {
+          description: dto.description ?? null,
+          dateCreated: dto.date ? new Date(dto.date) : undefined,
+          currencyId: currency.id,
+          currencyRate: new Prisma.Decimal(currency.rate),
+          notes: dto.notes ?? null,
+          comments: dto.comments ?? null,
+        },
+      });
+      await tx.accountingReceiptDetail.deleteMany({
+        where: { accountingReceiptId: id },
+      });
+      await tx.accountingDaily.deleteMany({
+        where: { accountingRegisterId: receipt.accountingRegisterId },
+      });
+      await tx.accountingReceiptDetail.createMany({
+        data: allocations.map((row) => ({
+          accountingReceiptId: id,
+          accountId: row.accountId,
+          amount: row.amount,
+          description: row.description,
+        })),
+      });
+      await tx.accountingDaily.createMany({
+        data: [
+          ...allocations.map((row) => ({
+            accountId: row.accountId,
+            debit: row.amount,
+            credit: new Prisma.Decimal(0),
+            description: row.description ?? dto.description ?? null,
+            accountingRegisterId: receipt.accountingRegisterId,
+          })),
+          {
+            accountId: parent.accountId,
+            debit: new Prisma.Decimal(0),
+            credit: total,
+            description: dto.description ?? null,
+            accountingRegisterId: receipt.accountingRegisterId,
+          },
+        ],
+      });
+      await this.assertBalancedJournal(
+        tx,
+        receipt.accountingRegisterId,
+        allocations.length + 1,
+        total,
+      );
+    });
+    return this.getReceipt(user, id);
+  }
+
   async createPayment(
     user: AuthenticatedSchool,
     dto: CreateDashboardPaymentDto,
@@ -802,6 +900,96 @@ export class DashboardAccountingService {
       payment.accountingRegister,
       payment.details,
     );
+  }
+
+  async updatePayment(
+    user: AuthenticatedSchool,
+    id: number,
+    dto: CreateDashboardPaymentDto,
+  ): Promise<DashboardPaymentDto> {
+    await this.prisma.$transaction(async (tx) => {
+      const payment = await tx.accountingPayment.findFirst({
+        where: {
+          id,
+          schoolId: user.schoolId,
+          accountingRegister: { schoolId: user.schoolId },
+        },
+        select: { id: true, accountingRegisterId: true },
+      });
+      if (!payment) throw new NotFoundException('Payment not found');
+      const destination = await tx.account.findFirst({
+        where: { id: dto.accountId, schoolId: user.schoolId },
+        select: { id: true },
+      });
+      if (!destination)
+        throw new BadRequestException(
+          'Destination account does not belong to the authenticated school',
+        );
+      const currency = await tx.currency.findUnique({
+        where: { id: dto.currencyId },
+      });
+      if (!currency) throw new BadRequestException('Invalid currency');
+      const allocations = await this.resolvePaymentAllocations(
+        tx,
+        user.schoolId,
+        destination.id,
+        dto.allocations,
+      );
+      const total = allocations.reduce(
+        (sum, row) => sum.plus(row.amount),
+        new Prisma.Decimal(0),
+      );
+      await tx.accountingRegister.update({
+        where: { id: payment.accountingRegisterId },
+        data: {
+          description: dto.description ?? null,
+          dateCreated: dto.date ? new Date(dto.date) : undefined,
+          currencyId: currency.id,
+          currencyRate: new Prisma.Decimal(currency.rate),
+          notes: dto.notes ?? null,
+          comments: dto.comments ?? null,
+        },
+      });
+      await tx.accountingPaymentDetail.deleteMany({
+        where: { accountingPaymentId: id },
+      });
+      await tx.accountingDaily.deleteMany({
+        where: { accountingRegisterId: payment.accountingRegisterId },
+      });
+      await tx.accountingPaymentDetail.createMany({
+        data: allocations.map((row) => ({
+          accountingPaymentId: id,
+          accountId: row.accountId,
+          amount: row.amount,
+          description: row.description,
+        })),
+      });
+      await tx.accountingDaily.createMany({
+        data: [
+          {
+            accountId: destination.id,
+            debit: total,
+            credit: new Prisma.Decimal(0),
+            description: dto.description ?? null,
+            accountingRegisterId: payment.accountingRegisterId,
+          },
+          ...allocations.map((row) => ({
+            accountId: row.accountId,
+            debit: new Prisma.Decimal(0),
+            credit: row.amount,
+            description: row.description ?? dto.description ?? null,
+            accountingRegisterId: payment.accountingRegisterId,
+          })),
+        ],
+      });
+      await this.assertBalancedJournal(
+        tx,
+        payment.accountingRegisterId,
+        allocations.length + 1,
+        total,
+      );
+    });
+    return this.getPayment(user, id);
   }
 
   private async resolvePaymentAllocations(
