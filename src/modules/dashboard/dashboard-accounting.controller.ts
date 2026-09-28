@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -21,6 +22,15 @@ import type { Request } from 'express';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { DashboardAccountingService } from './dashboard-accounting.service';
+import { DashboardAccountingConfigService } from './dashboard-accounting-config.service';
+import {
+  AssignDashboardPackageClassesDto,
+  DashboardItemsQueryDto,
+  DashboardPackagesQueryDto,
+  SaveDashboardItemDto,
+  SaveDashboardPackageDto,
+  SaveDashboardPackageItemDto,
+} from './dto/dashboard-accounting-config.dto';
 import {
   CreateDashboardAccountDto,
   CreateDashboardPaymentDto,
@@ -44,6 +54,7 @@ import {
 export class DashboardAccountingController {
   constructor(
     private readonly dashboardAccountingService: DashboardAccountingService,
+    private readonly accountingConfigService: DashboardAccountingConfigService,
   ) {}
 
   @Get('currencies')
@@ -169,5 +180,140 @@ export class DashboardAccountingController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DashboardPaymentDto> {
     return this.dashboardAccountingService.getPayment(request.user, id);
+  }
+
+  @Get('item-types')
+  listItemTypes() {
+    return this.accountingConfigService.listItemTypes();
+  }
+
+  @Get('items')
+  listItems(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardItemsQueryDto,
+  ) {
+    return this.accountingConfigService.listItems(request.user, query);
+  }
+
+  @Get('items/:id')
+  getItem(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.accountingConfigService.getItem(request.user, id);
+  }
+
+  @Post('items')
+  createItem(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Body() dto: SaveDashboardItemDto,
+  ) {
+    return this.accountingConfigService.createItem(request.user, dto);
+  }
+
+  @Patch('items/:id')
+  updateItem(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SaveDashboardItemDto,
+  ) {
+    return this.accountingConfigService.updateItem(request.user, id, dto);
+  }
+
+  @Delete('items/:id')
+  deleteItem(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.accountingConfigService.deleteItem(request.user, id);
+  }
+
+  @Get('registration-packages')
+  listPackages(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardPackagesQueryDto,
+  ) {
+    return this.accountingConfigService.listPackages(request.user, query);
+  }
+
+  @Get('registration-packages/:id')
+  getPackage(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.accountingConfigService.getPackage(request.user, id);
+  }
+
+  @Post('registration-packages')
+  createPackage(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Body() dto: SaveDashboardPackageDto,
+  ) {
+    return this.accountingConfigService.createPackage(request.user, dto);
+  }
+
+  @Patch('registration-packages/:id')
+  updatePackage(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SaveDashboardPackageDto,
+  ) {
+    return this.accountingConfigService.updatePackage(request.user, id, dto);
+  }
+
+  @Delete('registration-packages/:id')
+  deletePackage(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.accountingConfigService.deletePackage(request.user, id);
+  }
+
+  @Post('registration-packages/:id/items')
+  addPackageItem(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SaveDashboardPackageItemDto,
+  ) {
+    return this.accountingConfigService.addPackageItem(request.user, id, dto);
+  }
+
+  @Delete('registration-packages/:id/items/:relationId')
+  removePackageItem(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Param('relationId', ParseIntPipe) relationId: number,
+  ) {
+    return this.accountingConfigService.removePackageItem(
+      request.user,
+      id,
+      relationId,
+    );
+  }
+
+  @Post('registration-packages/:id/classes')
+  assignPackageClasses(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AssignDashboardPackageClassesDto,
+  ) {
+    return this.accountingConfigService.assignPackageClasses(
+      request.user,
+      id,
+      dto,
+    );
+  }
+
+  @Delete('registration-packages/:id/classes/:relationId')
+  removePackageClass(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+    @Param('relationId', ParseIntPipe) relationId: number,
+  ) {
+    return this.accountingConfigService.removePackageClass(
+      request.user,
+      id,
+      relationId,
+    );
   }
 }

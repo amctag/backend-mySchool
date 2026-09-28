@@ -20,6 +20,7 @@ type PostedJournalLine = {
 function baseTransaction(overrides?: {
   queryRawResults?: unknown[];
   accountFindFirst?: unknown;
+  accountFindMany?: unknown[];
   accountCreate?: unknown;
   registerType?: { id: number } | null;
   registerCreate?: { id: number };
@@ -46,6 +47,9 @@ function baseTransaction(overrides?: {
       ),
       create: jest.fn(() =>
         Promise.resolve(overrides?.accountCreate ?? { id: 1 }),
+      ),
+      findMany: jest.fn(() =>
+        Promise.resolve(overrides?.accountFindMany ?? []),
       ),
     },
     accountingRegisterType: {
@@ -82,6 +86,11 @@ function baseTransaction(overrides?: {
     accountingPayment: {
       create: jest.fn(() =>
         Promise.resolve(overrides?.paymentCreate ?? { id: 11 }),
+      ),
+    },
+    accountingPaymentDetail: {
+      createMany: jest.fn((args: { data: unknown[] }) =>
+        Promise.resolve({ count: args.data.length }),
       ),
     },
     accountingDaily: {
@@ -435,14 +444,21 @@ describe('DashboardAccountingService payments', () => {
     type: 'PERSON',
   };
 
-  it('posts a balanced payment with destination debit and Cash credit', async () => {
+  it('posts one balanced payment with two funding allocations', async () => {
+    const bankAccount = {
+      id: 32,
+      code: '200002',
+      name: 'Bank Audi',
+      type: 'GENERAL',
+    };
     const transaction = baseTransaction({
-      queryRawResults: [[{ code: '200001' }], [{ nb: 2 }]],
-      accountFindFirst: null,
-      accountCreate: cashAccount,
+      queryRawResults: [[{ nb: 2 }]],
+      currency: usdCurrency,
+      accountFindMany: [cashAccount, bankAccount],
       dailyRows: [
-        { accountId: 40, debit: '75.50', credit: '0' },
-        { accountId: 31, debit: '0', credit: '75.50' },
+        { accountId: 40, debit: '1000', credit: '0' },
+        { accountId: 31, debit: '0', credit: '300' },
+        { accountId: 32, debit: '0', credit: '700' },
       ],
     });
     transaction.account.findFirst.mockResolvedValueOnce(destination);
@@ -450,14 +466,23 @@ describe('DashboardAccountingService payments', () => {
 
     const payment = await service.createPayment({ schoolId: 3 } as never, {
       accountId: 40,
-      amount: 75.5,
+      currencyId: 1,
+      allocations: [
+        { accountId: 31, amount: 300 },
+        { accountId: 32, amount: 700, description: 'Bank transfer' },
+      ],
     });
 
     expect(payment).toMatchObject({
       nb: 2,
       accountId: 40,
       accountCode: '300001',
-      amount: '75.50',
+      amount: '1000.00',
+      total: '1000.00',
+      allocations: [
+        { accountId: 31, amount: '300.00' },
+        { accountId: 32, amount: '700.00' },
+      ],
     });
     expect(transaction.accountingPayment.create).toHaveBeenCalledWith({
       data: { accountingRegisterId: 100, nb: 2, schoolId: 3 },
@@ -467,7 +492,7 @@ describe('DashboardAccountingService payments', () => {
       data: [
         {
           accountId: 40,
-          debit: new Prisma.Decimal('75.50'),
+          debit: new Prisma.Decimal('1000'),
           credit: new Prisma.Decimal('0'),
           description: null,
           accountingRegisterId: 100,
@@ -475,12 +500,37 @@ describe('DashboardAccountingService payments', () => {
         {
           accountId: 31,
           debit: new Prisma.Decimal('0'),
-          credit: new Prisma.Decimal('75.50'),
+          credit: new Prisma.Decimal('300'),
           description: null,
+          accountingRegisterId: 100,
+        },
+        {
+          accountId: 32,
+          debit: new Prisma.Decimal('0'),
+          credit: new Prisma.Decimal('700'),
+          description: 'Bank transfer',
           accountingRegisterId: 100,
         },
       ],
     });
+    expect(transaction.accountingPaymentDetail.createMany).toHaveBeenCalledWith(
+      {
+        data: [
+          {
+            accountingPaymentId: 11,
+            accountId: 31,
+            amount: new Prisma.Decimal('300'),
+            description: null,
+          },
+          {
+            accountingPaymentId: 11,
+            accountId: 32,
+            amount: new Prisma.Decimal('700'),
+            description: 'Bank transfer',
+          },
+        ],
+      },
+    );
   });
 
   it('rejects a destination account from another school', async () => {
@@ -491,24 +541,52 @@ describe('DashboardAccountingService payments', () => {
     await expect(
       service.createPayment({ schoolId: 3 } as never, {
         accountId: 40,
-        amount: 10,
+        currencyId: 1,
+        allocations: [{ accountId: 31, amount: 10 }],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(transaction.accountingRegister.create).not.toHaveBeenCalled();
   });
 
-  it('rejects the Cash account as payment destination', async () => {
-    const transaction = baseTransaction({ accountFindFirst: cashAccount });
+  it('rejects a funding account that is also the destination', async () => {
+    const transaction = baseTransaction({
+      accountFindFirst: cashAccount,
+      currency: usdCurrency,
+    });
     transaction.account.findFirst.mockResolvedValue(cashAccount);
     const service = serviceWith(transaction);
 
     await expect(
       service.createPayment({ schoolId: 3 } as never, {
         accountId: 31,
-        amount: 10,
+        currencyId: 1,
+        allocations: [{ accountId: 31, amount: 10 }],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(transaction.accountingRegister.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects PERSON and cross-school funding accounts', async () => {
+    for (const accounts of [
+      [{ id: 41, code: '100002', name: 'Person', type: 'PERSON' }],
+      [],
+    ]) {
+      const transaction = baseTransaction({
+        currency: usdCurrency,
+        accountFindMany: accounts,
+      });
+      transaction.account.findFirst.mockResolvedValue(destination);
+      const service = serviceWith(transaction);
+
+      await expect(
+        service.createPayment({ schoolId: 3 } as never, {
+          accountId: 40,
+          currencyId: 1,
+          allocations: [{ accountId: 41, amount: 10 }],
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(transaction.accountingRegister.create).not.toHaveBeenCalled();
+    }
   });
 
   it('returns the original payment for a duplicate idempotency key', async () => {
@@ -541,11 +619,22 @@ describe('DashboardAccountingService payments', () => {
 
     const payment = await service.createPayment({ schoolId: 3 } as never, {
       accountId: 40,
-      amount: 75.5,
+      currencyId: 1,
+      allocations: [{ accountId: 31, amount: 75.5 }],
       idempotencyKey: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
     });
 
-    expect(payment).toMatchObject({ nb: 6, accountCode: '300001' });
+    expect(payment).toMatchObject({
+      nb: 6,
+      accountCode: '300001',
+      allocations: [
+        {
+          accountId: 31,
+          accountCode: '200001',
+          amount: '75.50',
+        },
+      ],
+    });
     expect(transaction.accountingPayment.create).not.toHaveBeenCalled();
   });
 });

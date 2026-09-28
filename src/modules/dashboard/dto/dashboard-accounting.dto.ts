@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsDateString,
   IsIn,
   IsInt,
   IsNumber,
@@ -167,9 +168,38 @@ export class DashboardAccountingDocumentQueryDto {
   @IsInt()
   @Min(1)
   limit?: number;
+
+  @ApiPropertyOptional({ example: 'cash' })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(255)
+  search?: string;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  currencyId?: number;
+
+  @ApiPropertyOptional({ example: '2026-09-01' })
+  @IsOptional()
+  @IsDateString()
+  dateFrom?: string;
+
+  @ApiPropertyOptional({ example: '2026-09-30' })
+  @IsOptional()
+  @IsDateString()
+  dateTo?: string;
 }
 
 class DashboardAccountingDocumentBody {
+  @ApiPropertyOptional({ example: '2026-09-28' })
+  @IsOptional()
+  @IsDateString()
+  date?: string;
+
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()
   @Type(() => Number)
@@ -269,16 +299,18 @@ export class CreateDashboardPaymentDto extends DashboardAccountingDocumentBody {
   @IsInt()
   accountId!: number;
 
-  @ApiProperty({ example: 123.45 })
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @IsPositive()
-  amount!: number;
-
-  @ApiPropertyOptional({ example: 1 })
-  @IsOptional()
+  @ApiProperty({ example: 1 })
   @Type(() => Number)
   @IsInt()
-  currencyId?: number;
+  currencyId!: number;
+
+  @ApiProperty({ type: [DashboardReceiptAllocationBody] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => DashboardReceiptAllocationBody)
+  allocations!: DashboardReceiptAllocationBody[];
 }
 
 export class DashboardReceiptAllocationDto {
@@ -404,6 +436,15 @@ export class DashboardPaymentDto {
 
   @ApiProperty({ example: '150.00' })
   amount!: string;
+
+  @ApiProperty({ example: '1000.00' })
+  total!: string;
+
+  @ApiProperty({ type: [DashboardReceiptAllocationDto] })
+  allocations!: DashboardReceiptAllocationDto[];
+
+  @ApiProperty({ type: () => DashboardReceiptCurrencyDto, nullable: true })
+  currency!: DashboardReceiptCurrencyDto | null;
 
   @ApiProperty({ example: 1, nullable: true })
   currencyId!: number | null;

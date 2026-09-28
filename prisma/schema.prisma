@@ -42,9 +42,9 @@ model School {
   teacherTasks        TeacherTask[]
   accountingRegisters AccountingRegister[]
   accounts            Account[]
-  documentCounters  AccountingDocumentCounter[]
-  receipts          AccountingReceipt[]
-  payments          AccountingPayment[]
+  documentCounters    AccountingDocumentCounter[]
+  receipts            AccountingReceipt[]
+  payments            AccountingPayment[]
   items               Item[]
 
   @@map("school")
@@ -1168,7 +1168,7 @@ model AccountingRegisterType {
   id   Int    @id @default(autoincrement())
   name String @unique @db.VarChar(255)
 
-  registers AccountingRegister[]
+  registers        AccountingRegister[]
   documentCounters AccountingDocumentCounter[]
 
   @@map("accounting_register_types")
@@ -1181,11 +1181,12 @@ model Account {
   type     AccountType
   schoolId Int         @map("school_id")
 
-  school       School            @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  persons      Person[]
-  dailyEntries AccountingDaily[]
-  installments Installment[]
+  school         School                    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  persons        Person[]
+  dailyEntries   AccountingDaily[]
+  installments   Installment[]
   receiptDetails AccountingReceiptDetail[]
+  paymentDetails AccountingPaymentDetail[]
 
   @@index([schoolId])
   @@map("accounts")
@@ -1208,7 +1209,8 @@ model Currency {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  registers AccountingRegister[]
+  registers                AccountingRegister[]
+  registrationPackageItems AccountingRegistrationPackageItem[]
 
   @@map("currency")
 }
@@ -1238,10 +1240,10 @@ model AccountingRegister {
   purchaseReturns        AccountingPurchaseReturn[]
   invoices               AccountingInvoice[]
 
+  @@unique([schoolId, idempotencyKey])
   @@index([accountingRegisterTypeId])
   @@index([schoolId])
   @@index([currencyId])
-  @@unique([schoolId, idempotencyKey])
   @@map("accounting_register")
 }
 
@@ -1267,23 +1269,23 @@ model AccountingReceipt {
   nb                   Int
   schoolId             Int @map("school_id")
 
-  accountingRegister AccountingRegister @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
-  school             School             @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  accountingRegister AccountingRegister        @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+  school             School                    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   installments       Installment[]
   details            AccountingReceiptDetail[]
 
-  @@index([accountingRegisterId])
   @@unique([schoolId, nb])
+  @@index([accountingRegisterId])
   @@map("accounting_receipts")
 }
 
 model AccountingReceiptDetail {
-  id                   Int      @id @default(autoincrement())
-  accountingReceiptId  Int      @map("accounting_receipt_id")
-  accountId            Int      @map("account_id")
-  amount               Decimal  @db.Decimal(18, 2)
-  description          String?  @db.Text
-  dateCreated          DateTime @default(now()) @map("date_created") @db.Timestamptz(6)
+  id                  Int      @id @default(autoincrement())
+  accountingReceiptId Int      @map("accounting_receipt_id")
+  accountId           Int      @map("account_id")
+  amount              Decimal  @db.Decimal(18, 2)
+  description         String?  @db.Text
+  dateCreated         DateTime @default(now()) @map("date_created") @db.Timestamptz(6)
 
   receipt AccountingReceipt @relation(fields: [accountingReceiptId], references: [id], onDelete: Cascade)
   account Account           @relation(fields: [accountId], references: [id], onDelete: Restrict)
@@ -1299,12 +1301,29 @@ model AccountingPayment {
   nb                   Int
   schoolId             Int @map("school_id")
 
-  accountingRegister AccountingRegister @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
-  school             School             @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  accountingRegister AccountingRegister        @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+  school             School                    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  details            AccountingPaymentDetail[]
 
-  @@index([accountingRegisterId])
   @@unique([schoolId, nb])
+  @@index([accountingRegisterId])
   @@map("accounting_payments")
+}
+
+model AccountingPaymentDetail {
+  id                  Int      @id @default(autoincrement())
+  accountingPaymentId Int      @map("accounting_payment_id")
+  accountId           Int      @map("account_id")
+  amount              Decimal  @db.Decimal(18, 2)
+  description         String?  @db.Text
+  dateCreated         DateTime @default(now()) @map("date_created") @db.Timestamptz(6)
+
+  payment AccountingPayment @relation(fields: [accountingPaymentId], references: [id], onDelete: Cascade)
+  account Account           @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountingPaymentId])
+  @@index([accountId])
+  @@map("accounting_payment_details")
 }
 
 model AccountingDocumentCounter {
@@ -1449,7 +1468,9 @@ model AccountingRegistrationPackageItem {
 
   item                          Item                          @relation(fields: [itemId], references: [id], onDelete: Restrict)
   accountingRegistrationPackage AccountingRegistrationPackage @relation(fields: [accountingRegistrationPackageId], references: [id], onDelete: Restrict)
+  currency                      Currency?                     @relation(fields: [currencyId], references: [id], onDelete: Restrict)
 
+  @@unique([accountingRegistrationPackageId, itemId])
   @@index([itemId])
   @@index([accountingRegistrationPackageId])
   @@map("accounting_registration_package_items")
@@ -1464,6 +1485,7 @@ model AccountingRegistrationPackageClass {
   accountingRegistrationPackage AccountingRegistrationPackage @relation(fields: [accountingRegistrationPackageId], references: [id], onDelete: Restrict)
   class                         Class                         @relation(fields: [classId], references: [id], onDelete: Restrict)
 
+  @@unique([accountingRegistrationPackageId, classId])
   @@index([accountingRegistrationPackageId])
   @@index([classId])
   @@map("accounting_registration_package_classes")

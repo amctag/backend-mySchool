@@ -64,6 +64,7 @@ import { DashboardTeacherTasksController } from './dashboard-teacher-tasks.contr
 import { DashboardTeacherTasksService } from './dashboard-teacher-tasks.service';
 import { DashboardAccountingController } from './dashboard-accounting.controller';
 import { DashboardAccountingService } from './dashboard-accounting.service';
+import { DashboardAccountingConfigService } from './dashboard-accounting-config.service';
 import { MediaUploadService } from '../../upload/media-upload.service';
 
 @Module({
@@ -134,6 +135,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     DashboardOverviewService,
     DashboardTeacherTasksService,
     DashboardAccountingService,
+    DashboardAccountingConfigService,
     MediaUploadService,
   ],
   exports: [DashboardGradesService],

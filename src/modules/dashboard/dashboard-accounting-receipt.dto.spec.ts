@@ -38,6 +38,17 @@ const bankCashReceipt = {
 };
 
 describe('CreateDashboardReceiptDto contract', () => {
+  it('accepts the current UI Cash 150 payload without a top-level amount', async () => {
+    const errors = await validateReceipt({
+      parentId: 7,
+      currencyId: 1,
+      idempotencyKey: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+      allocations: [{ accountId: 31, amount: 150 }],
+    });
+
+    expect(errors).toEqual([]);
+  });
+
   it('accepts the Phase 2C payload without a legacy top-level amount', async () => {
     await expect(validateReceipt(bankCashReceipt)).resolves.toEqual([]);
   });
