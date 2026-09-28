@@ -173,7 +173,7 @@ export class DashboardChildrenService {
       ...(query.classId ? { classId: query.classId } : {}),
       ...(query.yearId ? { yearId: query.yearId } : {}),
     };
-    const hasRegistrationFilter = Boolean(query.classId || query.yearId);
+    const hasRegistrationFilter = Boolean(query.classId);
 
     return {
       AND: [
