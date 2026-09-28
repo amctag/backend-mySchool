@@ -481,3 +481,371 @@ export class DashboardPaymentsResponseDto {
   @ApiProperty({ example: 5 })
   totalPages!: number;
 }
+
+export class DashboardInvoiceDetailBody {
+  @ApiProperty({
+    example: 3,
+    description: 'Item owned by the authenticated school',
+  })
+  @Type(() => Number)
+  @IsInt()
+  itemId!: number;
+
+  @ApiProperty({
+    example: 100,
+    description:
+      'Invoice-specific unit price snapshot. Defaults to the package price, then the item base price.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  unitPrice?: number;
+
+  @ApiProperty({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @IsPositive()
+  quantity?: number;
+
+  @ApiPropertyOptional({ example: 'Registration fee' })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(10000)
+  description?: string;
+
+  @ApiPropertyOptional({
+    example: 450,
+    description:
+      'Optional registration this line belongs to. Must belong to the invoiced parent and school.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  forRegistrationId?: number;
+}
+
+export class CreateDashboardInvoiceDto extends DashboardAccountingDocumentBody {
+  @ApiProperty({ example: 7 })
+  @Type(() => Number)
+  @IsInt()
+  parentId!: number;
+
+  @ApiProperty({
+    example: 1,
+    description:
+      'Single invoice currency. All lines must resolve to this currency; mixed currencies are rejected.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  currencyId!: number;
+
+  @ApiProperty({
+    type: [DashboardInvoiceDetailBody],
+    description:
+      'One or more invoice lines. Backend posts one parent debit for the total and one SALES credit for the total.',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => DashboardInvoiceDetailBody)
+  details!: DashboardInvoiceDetailBody[];
+}
+
+export class DashboardInvoiceDetailDto {
+  @ApiProperty({ example: 1 })
+  id!: number;
+
+  @ApiProperty({ example: 3 })
+  itemId!: number;
+
+  @ApiProperty({ example: 'Registration Fee' })
+  itemName!: string;
+
+  @ApiProperty({ example: '100.00' })
+  unitPrice!: string;
+
+  @ApiProperty({ example: '1.000' })
+  quantity!: string;
+
+  @ApiProperty({ example: '100.00' })
+  lineTotal!: string;
+
+  @ApiProperty({ example: 'Registration fee', nullable: true })
+  description!: string | null;
+
+  @ApiProperty({ example: 450, nullable: true })
+  forRegistrationId!: number | null;
+
+  @ApiProperty({ example: 'Ahmad — Grade 1', nullable: true })
+  forRegistrationLabel!: string | null;
+}
+
+export class DashboardInvoiceDto {
+  @ApiProperty({ example: 1 })
+  id!: number;
+
+  @ApiProperty({ example: 1005 })
+  nb!: number;
+
+  @ApiProperty({ example: 7 })
+  parentId!: number;
+
+  @ApiProperty({ example: 'John Doe' })
+  parentName!: string;
+
+  @ApiProperty({ example: 12 })
+  accountId!: number;
+
+  @ApiProperty({ example: '100001' })
+  accountCode!: string;
+
+  @ApiProperty({ example: '225.00' })
+  total!: string;
+
+  @ApiProperty({ type: [DashboardInvoiceDetailDto] })
+  details!: DashboardInvoiceDetailDto[];
+
+  @ApiProperty({ type: () => DashboardReceiptCurrencyDto, nullable: true })
+  currency!: DashboardReceiptCurrencyDto | null;
+
+  @ApiProperty({ example: 1, nullable: true })
+  currencyId!: number | null;
+
+  @ApiProperty({ example: '1', nullable: true })
+  currencyRate!: string | null;
+
+  @ApiProperty({ example: 'Grade 1 registration', nullable: true })
+  description!: string | null;
+
+  @ApiProperty({ example: '2026-09-29T10:00:00.000Z' })
+  dateCreated!: string;
+}
+
+export class DashboardInvoicesResponseDto {
+  @ApiProperty({ type: [DashboardInvoiceDto] })
+  items!: DashboardInvoiceDto[];
+
+  @ApiProperty({ example: 1 })
+  page!: number;
+
+  @ApiProperty({ example: 10 })
+  limit!: number;
+
+  @ApiProperty({ example: 42 })
+  total!: number;
+
+  @ApiProperty({ example: 5 })
+  totalPages!: number;
+}
+
+export class DashboardInvoicesQueryDto extends DashboardAccountingDocumentQueryDto {
+  @ApiPropertyOptional({
+    example: 7,
+    description: 'Filter invoices billed to this parent',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  parentId?: number;
+}
+
+export class DashboardPackagePreviewQueryDto {
+  @ApiProperty({ example: 4 })
+  @Type(() => Number)
+  @IsInt()
+  classId!: number;
+
+  @ApiProperty({ example: 2 })
+  @Type(() => Number)
+  @IsInt()
+  yearId!: number;
+
+  @ApiPropertyOptional({
+    example: 11,
+    description:
+      'When provided, the preview also resolves the student parent and accounting account.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  studentId?: number;
+}
+
+export class DashboardParentRegistrationsQueryDto {
+  @ApiProperty({ example: 7 })
+  @Type(() => Number)
+  @IsInt()
+  parentId!: number;
+}
+
+export class DashboardRegistrationPackagePreviewItemDto {
+  @ApiProperty({ example: 3 })
+  itemId!: number;
+
+  @ApiProperty({ example: 'Registration Fee' })
+  itemName!: string;
+
+  @ApiProperty({ example: 'Services' })
+  itemType!: string;
+
+  @ApiProperty({ example: '100.00' })
+  price!: string;
+
+  @ApiProperty({ example: '100.00' })
+  basePrice!: string;
+
+  @ApiProperty({ example: true })
+  mandatory!: boolean;
+
+  @ApiProperty({ example: 1, nullable: true })
+  currencyId!: number | null;
+
+  @ApiProperty({
+    type: () => DashboardReceiptCurrencyDto,
+    nullable: true,
+  })
+  currency!: DashboardReceiptCurrencyDto | null;
+}
+
+export class DashboardRegistrationPackagePreviewParentDto {
+  @ApiProperty({ example: 7 })
+  parentId!: number;
+
+  @ApiProperty({ example: 'John Doe' })
+  parentName!: string;
+
+  @ApiProperty({ example: 12, nullable: true })
+  accountId!: number | null;
+
+  @ApiProperty({ example: '100001', nullable: true })
+  accountCode!: string | null;
+
+  @ApiProperty({ example: true })
+  hasAccountingAccount!: boolean;
+}
+
+export class DashboardRegistrationPackagePreviewPackageDto {
+  @ApiProperty({ example: 5 })
+  id!: number;
+
+  @ApiProperty({ example: 'Grade 1 Registration Package' })
+  name!: string;
+
+  @ApiProperty({ type: [DashboardRegistrationPackagePreviewItemDto] })
+  items!: DashboardRegistrationPackagePreviewItemDto[];
+}
+
+export class DashboardRegistrationPackagePreviewDto {
+  @ApiProperty({
+    type: () => DashboardRegistrationPackagePreviewPackageDto,
+    nullable: true,
+  })
+  package!: DashboardRegistrationPackagePreviewPackageDto | null;
+
+  @ApiProperty({
+    type: () => DashboardRegistrationPackagePreviewParentDto,
+    nullable: true,
+  })
+  parent!: DashboardRegistrationPackagePreviewParentDto | null;
+
+  @ApiProperty({ example: 'Grade 1' })
+  className!: string;
+
+  @ApiProperty({ example: '2026-2027' })
+  yearTitle!: string;
+}
+
+export class DashboardParentRegistrationDto {
+  @ApiProperty({ example: 450 })
+  id!: number;
+
+  @ApiProperty({ example: 11 })
+  studentId!: number;
+
+  @ApiProperty({ example: 'Ahmad' })
+  studentName!: string;
+
+  @ApiProperty({ example: 'Grade 1' })
+  className!: string;
+
+  @ApiProperty({ example: 'A' })
+  sectionTitle!: string;
+
+  @ApiProperty({ example: '2026-2027' })
+  yearTitle!: string;
+
+  @ApiProperty({ example: 'Ahmad — Grade 1' })
+  label!: string;
+}
+
+export class DashboardRegistrationWithInvoiceDto {
+  @ApiProperty({ example: 450 })
+  registrationId!: number;
+
+  @ApiProperty({ type: () => DashboardInvoiceDto })
+  invoice!: DashboardInvoiceDto;
+}
+
+export class DashboardRegistrationInvoiceItemBody {
+  @ApiProperty({ example: 3 })
+  @Type(() => Number)
+  @IsInt()
+  itemId!: number;
+
+  @ApiPropertyOptional({
+    example: 100,
+    description:
+      'Optional price override. Defaults to the package price, then the item base price.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  unitPrice?: number;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @IsPositive()
+  quantity?: number;
+}
+
+export class CreateDashboardRegistrationInvoiceDto extends DashboardAccountingDocumentBody {
+  @ApiProperty({ example: 11 })
+  @Type(() => Number)
+  @IsInt()
+  studentId!: number;
+
+  @ApiProperty({ example: 4 })
+  @Type(() => Number)
+  @IsInt()
+  classId!: number;
+
+  @ApiProperty({ example: 9 })
+  @Type(() => Number)
+  @IsInt()
+  sectionId!: number;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  currencyId?: number;
+
+  @ApiProperty({
+    type: [DashboardRegistrationInvoiceItemBody],
+    description:
+      'Package items to invoice. Every generated detail links to the new registration.',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => DashboardRegistrationInvoiceItemBody)
+  items!: DashboardRegistrationInvoiceItemBody[];
+}

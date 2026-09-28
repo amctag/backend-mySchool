@@ -45,6 +45,7 @@ model School {
   documentCounters    AccountingDocumentCounter[]
   receipts            AccountingReceipt[]
   payments            AccountingPayment[]
+  invoices            AccountingInvoice[]
   items               Item[]
 
   @@map("school")
@@ -518,6 +519,7 @@ model Registration {
   student      Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
   person       Person        @relation(fields: [personId], references: [id], onDelete: Restrict)
   gradeDetails GradeDetail[]
+  invoiceDetails AccountingInvoiceDetail[]
 
   @@index([studentId, status])
   @@index([sectionId, status])
@@ -1387,32 +1389,40 @@ model AccountingInvoice {
   dateCreated          DateTime @default(now()) @map("date_created") @db.Timestamptz(6)
   description          String?  @db.Text
   accountingRegisterId Int      @map("accounting_register_id")
+  nb                   Int
+  schoolId             Int      @map("school_id")
   tax                  Decimal  @db.Decimal(18, 2)
   discount             Decimal  @db.Decimal(18, 2)
   total                Decimal  @db.Decimal(18, 2)
 
   accountingRegister AccountingRegister        @relation(fields: [accountingRegisterId], references: [id], onDelete: Restrict)
+  school             School                    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   details            AccountingInvoiceDetail[]
 
+  @@unique([schoolId, nb])
+  @@index([schoolId])
   @@index([accountingRegisterId])
   @@map("accounting_invoice")
 }
 
 model AccountingInvoiceDetail {
-  id          Int     @id @default(autoincrement())
-  invoiceId   Int     @map("invoice_id")
-  itemId      Int     @map("item_id")
-  unitPrice   Decimal @map("unit_price") @db.Decimal(18, 2)
-  quantity    Decimal @db.Decimal(18, 3)
-  description String? @db.Text
-  discount    Decimal @db.Decimal(18, 2)
-  tax         Decimal @db.Decimal(18, 2)
+  id                Int     @id @default(autoincrement())
+  invoiceId         Int     @map("invoice_id")
+  itemId            Int     @map("item_id")
+  unitPrice         Decimal @map("unit_price") @db.Decimal(18, 2)
+  quantity          Decimal @db.Decimal(18, 3)
+  description       String? @db.Text
+  discount          Decimal @db.Decimal(18, 2)
+  tax               Decimal @db.Decimal(18, 2)
+  forRegistrationId Int?    @map("for_registration_id")
 
-  invoice AccountingInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  item    Item              @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  invoice         AccountingInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  item            Item              @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  forRegistration Registration?     @relation(fields: [forRegistrationId], references: [id], onDelete: Restrict)
 
   @@index([invoiceId])
   @@index([itemId])
+  @@index([forRegistrationId])
   @@map("accounting_invoice_details")
 }
 

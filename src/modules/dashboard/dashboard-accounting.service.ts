@@ -10,19 +10,29 @@ import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface
 import { PrismaService } from '../../database/prisma/prisma.service';
 import {
   CreateDashboardAccountDto,
+  CreateDashboardInvoiceDto,
   CreateDashboardPaymentDto,
   CreateDashboardReceiptDto,
+  CreateDashboardRegistrationInvoiceDto,
   DashboardAccountDto,
   DashboardAccountsQueryDto,
   DashboardAccountsResponseDto,
   DashboardAccountingDocumentQueryDto,
   DashboardCurrencyDto,
+  DashboardInvoiceDetailBody,
+  DashboardInvoiceDto,
+  DashboardInvoicesQueryDto,
+  DashboardInvoicesResponseDto,
+  DashboardParentRegistrationDto,
   DashboardPaymentDto,
   DashboardPaymentsResponseDto,
   DashboardReceiptAllocationDto,
   DashboardReceiptCurrencyDto,
   DashboardReceiptDto,
   DashboardReceiptsResponseDto,
+  DashboardRegistrationInvoiceItemBody,
+  DashboardRegistrationPackagePreviewDto,
+  DashboardRegistrationWithInvoiceDto,
   UpdateDashboardAccountDto,
 } from './dto/dashboard-accounting.dto';
 
@@ -59,6 +69,8 @@ const ACCOUNT_TYPES: ReadonlySet<string> = new Set([
 const MAX_ALLOCATIONS = 50;
 const MAX_ACCOUNT_LIST_LIMIT = 500;
 const DEFAULT_ACCOUNT_LIST_LIMIT = 100;
+const MAX_INVOICE_LINES = 100;
+const DASHBOARD_CREATOR_PERSON_ID = 1;
 
 type LockedParentAccount = {
   parentId: number;
@@ -117,6 +129,43 @@ type RegisterBlock = {
     rate: Prisma.Decimal | number | string;
   } | null;
   dailyEntries: JournalLine[];
+};
+
+type InvoiceCurrencyRow = {
+  id: number;
+  title: string;
+  shortCode: string;
+  symbol: string;
+  rate: Prisma.Decimal | number | string;
+};
+
+type ResolvedInvoiceLine = {
+  itemId: number;
+  itemName: string;
+  unitPrice: Prisma.Decimal;
+  quantity: Prisma.Decimal;
+  lineTotal: Prisma.Decimal;
+  description: string | null;
+  forRegistrationId: number | null;
+};
+
+type PostedInvoiceAccount = {
+  parentId: number;
+  accountId: number;
+  accountCode: string;
+  parentName: string;
+};
+
+type PackageItemRef = {
+  itemId: number;
+  price: Prisma.Decimal | number | string;
+  currencyId: number | null;
+};
+
+type InvoiceRegistrationLabel = {
+  id: number;
+  studentName: string;
+  className: string;
 };
 
 @Injectable()
@@ -990,6 +1039,1225 @@ export class DashboardAccountingService {
       );
     });
     return this.getPayment(user, id);
+  }
+
+  async getRegistrationPackagePreview(
+    user: AuthenticatedSchool,
+    classId: number,
+    yearId: number,
+    studentId?: number,
+  ): Promise<DashboardRegistrationPackagePreviewDto> {
+    const schoolId = user.schoolId;
+    const classRow = await this.prisma.class.findFirst({
+      where: { id: classId, stage: { schoolId } },
+      select: { id: true, className: true },
+    });
+    if (!classRow) {
+      throw new BadRequestException('Class not found for this school');
+    }
+    const year = await this.prisma.year.findFirst({
+      where: { id: yearId, schoolId },
+      select: { id: true, title: true },
+    });
+    if (!year) {
+      throw new BadRequestException('School year not found for this school');
+    }
+    const registrationPackage =
+      await this.prisma.accountingRegistrationPackage.findFirst({
+        where: {
+          yearId,
+          year: { schoolId },
+          classes: { some: { classId } },
+        },
+        select: {
+          id: true,
+          name: true,
+          items: {
+            select: {
+              itemId: true,
+              price: true,
+              mandatory: true,
+              currencyId: true,
+              item: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                  schoolId: true,
+                  itemType: { select: { name: true } },
+                },
+              },
+              currency: {
+                select: {
+                  id: true,
+                  title: true,
+                  shortCode: true,
+                  symbol: true,
+                  rate: true,
+                },
+              },
+            },
+            orderBy: { id: 'asc' },
+          },
+        },
+      });
+
+    let parent: DashboardRegistrationPackagePreviewDto['parent'] = null;
+    if (studentId !== undefined) {
+      parent = await this.previewStudentParent(schoolId, studentId);
+    }
+
+    if (!registrationPackage) {
+      return {
+        package: null,
+        parent,
+        className: classRow.className,
+        yearTitle: year.title,
+      };
+    }
+    return {
+      package: {
+        id: registrationPackage.id,
+        name: registrationPackage.name,
+        items: registrationPackage.items.map((row) => ({
+          itemId: row.itemId,
+          itemName: row.item.name,
+          itemType: row.item.itemType.name,
+          price: new Prisma.Decimal(row.price).toFixed(2),
+          basePrice: new Prisma.Decimal(row.item.price).toFixed(2),
+          mandatory: row.mandatory,
+          currencyId: row.currencyId,
+          currency: row.currency
+            ? {
+                id: row.currency.id,
+                title: row.currency.title,
+                shortCode: row.currency.shortCode,
+                symbol: row.currency.symbol,
+                rate: new Prisma.Decimal(row.currency.rate).toString(),
+              }
+            : null,
+        })),
+      },
+      parent,
+      className: classRow.className,
+      yearTitle: year.title,
+    };
+  }
+
+  async listParentRegistrations(
+    user: AuthenticatedSchool,
+    parentId: number,
+  ): Promise<DashboardParentRegistrationDto[]> {
+    const schoolId = user.schoolId;
+    const parent = await this.prisma.parent.findFirst({
+      where: { id: parentId, person: { schoolId } },
+      select: { id: true },
+    });
+    if (!parent) {
+      throw new BadRequestException('Parent not found for this school');
+    }
+    const rows = await this.prisma.registration.findMany({
+      where: {
+        status: true,
+        student: { parentId },
+        section: { schoolId },
+      },
+      select: {
+        id: true,
+        student: {
+          select: {
+            id: true,
+            person: {
+              select: { firstName: true, middleName: true, lastName: true },
+            },
+          },
+        },
+        section: {
+          select: {
+            class: { select: { className: true } },
+            sectionTitle: { select: { title: true } },
+            year: { select: { title: true } },
+          },
+        },
+      },
+      orderBy: { id: 'desc' },
+    });
+    return rows.map((row) => {
+      const studentName = this.formatPersonName(row.student.person);
+      return {
+        id: row.id,
+        studentId: row.student.id,
+        studentName,
+        className: row.section.class.className,
+        sectionTitle: row.section.sectionTitle.title,
+        yearTitle: row.section.year.title,
+        label: `${studentName} — ${row.section.class.className}`,
+      };
+    });
+  }
+
+  async listInvoices(
+    user: AuthenticatedSchool,
+    query: DashboardInvoicesQueryDto,
+  ): Promise<DashboardInvoicesResponseDto> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const registerFilter = this.documentRegisterFilter(query);
+    const where: Prisma.AccountingInvoiceWhereInput = {
+      schoolId: user.schoolId,
+      accountingRegister:
+        query.parentId !== undefined
+          ? {
+              AND: [
+                registerFilter,
+                {
+                  dailyEntries: {
+                    some: {
+                      debit: { gt: 0 },
+                      account: {
+                        persons: {
+                          some: { parent: { id: query.parentId } },
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
+            }
+          : registerFilter,
+    };
+
+    const [total, invoices] = await this.prisma.$transaction([
+      this.prisma.accountingInvoice.count({ where }),
+      this.prisma.accountingInvoice.findMany({
+        where,
+        include: {
+          accountingRegister: {
+            include: {
+              currency: true,
+              dailyEntries: { include: { account: true } },
+            },
+          },
+          details: {
+            include: {
+              item: true,
+              forRegistration: {
+                include: {
+                  student: {
+                    include: {
+                      person: {
+                        select: {
+                          firstName: true,
+                          middleName: true,
+                          lastName: true,
+                        },
+                      },
+                    },
+                  },
+                  section: {
+                    include: {
+                      class: { select: { className: true } },
+                      sectionTitle: { select: { title: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: [{ nb: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    const parentByAccountId = await this.resolveAccountPersons(
+      invoices.flatMap((invoice) =>
+        invoice.accountingRegister.dailyEntries.map(
+          (entry) => entry.accountId,
+        ),
+      ),
+    );
+
+    return {
+      items: invoices.map((invoice) =>
+        this.toInvoiceDto(invoice, invoice.accountingRegister, (accountId) => {
+          const resolved = parentByAccountId.get(accountId);
+          return resolved
+            ? { parentId: resolved.parentId, parentName: resolved.fullName }
+            : null;
+        }),
+      ),
+      page,
+      limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    };
+  }
+
+  async getInvoice(
+    user: AuthenticatedSchool,
+    id: number,
+  ): Promise<DashboardInvoiceDto> {
+    const invoice = await this.prisma.accountingInvoice.findFirst({
+      where: { id, schoolId: user.schoolId },
+      include: {
+        accountingRegister: {
+          include: {
+            currency: true,
+            dailyEntries: { include: { account: true } },
+          },
+        },
+        details: {
+          include: {
+            item: true,
+            forRegistration: {
+              include: {
+                student: {
+                  include: {
+                    person: {
+                      select: {
+                        firstName: true,
+                        middleName: true,
+                        lastName: true,
+                      },
+                    },
+                  },
+                },
+                section: {
+                  include: {
+                    class: { select: { className: true } },
+                    sectionTitle: { select: { title: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!invoice) {
+      throw new NotFoundException('Invoice not found');
+    }
+    const parentByAccountId = await this.resolveAccountPersons(
+      invoice.accountingRegister.dailyEntries.map((entry) => entry.accountId),
+    );
+    return this.toInvoiceDto(
+      invoice,
+      invoice.accountingRegister,
+      (accountId) => {
+        const resolved = parentByAccountId.get(accountId);
+        return resolved
+          ? { parentId: resolved.parentId, parentName: resolved.fullName }
+          : null;
+      },
+    );
+  }
+
+  async createInvoice(
+    user: AuthenticatedSchool,
+    dto: CreateDashboardInvoiceDto,
+  ): Promise<DashboardInvoiceDto> {
+    const created = await this.prisma.$transaction(async (tx) => {
+      if (dto.idempotencyKey) {
+        const existing = await this.findInvoiceIdByIdempotencyKey(
+          tx,
+          user.schoolId,
+          dto.idempotencyKey,
+        );
+        if (existing !== null) {
+          return existing;
+        }
+      }
+      const locked = await this.lockParentAccount(
+        tx,
+        user.schoolId,
+        dto.parentId,
+      );
+      const account = await this.ensureParentAccount(
+        tx,
+        user.schoolId,
+        locked,
+      );
+      const currency = await this.requireCurrency(tx, dto.currencyId);
+      const lines = await this.resolveInvoiceLines(tx, {
+        schoolId: user.schoolId,
+        parentId: locked.parentId,
+        rows: dto.details,
+        currencyId: currency.id,
+      });
+      const posted = await this.postInvoiceDocument(tx, {
+        schoolId: user.schoolId,
+        account,
+        parentName: this.formatPersonName(locked),
+        currency,
+        lines,
+        description: dto.description ?? null,
+        date: dto.date,
+        notes: dto.notes ?? null,
+        comments: dto.comments ?? null,
+        idempotencyKey: dto.idempotencyKey ?? null,
+      });
+      return posted.invoiceId;
+    });
+    return this.getInvoice(user, created);
+  }
+
+  async createRegistrationWithInvoice(
+    user: AuthenticatedSchool,
+    dto: CreateDashboardRegistrationInvoiceDto,
+  ): Promise<DashboardRegistrationWithInvoiceDto> {
+    await this.assertDashboardCreatorExists();
+    const created = await this.prisma.$transaction(async (tx) => {
+      if (dto.idempotencyKey) {
+        const existing = await this.findRegistrationInvoiceByKey(
+          tx,
+          user.schoolId,
+          dto.idempotencyKey,
+        );
+        if (existing) {
+          return existing;
+        }
+      }
+
+      const student = await tx.student.findFirst({
+        where: {
+          id: dto.studentId,
+          person: { schoolId: user.schoolId },
+        },
+        select: { id: true, parentId: true },
+      });
+      if (!student) {
+        throw new BadRequestException('Student not found');
+      }
+      if (student.parentId === null) {
+        throw new BadRequestException(
+          'Student has no parent assigned, an invoice cannot be created',
+        );
+      }
+
+      const section = await tx.section.findFirst({
+        where: {
+          id: dto.sectionId,
+          schoolId: user.schoolId,
+          classId: dto.classId,
+          status: 1,
+        },
+        select: { id: true, yearId: true },
+      });
+      if (!section) {
+        throw new BadRequestException(
+          'Section not found for the selected class',
+        );
+      }
+      await this.assertNoActiveRegistrationForYearTx(
+        tx,
+        user.schoolId,
+        dto.studentId,
+        section.yearId,
+      );
+
+      const registrationPackage = await this.findPackageForClassTx(
+        tx,
+        user.schoolId,
+        dto.classId,
+        section.yearId,
+      );
+      const packageItemsByItemId = new Map(
+        (registrationPackage?.items ?? []).map((row) => [row.itemId, row]),
+      );
+
+      const effectiveCurrencyId = this.resolveRegistrationCurrency(
+        dto.currencyId,
+        registrationPackage?.items ?? [],
+      );
+
+      const account = await this.ensureParentAccountById(
+        tx,
+        user.schoolId,
+        student.parentId,
+      );
+      const currency = await this.requireCurrency(tx, effectiveCurrencyId);
+      const lines = await this.resolveRegistrationInvoiceLines(tx, {
+        schoolId: user.schoolId,
+        parentId: student.parentId,
+        packageItemsByItemId,
+        hasPackage: registrationPackage !== null,
+        rows: dto.items,
+        currencyId: currency.id,
+      });
+      if (lines.length === 0) {
+        throw new BadRequestException('Invoice must include at least one item');
+      }
+
+      const registration = await tx.registration.create({
+        data: {
+          schoolId: user.schoolId,
+          studentId: dto.studentId,
+          sectionId: dto.sectionId,
+          personId: DASHBOARD_CREATOR_PERSON_ID,
+          status: true,
+        },
+        select: { id: true },
+      });
+      for (const line of lines) {
+        line.forRegistrationId = registration.id;
+      }
+
+      let posted: { invoiceId: number };
+      try {
+        posted = await this.postInvoiceDocument(tx, {
+          schoolId: user.schoolId,
+          account,
+          parentName: account.parentName,
+          currency,
+          lines,
+          description: dto.description ?? registrationPackage?.name ?? null,
+          date: dto.date,
+          notes: dto.notes ?? null,
+          comments: dto.comments ?? null,
+          idempotencyKey: dto.idempotencyKey ?? null,
+        });
+      } catch (error) {
+        if (this.isUniqueViolation(error) && dto.idempotencyKey) {
+          const existing = await this.findRegistrationInvoiceByKey(
+            tx,
+            user.schoolId,
+            dto.idempotencyKey,
+          );
+          if (existing) {
+            return existing;
+          }
+        }
+        throw error;
+      }
+      return { registrationId: registration.id, invoiceId: posted.invoiceId };
+    });
+    const invoice = await this.getInvoice(user, created.invoiceId);
+    return { registrationId: created.registrationId, invoice };
+  }
+
+  private async previewStudentParent(
+    schoolId: number,
+    studentId: number,
+  ): Promise<DashboardRegistrationPackagePreviewDto['parent']> {
+    const student = await this.prisma.student.findFirst({
+      where: { id: studentId, person: { schoolId } },
+      select: {
+        parent: {
+          select: {
+            id: true,
+            person: {
+              select: {
+                firstName: true,
+                middleName: true,
+                lastName: true,
+                accountId: true,
+                account: {
+                  select: { id: true, code: true, schoolId: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!student) {
+      throw new BadRequestException('Student not found');
+    }
+    if (!student.parent) {
+      return null;
+    }
+    const person = student.parent.person;
+    const account = person.account;
+    const sameSchoolAccount =
+      account && account.schoolId === schoolId ? account : null;
+    return {
+      parentId: student.parent.id,
+      parentName: this.formatPersonName(person),
+      accountId: sameSchoolAccount?.id ?? null,
+      accountCode: sameSchoolAccount?.code ?? null,
+      hasAccountingAccount: sameSchoolAccount !== null,
+    };
+  }
+
+  private async requireCurrency(
+    tx: Prisma.TransactionClient,
+    currencyId: number,
+  ): Promise<InvoiceCurrencyRow> {
+    const currency = await tx.currency.findUnique({
+      where: { id: currencyId },
+      select: { id: true, title: true, shortCode: true, symbol: true, rate: true },
+    });
+    if (!currency) {
+      throw new BadRequestException('Invalid currency');
+    }
+    return currency;
+  }
+
+  private async ensureParentAccount(
+    tx: Prisma.TransactionClient,
+    schoolId: number,
+    locked: LockedParentAccount,
+  ): Promise<PostedInvoiceAccount> {
+    const parentName = this.formatPersonName(locked);
+    if (locked.accountId !== null) {
+      if (locked.accountSchoolId !== schoolId) {
+        throw new ConflictException(
+          'Parent account does not belong to the authenticated school',
+        );
+      }
+      return {
+        parentId: locked.parentId,
+        accountId: locked.accountId,
+        accountCode: locked.accountCode ?? '',
+        parentName,
+      };
+    }
+    const [sequence] = await tx.$queryRaw<Array<{ code: string }>>`
+      SELECT nextval('"account_code_seq"')::text AS code
+    `;
+    if (!sequence) {
+      throw new ConflictException('Could not allocate an account code');
+    }
+    try {
+      const created = await tx.account.create({
+        data: {
+          code: sequence.code,
+          name: parentName,
+          type: 'PERSON',
+          schoolId,
+        },
+        select: { id: true, code: true },
+      });
+      await tx.person.update({
+        where: { id: locked.personId },
+        data: { accountId: created.id },
+      });
+      return {
+        parentId: locked.parentId,
+        accountId: created.id,
+        accountCode: created.code,
+        parentName,
+      };
+    } catch (error) {
+      if (this.isUniqueViolation(error)) {
+        const winner = await tx.person.findUnique({
+          where: { id: locked.personId },
+          select: {
+            accountId: true,
+            account: { select: { id: true, code: true, schoolId: true } },
+          },
+        });
+        if (
+          winner?.accountId !== null &&
+          winner?.accountId !== undefined &&
+          winner.account?.schoolId === schoolId
+        ) {
+          return {
+            parentId: locked.parentId,
+            accountId: winner.accountId,
+            accountCode: winner.account?.code ?? '',
+            parentName,
+          };
+        }
+      }
+      throw error;
+    }
+  }
+
+  private async ensureParentAccountById(
+    tx: Prisma.TransactionClient,
+    schoolId: number,
+    parentId: number,
+  ): Promise<PostedInvoiceAccount> {
+    const locked = await this.lockParentAccount(tx, schoolId, parentId);
+    return this.ensureParentAccount(tx, schoolId, locked);
+  }
+
+  private lineTotalOf(
+    unitPrice: Prisma.Decimal,
+    quantity: Prisma.Decimal,
+    discount: Prisma.Decimal,
+    tax: Prisma.Decimal,
+  ): Prisma.Decimal {
+    const total = new Prisma.Decimal(unitPrice)
+      .times(quantity)
+      .minus(discount)
+      .plus(tax);
+    const rounded = new Prisma.Decimal(total.toFixed(2));
+    if (rounded.lte(0)) {
+      throw new BadRequestException('Invoice line total must be positive');
+    }
+    return rounded;
+  }
+
+  private async resolveInvoiceLines(
+    tx: Prisma.TransactionClient,
+    args: {
+      schoolId: number;
+      parentId: number;
+      rows: DashboardInvoiceDetailBody[];
+      currencyId: number;
+    },
+  ): Promise<ResolvedInvoiceLine[]> {
+    if (args.rows.length === 0 || args.rows.length > MAX_INVOICE_LINES) {
+      throw new BadRequestException(
+        `Invoice must include 1 to ${MAX_INVOICE_LINES} lines`,
+      );
+    }
+    const seenItems = new Set<number>();
+    const forRegistrationIds = [
+      ...new Set(
+        args.rows
+          .map((row) => row.forRegistrationId)
+          .filter((id): id is number => id !== undefined),
+      ),
+    ];
+    const registrationById = await this.requireParentRegistrations(
+      tx,
+      args.schoolId,
+      args.parentId,
+      forRegistrationIds,
+    );
+    void registrationById;
+    const itemIds = args.rows.map((row) => row.itemId);
+    const items = await tx.item.findMany({
+      where: { id: { in: itemIds }, schoolId: args.schoolId },
+      select: { id: true, name: true, price: true },
+    });
+    const itemById = new Map(items.map((item) => [item.id, item]));
+    return args.rows.map((row, index) => {
+      if (seenItems.has(row.itemId)) {
+        throw new BadRequestException(
+          `Invoice line ${index + 1}: duplicate item in invoice`,
+        );
+      }
+      seenItems.add(row.itemId);
+      const item = itemById.get(row.itemId);
+      if (!item) {
+        throw new BadRequestException(
+          `Invoice line ${index + 1}: item does not belong to the authenticated school`,
+        );
+      }
+      const quantity =
+        row.quantity === undefined
+          ? new Prisma.Decimal(1)
+          : new Prisma.Decimal(row.quantity);
+      if (quantity.lte(0)) {
+        throw new BadRequestException(
+          `Invoice line ${index + 1}: quantity must be greater than zero`,
+        );
+      }
+      const unitPrice =
+        row.unitPrice === undefined
+          ? new Prisma.Decimal(item.price)
+          : new Prisma.Decimal(row.unitPrice);
+      if (unitPrice.lte(0)) {
+        throw new BadRequestException(
+          `Invoice line ${index + 1}: price must be greater than zero`,
+        );
+      }
+      return {
+        itemId: item.id,
+        itemName: item.name,
+        unitPrice: new Prisma.Decimal(unitPrice.toFixed(2)),
+        quantity: new Prisma.Decimal(quantity.toFixed(3)),
+        lineTotal: this.lineTotalOf(
+          new Prisma.Decimal(unitPrice.toFixed(2)),
+          new Prisma.Decimal(quantity.toFixed(3)),
+          new Prisma.Decimal(0),
+          new Prisma.Decimal(0),
+        ),
+        description: row.description?.trim() ? row.description.trim() : null,
+        forRegistrationId: row.forRegistrationId ?? null,
+      };
+    });
+  }
+
+  private async resolveRegistrationInvoiceLines(
+    tx: Prisma.TransactionClient,
+    args: {
+      schoolId: number;
+      parentId: number;
+      packageItemsByItemId: Map<number, PackageItemRef>;
+      hasPackage: boolean;
+      rows: DashboardRegistrationInvoiceItemBody[];
+      currencyId: number;
+    },
+  ): Promise<ResolvedInvoiceLine[]> {
+    if (args.rows.length === 0 || args.rows.length > MAX_INVOICE_LINES) {
+      throw new BadRequestException(
+        `Invoice must include 1 to ${MAX_INVOICE_LINES} lines`,
+      );
+    }
+    const seenItems = new Set<number>();
+    const itemIds = args.rows.map((row) => row.itemId);
+    const items = await tx.item.findMany({
+      where: { id: { in: itemIds }, schoolId: args.schoolId },
+      select: { id: true, name: true, price: true },
+    });
+    const itemById = new Map(items.map((item) => [item.id, item]));
+    return args.rows.map((row, index) => {
+      if (seenItems.has(row.itemId)) {
+        throw new BadRequestException(
+          `Invoice line ${index + 1}: duplicate item in invoice`,
+        );
+      }
+      seenItems.add(row.itemId);
+      const item = itemById.get(row.itemId);
+      if (!item) {
+        throw new BadRequestException(
+          `Invoice line ${index + 1}: item does not belong to the authenticated school`,
+        );
+      }
+      const packageRef = args.packageItemsByItemId.get(row.itemId);
+      if (args.hasPackage && !packageRef) {
+        throw new BadRequestException(
+          `Invoice line ${index + 1}: item is not part of the class registration package`,
+        );
+      }
+      if (packageRef?.currencyId != null && packageRef.currencyId !== args.currencyId) {
+        throw new BadRequestException(
+          `Invoice line ${index + 1}: package item currency does not match the invoice currency`,
+        );
+      }
+      const quantity =
+        row.quantity === undefined
+          ? new Prisma.Decimal(1)
+          : new Prisma.Decimal(row.quantity);
+      if (quantity.lte(0)) {
+        throw new BadRequestException(
+          `Invoice line ${index + 1}: quantity must be greater than zero`,
+        );
+      }
+      const fallback =
+        packageRef !== undefined
+          ? new Prisma.Decimal(packageRef.price)
+          : new Prisma.Decimal(item.price);
+      const unitPrice =
+        row.unitPrice === undefined
+          ? fallback
+          : new Prisma.Decimal(row.unitPrice);
+      if (unitPrice.lte(0)) {
+        throw new BadRequestException(
+          `Invoice line ${index + 1}: price must be greater than zero`,
+        );
+      }
+      return {
+        itemId: item.id,
+        itemName: item.name,
+        unitPrice: new Prisma.Decimal(unitPrice.toFixed(2)),
+        quantity: new Prisma.Decimal(quantity.toFixed(3)),
+        lineTotal: this.lineTotalOf(
+          new Prisma.Decimal(unitPrice.toFixed(2)),
+          new Prisma.Decimal(quantity.toFixed(3)),
+          new Prisma.Decimal(0),
+          new Prisma.Decimal(0),
+        ),
+        description: null,
+        forRegistrationId: null,
+      };
+    });
+  }
+
+  private resolveRegistrationCurrency(
+    requested: number | undefined,
+    packageItems: PackageItemRef[],
+  ): number {
+    const distinct = [
+      ...new Set(
+        packageItems
+          .map((row) => row.currencyId)
+          .filter((id): id is number => id !== null),
+      ),
+    ];
+    if (requested !== undefined) {
+      const mismatch = distinct.some((id) => id !== requested);
+      if (mismatch) {
+        throw new BadRequestException(
+          'Package items use different currencies, one invoice cannot mix them',
+        );
+      }
+      return requested;
+    }
+    if (distinct.length === 1) {
+      return distinct[0];
+    }
+    if (distinct.length > 1) {
+      throw new BadRequestException(
+        'Package items use different currencies, select a single invoice currency first',
+      );
+    }
+    throw new BadRequestException('Select an invoice currency first');
+  }
+
+  private async requireParentRegistrations(
+    tx: Prisma.TransactionClient,
+    schoolId: number,
+    parentId: number,
+    registrationIds: number[],
+  ): Promise<Map<number, InvoiceRegistrationLabel>> {
+    const labels = new Map<number, InvoiceRegistrationLabel>();
+    if (registrationIds.length === 0) {
+      return labels;
+    }
+    const rows = await tx.registration.findMany({
+      where: { id: { in: registrationIds } },
+      select: {
+        id: true,
+        student: {
+          select: {
+            parentId: true,
+            person: {
+              select: { firstName: true, middleName: true, lastName: true },
+            },
+          },
+        },
+        section: {
+          select: {
+            schoolId: true,
+            class: { select: { className: true } },
+          },
+        },
+      },
+    });
+    const rowById = new Map(rows.map((row) => [row.id, row]));
+    for (const id of registrationIds) {
+      const row = rowById.get(id);
+      if (
+        !row ||
+        row.student.parentId !== parentId ||
+        row.section.schoolId !== schoolId
+      ) {
+        throw new BadRequestException(
+          `Registration ${id} does not belong to this parent and school`,
+        );
+      }
+      labels.set(id, {
+        id: row.id,
+        studentName: this.formatPersonName(row.student.person),
+        className: row.section.class.className,
+      });
+    }
+    return labels;
+  }
+
+  private async findPackageForClassTx(
+    tx: Prisma.TransactionClient,
+    schoolId: number,
+    classId: number,
+    yearId: number,
+  ): Promise<{ id: number; name: string; items: PackageItemRef[] } | null> {
+    const registrationPackage = await tx.accountingRegistrationPackage.findFirst({
+      where: {
+        yearId,
+        year: { schoolId },
+        classes: { some: { classId } },
+      },
+      select: {
+        id: true,
+        name: true,
+        items: {
+          select: { itemId: true, price: true, currencyId: true },
+        },
+      },
+    });
+    return registrationPackage;
+  }
+
+  private async assertNoActiveRegistrationForYearTx(
+    tx: Prisma.TransactionClient,
+    schoolId: number,
+    studentId: number,
+    yearId: number,
+  ): Promise<void> {
+    const existing = await tx.registration.findFirst({
+      where: {
+        studentId,
+        status: true,
+        section: { schoolId, yearId },
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new BadRequestException(
+        'This student already has a registration for this year. One student can only have one registration per year.',
+      );
+    }
+  }
+
+  private async assertDashboardCreatorExists(): Promise<void> {
+    const person = await this.prisma.person.findUnique({
+      where: { id: DASHBOARD_CREATOR_PERSON_ID },
+      select: { id: true },
+    });
+    if (!person) {
+      throw new BadRequestException('Creator person not found');
+    }
+  }
+
+  private async postInvoiceDocument(
+    tx: Prisma.TransactionClient,
+    args: {
+      schoolId: number;
+      account: PostedInvoiceAccount;
+      parentName: string;
+      currency: InvoiceCurrencyRow;
+      lines: ResolvedInvoiceLine[];
+      description: string | null;
+      date?: string;
+      notes: string | null;
+      comments: string | null;
+      idempotencyKey: string | null;
+    },
+  ): Promise<{ invoiceId: number; nb: number }> {
+    const total = args.lines.reduce(
+      (sum, line) => sum.plus(line.lineTotal),
+      new Prisma.Decimal(0),
+    );
+    if (total.lte(0)) {
+      throw new BadRequestException('Invoice total must be greater than zero');
+    }
+    const sales = await this.ensureSystemAccount(
+      tx,
+      args.schoolId,
+      'SALES',
+      'Sales',
+    );
+    const numbering = await this.nextDocumentNumber(
+      tx,
+      args.schoolId,
+      'Invoice',
+    );
+    const currencyRate = new Prisma.Decimal(args.currency.rate);
+
+    let registerId: number;
+    try {
+      const register = await tx.accountingRegister.create({
+        data: {
+          description: args.description,
+          dateCreated: args.date ? new Date(args.date) : undefined,
+          accountingRegisterTypeId: numbering.registerTypeId,
+          currencyId: args.currency.id,
+          notes: args.notes,
+          comments: args.comments,
+          currencyRate,
+          schoolId: args.schoolId,
+          idempotencyKey: args.idempotencyKey,
+        },
+        select: { id: true },
+      });
+      registerId = register.id;
+    } catch (error) {
+      if (this.isUniqueViolation(error) && args.idempotencyKey) {
+        const existing = await this.findInvoiceIdByIdempotencyKey(
+          tx,
+          args.schoolId,
+          args.idempotencyKey,
+        );
+        if (existing !== null) {
+          const invoice = await tx.accountingInvoice.findFirst({
+            where: { id: existing, schoolId: args.schoolId },
+            select: { id: true, nb: true },
+          });
+          if (invoice) {
+            return { invoiceId: invoice.id, nb: invoice.nb };
+          }
+        }
+      }
+      throw new ConflictException(
+        'Invoice could not be created because it already exists',
+      );
+    }
+
+    let invoiceId: number;
+    try {
+      const created = await tx.accountingInvoice.create({
+        data: {
+          dateCreated: args.date ? new Date(args.date) : undefined,
+          description: args.description,
+          accountingRegisterId: registerId,
+          nb: numbering.nb,
+          schoolId: args.schoolId,
+          tax: new Prisma.Decimal(0),
+          discount: new Prisma.Decimal(0),
+          total,
+        },
+        select: { id: true },
+      });
+      invoiceId = created.id;
+    } catch (error) {
+      if (this.isUniqueViolation(error)) {
+        throw new ConflictException(
+          'Invoice number is already used for this school',
+        );
+      }
+      throw error;
+    }
+
+    await tx.accountingInvoiceDetail.createMany({
+      data: args.lines.map((line) => ({
+        invoiceId,
+        itemId: line.itemId,
+        unitPrice: line.unitPrice,
+        quantity: line.quantity,
+        description: line.description,
+        discount: new Prisma.Decimal(0),
+        tax: new Prisma.Decimal(0),
+        forRegistrationId: line.forRegistrationId,
+      })),
+    });
+
+    await tx.accountingDaily.createMany({
+      data: [
+        {
+          accountId: args.account.accountId,
+          debit: total,
+          credit: new Prisma.Decimal(0),
+          description: args.description,
+          accountingRegisterId: registerId,
+        },
+        {
+          accountId: sales.id,
+          debit: new Prisma.Decimal(0),
+          credit: total,
+          description: args.description,
+          accountingRegisterId: registerId,
+        },
+      ],
+    });
+
+    await this.assertBalancedJournal(tx, registerId, 2, total);
+    return { invoiceId, nb: numbering.nb };
+  }
+
+  private async findInvoiceIdByIdempotencyKey(
+    tx: Prisma.TransactionClient,
+    schoolId: number,
+    idempotencyKey: string,
+  ): Promise<number | null> {
+    const register = await tx.accountingRegister.findFirst({
+      where: { schoolId, idempotencyKey },
+      select: { invoices: { select: { id: true }, take: 1 } },
+    });
+    return register?.invoices[0]?.id ?? null;
+  }
+
+  private async findRegistrationInvoiceByKey(
+    tx: Prisma.TransactionClient,
+    schoolId: number,
+    idempotencyKey: string,
+  ): Promise<{ registrationId: number; invoiceId: number } | null> {
+    const register = await tx.accountingRegister.findFirst({
+      where: { schoolId, idempotencyKey },
+      select: {
+        invoices: {
+          select: {
+            id: true,
+            details: { select: { forRegistrationId: true } },
+          },
+          take: 1,
+        },
+      },
+    });
+    const invoice = register?.invoices[0];
+    if (!invoice) {
+      return null;
+    }
+    const registrationId = invoice.details.find(
+      (detail) => detail.forRegistrationId !== null,
+    )?.forRegistrationId;
+    if (registrationId === undefined || registrationId === null) {
+      throw new ConflictException(
+        'Duplicate submission detected for a different invoice',
+      );
+    }
+    return { registrationId, invoiceId: invoice.id };
+  }
+
+  private toInvoiceDto(
+    invoice: {
+      id: number;
+      nb: number;
+      description: string | null;
+      dateCreated: Date;
+      details: Array<{
+        id: number;
+        itemId: number;
+        unitPrice: Prisma.Decimal | number | string;
+        quantity: Prisma.Decimal | number | string;
+        description: string | null;
+        discount: Prisma.Decimal | number | string;
+        tax: Prisma.Decimal | number | string;
+        item: { id: number; name: string };
+        forRegistrationId: number | null;
+        forRegistration?: {
+          id: number;
+          student: {
+            person: { firstName: string; middleName: string; lastName: string };
+          };
+          section: {
+            class: { className: string };
+            sectionTitle: { title: string };
+          };
+        } | null;
+      }>;
+    },
+    register: RegisterBlock,
+    resolveParent: (
+      accountId: number,
+    ) => { parentId: number | null; parentName: string } | null,
+  ): DashboardInvoiceDto {
+    const debitLine = register.dailyEntries.find((entry) =>
+      new Prisma.Decimal(entry.debit).gt(0),
+    );
+    if (!debitLine) {
+      throw new InternalServerErrorException('Invoice journal is missing');
+    }
+    const parent = resolveParent(debitLine.accountId);
+    if (!parent || parent.parentId === null) {
+      throw new InternalServerErrorException('Invoice parent is missing');
+    }
+    const total = new Prisma.Decimal(debitLine.debit);
+    return {
+      id: invoice.id,
+      nb: invoice.nb,
+      parentId: parent.parentId,
+      parentName: parent.parentName,
+      accountId: debitLine.account.id,
+      accountCode: debitLine.account.code,
+      total: total.toFixed(2),
+      details: invoice.details.map((detail) => {
+        const forRegistration = detail.forRegistration;
+        const label = forRegistration
+          ? `${this.formatPersonName(forRegistration.student.person)} — ${forRegistration.section.class.className}`
+          : null;
+        const lineTotal = new Prisma.Decimal(detail.unitPrice)
+          .times(detail.quantity)
+          .minus(detail.discount)
+          .plus(detail.tax);
+        return {
+          id: detail.id,
+          itemId: detail.itemId,
+          itemName: detail.item.name,
+          unitPrice: new Prisma.Decimal(detail.unitPrice).toFixed(2),
+          quantity: new Prisma.Decimal(detail.quantity).toFixed(3),
+          lineTotal: lineTotal.toFixed(2),
+          description: detail.description,
+          forRegistrationId: detail.forRegistrationId,
+          forRegistrationLabel: label,
+        };
+      }),
+      currency: this.toReceiptCurrencyDto(register.currency),
+      currencyId: register.currencyId,
+      currencyRate:
+        register.currencyRate === null || register.currencyRate === undefined
+          ? null
+          : new Prisma.Decimal(register.currencyRate).toString(),
+      description: invoice.description,
+      dateCreated: invoice.dateCreated.toISOString(),
+    };
   }
 
   private async resolvePaymentAllocations(

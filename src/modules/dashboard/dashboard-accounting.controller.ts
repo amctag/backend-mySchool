@@ -34,17 +34,27 @@ import {
 } from './dto/dashboard-accounting-config.dto';
 import {
   CreateDashboardAccountDto,
+  CreateDashboardInvoiceDto,
   CreateDashboardPaymentDto,
   CreateDashboardReceiptDto,
+  CreateDashboardRegistrationInvoiceDto,
   DashboardAccountDto,
   DashboardAccountingDocumentQueryDto,
   DashboardAccountsQueryDto,
   DashboardAccountsResponseDto,
   DashboardCurrencyDto,
+  DashboardInvoiceDto,
+  DashboardInvoicesQueryDto,
+  DashboardInvoicesResponseDto,
+  DashboardPackagePreviewQueryDto,
+  DashboardParentRegistrationDto,
+  DashboardParentRegistrationsQueryDto,
   DashboardPaymentDto,
   DashboardPaymentsResponseDto,
   DashboardReceiptDto,
   DashboardReceiptsResponseDto,
+  DashboardRegistrationPackagePreviewDto,
+  DashboardRegistrationWithInvoiceDto,
   UpdateDashboardAccountDto,
 } from './dto/dashboard-accounting.dto';
 
@@ -209,6 +219,71 @@ export class DashboardAccountingController {
     return this.dashboardAccountingService.updatePayment(request.user, id, dto);
   }
 
+  @Get('invoices')
+  @ApiOperation({ summary: 'List Invoice documents for this school' })
+  @ApiOkResponse({ type: DashboardInvoicesResponseDto })
+  listInvoices(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardInvoicesQueryDto,
+  ): Promise<DashboardInvoicesResponseDto> {
+    return this.dashboardAccountingService.listInvoices(request.user, query);
+  }
+
+  @Post('invoices')
+  @ApiOperation({
+    summary:
+      'Create a manual Invoice for a parent (one register, one invoice, balanced journal)',
+  })
+  @ApiCreatedResponse({ type: DashboardInvoiceDto })
+  createInvoice(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Body() dto: CreateDashboardInvoiceDto,
+  ): Promise<DashboardInvoiceDto> {
+    return this.dashboardAccountingService.createInvoice(request.user, dto);
+  }
+
+  @Get('invoices/parent-registrations')
+  @ApiOperation({
+    summary:
+      'List active registrations of a parent for optional invoice line assignment',
+  })
+  @ApiOkResponse({ type: [DashboardParentRegistrationDto] })
+  listParentRegistrations(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardParentRegistrationsQueryDto,
+  ): Promise<DashboardParentRegistrationDto[]> {
+    return this.dashboardAccountingService.listParentRegistrations(
+      request.user,
+      query.parentId,
+    );
+  }
+
+  @Get('invoices/:id')
+  @ApiOperation({ summary: 'Get an Invoice document for this school' })
+  @ApiOkResponse({ type: DashboardInvoiceDto })
+  getInvoice(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<DashboardInvoiceDto> {
+    return this.dashboardAccountingService.getInvoice(request.user, id);
+  }
+
+  @Post('registrations/with-invoice')
+  @ApiOperation({
+    summary:
+      'Atomically create a Registration and its package Invoice (one register, one invoice, balanced journal)',
+  })
+  @ApiCreatedResponse({ type: DashboardRegistrationWithInvoiceDto })
+  createRegistrationWithInvoice(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Body() dto: CreateDashboardRegistrationInvoiceDto,
+  ): Promise<DashboardRegistrationWithInvoiceDto> {
+    return this.dashboardAccountingService.createRegistrationWithInvoice(
+      request.user,
+      dto,
+    );
+  }
+
   @Get('item-types')
   listItemTypes() {
     return this.accountingConfigService.listItemTypes();
@@ -271,6 +346,19 @@ export class DashboardAccountingController {
     return this.accountingConfigService.listAvailableClasses(
       request.user,
       query.yearId,
+    );
+  }
+
+  @Get('registration-packages/by-class/preview')
+  getPackagePreview(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardPackagePreviewQueryDto,
+  ): Promise<DashboardRegistrationPackagePreviewDto> {
+    return this.dashboardAccountingService.getRegistrationPackagePreview(
+      request.user,
+      query.classId,
+      query.yearId,
+      query.studentId,
     );
   }
 
