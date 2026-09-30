@@ -311,17 +311,21 @@ export class DashboardAccountingService {
       throw new BadRequestException('Account name must not be empty');
     }
     return this.prisma.$transaction(async (tx) => {
-      // Root account (parentId NULL): GENERAL only, explicit structural
-      // code or legacy sequence allocation.
+      // Root account (parentId NULL): GENERAL only with an explicit code of
+      // exactly one numeric digit. Never auto-generated.
       if (dto.parentId === undefined || dto.parentId === null) {
         if (dto.type === 'PERSON') {
           throw new BadRequestException(
             'Person accounts must be created under the 4111 customer branch',
           );
         }
-        const code =
-          dto.code?.trim() || (await this.accountCodes.allocateLegacyCode(tx));
-        this.assertStructuralCode(code);
+        if (dto.code === undefined || dto.code === null) {
+          throw new BadRequestException(
+            'A root account code is required: exactly one numeric digit (0-9).',
+          );
+        }
+        AccountCodeService.validateRootCode(dto.code);
+        const code = dto.code.trim();
         try {
           const created = await tx.account.create({
             data: {
@@ -372,6 +376,18 @@ export class DashboardAccountingService {
           'Person accounts must be created under the 4111 customer branch',
         );
       }
+      // Strict hierarchy: the parent must be a valid 1-4 digit group code.
+      // 8-digit final accounts (and malformed codes) cannot have children.
+      if (AccountCodeService.childCodeLengthFor(parent.code) === null) {
+        if (/^\d+$/.test(parent.code) && parent.code.length >= 8) {
+          throw new BadRequestException(
+            `Account "${parent.code}" is a final posting account and cannot have children.`,
+          );
+        }
+        throw new BadRequestException(
+          `Account "${parent.code}" cannot have children: parent codes must be 1-4 numeric digits.`,
+        );
+      }
 
       let code: string;
       let isGroup = dto.isGroup ?? false;
@@ -392,20 +408,17 @@ export class DashboardAccountingService {
           user.schoolId,
         );
         isGroup = false;
-      } else {
-        // Structural group levels use explicitly entered admin codes.
-        if (!dto.code?.trim()) {
-          throw new BadRequestException(
-            'An explicit account code is required for this branch level',
-          );
-        }
+      } else if (dto.code !== undefined && dto.code !== null && dto.code.trim() !== '') {
+        // Explicit structural code: must satisfy the exact hierarchy rule.
+        AccountCodeService.validateHierarchyCode(parent.code, dto.code);
         code = dto.code.trim();
-        this.assertStructuralCode(code);
-        if (!code.startsWith(parent.code) || code.length <= parent.code.length) {
-          throw new BadRequestException(
-            `Account code must extend the parent code ${parent.code}`,
-          );
-        }
+      } else {
+        // No code given: allocate the next valid child code monotonically.
+        code = await this.accountCodes.allocateNextChildCode(
+          tx,
+          user.schoolId,
+          parent.code,
+        );
       }
 
       try {
@@ -429,6 +442,14 @@ export class DashboardAccountingService {
         });
         if (parent.code === AccountCodeService.CUSTOMER_BRANCH_CODE) {
           await this.accountCodes.syncCustomerCounter(tx, user.schoolId);
+        } else {
+          // Advance the branch counter past explicitly entered codes so
+          // later previews/allocations continue forward monotonically.
+          await this.accountCodes.syncBranchCounter(
+            tx,
+            user.schoolId,
+            parent.code,
+          );
         }
         return this.toAccountDto(created, null, false);
       } catch (error) {
@@ -521,24 +542,29 @@ export class DashboardAccountingService {
     if (!parent) {
       throw new NotFoundException('Account not found');
     }
-    if (parent.code === AccountCodeService.CUSTOMER_BRANCH_CODE) {
-      const expectedCode = await this.prisma.$transaction((tx) =>
-        this.accountCodes.previewCustomerLeafCode(tx, user.schoolId),
-      );
+    // Propose the next valid child code for any hierarchy parent.
+    // Final (8-digit) or malformed parents cannot have children.
+    const requiredLength = AccountCodeService.childCodeLengthFor(parent.code);
+    if (requiredLength === null) {
       return {
         parentId: parent.id,
         parentCode: parent.code,
         parentName: parent.name,
-        expectedCode,
-        autoAllocatable: true,
+        expectedCode: null,
+        autoAllocatable: false,
+        requiredLength: null,
       };
     }
+    const preview = await this.prisma.$transaction((tx) =>
+      this.accountCodes.previewNextChildCode(tx, user.schoolId, parent.code),
+    );
     return {
       parentId: parent.id,
       parentCode: parent.code,
       parentName: parent.name,
-      expectedCode: null,
-      autoAllocatable: false,
+      expectedCode: preview.code,
+      autoAllocatable: true,
+      requiredLength,
     };
   }
 
@@ -3674,15 +3700,6 @@ export class DashboardAccountingService {
       }
     }
     return flags;
-  }
-
-  private assertStructuralCode(code: string): void {
-    const trimmed = code.trim();
-    if (!trimmed || trimmed.length > 255 || !/^[0-9A-Za-z_-]+$/.test(trimmed)) {
-      throw new BadRequestException(
-        'Account code must be 1 to 255 characters (letters, digits, _ or -)',
-      );
-    }
   }
 
   private toDocumentAmount(value: number): Prisma.Decimal {

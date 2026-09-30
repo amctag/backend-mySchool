@@ -243,6 +243,14 @@ export class DashboardAccountNextCodeDto {
       'Whether the backend allocates the child code automatically (4111 PERSON leaves).',
   })
   autoAllocatable!: boolean;
+
+  @ApiProperty({
+    example: 2,
+    nullable: true,
+    description:
+      'Exact required digit length for a direct child code (parent length 1->2, 2->3, 3->4, 4->8). NULL when the parent cannot have children.',
+  })
+  requiredLength!: number | null;
 }
 
 export class DashboardAccountingDocumentQueryDto {
@@ -625,9 +633,9 @@ export class CreateDashboardInvoiceDto extends DashboardAccountingDocumentBody {
   parentId!: number;
 
   @ApiProperty({
-    example: 1,
+    example: '41',
     description:
-      'Single invoice currency. All lines must resolve to this currency; mixed currencies are rejected.',
+      'Explicit structural code for group-hierarchy levels (e.g. 50, 500). Must start with the parent code and have exactly the required length (1->2->3->4->8 digits). Omit to let the backend allocate the next valid code. Ignored for PERSON leaves under 4111, which are always allocated by the backend.',
   })
   @Type(() => Number)
   @IsInt()

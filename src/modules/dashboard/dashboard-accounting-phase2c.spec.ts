@@ -169,19 +169,20 @@ describe('DashboardAccountingService currencies', () => {
 });
 
 describe('DashboardAccountingService manual accounts', () => {
-  it('creates a GENERAL account without a Person using the global sequence', async () => {
+  it('creates a GENERAL root account with an explicit 1-digit code', async () => {
+    const createdRoot = { ...bankAccount, code: '9', parentId: null };
     const { service, tx } = mocks({
-      queryRawResults: [[{ code: '100005' }]],
-      accountCreate: bankAccount,
+      accountCreate: createdRoot,
     });
 
     const account = await service.createAccount({ schoolId: 3 } as never, {
       name: 'Bank Audi',
       type: 'GENERAL',
+      code: '9',
     });
 
     expect(account).toMatchObject({
-      code: '100005',
+      code: '9',
       name: 'Bank Audi',
       type: 'GENERAL',
       protected: false,
@@ -189,7 +190,7 @@ describe('DashboardAccountingService manual accounts', () => {
     });
     expect(tx.account.create).toHaveBeenCalledWith({
       data: {
-        code: '100005',
+        code: '9',
         name: 'Bank Audi',
         type: 'GENERAL',
         schoolId: 3,
@@ -205,6 +206,34 @@ describe('DashboardAccountingService manual accounts', () => {
         isGroup: true,
       },
     });
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it.each([['10'], ['41'], ['4A'], [' 4'], ['4.0'], ['-1'], ['']])(
+    'rejects invalid root code %s without touching the database',
+    async (code) => {
+      const { service, tx } = mocks({ accountCreate: bankAccount });
+      await expect(
+        service.createAccount({ schoolId: 3 } as never, {
+          name: 'Bad Root',
+          type: 'GENERAL',
+          code,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(tx.account.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects root creation without an explicit code', async () => {
+    const { service, tx } = mocks({ accountCreate: bankAccount });
+    await expect(
+      service.createAccount({ schoolId: 3 } as never, {
+        name: 'No Code Root',
+        type: 'GENERAL',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.account.create).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
   });
 
   it.each([['PERSON'], ['CASH'], ['SALES'], ['PURCHASES']])(

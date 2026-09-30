@@ -281,6 +281,8 @@ describe('Chart of Accounts hierarchy', () => {
     const tx = transactionMock({
       accountFindFirst: { id: 50, code: '4', name: 'Root', isGroup: true },
       accountCreate: created,
+      // branch counter sync after explicit create: max-code select + upsert
+      queryRawResults: [[], []],
     });
     const { service } = serviceWithTransaction(tx);
 
@@ -414,7 +416,7 @@ describe('Chart of Accounts hierarchy', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('previews 41110004 after 41110001..41110003 and null for structural branches', async () => {
+  it('previews 41110004 after 41110001..41110003', async () => {
     const tx = transactionMock({
       accountFindFirst: { id: 53, code: '4111', name: 'Ordinary' },
       queryRawResults: [[{ seq: 3 }], [{ code: '41110003' }]],
@@ -433,25 +435,68 @@ describe('Chart of Accounts hierarchy', () => {
       parentCode: '4111',
       expectedCode: '41110004',
       autoAllocatable: true,
+      requiredLength: 8,
+    });
+  });
+
+  it('proposes next structural codes with required lengths', async () => {
+    async function previewFor(
+      parent: { id: number; code: string; name: string },
+      queryRawResults: unknown[],
+    ) {
+      const tx = transactionMock({
+        accountFindFirst: parent,
+        queryRawResults,
+      });
+      const prisma = {
+        $transaction: jest.fn(
+          async (callback: (tx: unknown) => Promise<unknown>) => callback(tx),
+        ),
+        account: tx.account,
+      };
+      return new DashboardAccountingService(prisma as never).getNextChildCode(
+        school3,
+        parent.id,
+      );
+    }
+
+    // Parent 41 with no children -> 410, required length 3.
+    await expect(
+      previewFor({ id: 51, code: '41', name: 'Customers' }, [[{ seq: -1 }], []]),
+    ).resolves.toMatchObject({
+      expectedCode: '410',
+      autoAllocatable: true,
+      requiredLength: 3,
     });
 
-    const structural = transactionMock({
-      accountFindFirst: { id: 51, code: '41', name: 'Customers' },
-    });
-    const structuralPrisma = {
-      $transaction: jest.fn(
-        async (callback: (tx: unknown) => Promise<unknown>) =>
-          callback(structural),
+    // Parent 5 with children 50,51 -> 52.
+    await expect(
+      previewFor(
+        { id: 60, code: '5', name: 'Finance' },
+        [[{ seq: 0 }], [{ code: '51' }, { code: '50' }]],
       ),
-      account: structural.account,
-    };
-    const structuralService = new DashboardAccountingService(
-      structuralPrisma as never,
-    );
-    const manual = await structuralService.getNextChildCode(school3, 51);
-    expect(manual).toMatchObject({
+    ).resolves.toMatchObject({
+      expectedCode: '52',
+      autoAllocatable: true,
+      requiredLength: 2,
+    });
+
+    // Parent 5000 with no children -> 50000000.
+    await expect(
+      previewFor({ id: 61, code: '5000', name: 'Cash' }, [[{ seq: -1 }], []]),
+    ).resolves.toMatchObject({
+      expectedCode: '50000000',
+      autoAllocatable: true,
+      requiredLength: 8,
+    });
+
+    // Final 8-digit accounts cannot have children.
+    await expect(
+      previewFor({ id: 62, code: '50000000', name: 'Leaf' }, []),
+    ).resolves.toMatchObject({
       expectedCode: null,
       autoAllocatable: false,
+      requiredLength: null,
     });
   });
 
@@ -688,5 +733,413 @@ describe('AccountCodeService (shared allocator)', () => {
     await expect(
       service.allocateCustomerLeafCode(codeTx([[{ seq: 10000 }], []]), 3),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+describe('Strict code hierarchy (1->2->3->4->8 digits)', () => {
+  it.each([
+    ['5', '50'],
+    ['5', '51'],
+    ['5', '59'],
+    ['50', '500'],
+    ['50', '509'],
+    ['500', '5000'],
+    ['500', '5009'],
+    ['5000', '50000000'],
+    ['5000', '50000001'],
+    ['5000', '50009999'],
+    ['4', '41'],
+    ['41', '411'],
+    ['411', '4111'],
+    ['4111', '41110001'],
+  ])('accepts %s -> %s', (parent, child) => {
+    expect(() =>
+      AccountCodeService.validateHierarchyCode(parent, child),
+    ).not.toThrow();
+  });
+
+  it.each([
+    ['5', '60', 'prefix'],
+    ['5', '500', 'length'],
+    ['5', '5000', 'length'],
+    ['5', '5', 'length'],
+    ['50', '510', 'prefix'],
+    ['50', '51', 'length'],
+    ['50', '5000', 'length'],
+    ['500', '50000', 'length'],
+    ['500', '500', 'length'],
+    ['5000', '50001', 'length'],
+    ['5000', '500000000', 'length'],
+    ['5000', '5000000A', 'digits'],
+    ['50000000', '500000000', 'final'],
+    ['41110001', '411100010', 'final'],
+    ['5', ' 50', 'spaces'],
+    ['5', '50 ', 'spaces'],
+    ['5', '5.0', 'digits'],
+    ['5', '-51', 'digits'],
+    ['5', '', 'digits'],
+    ['5', '5A', 'digits'],
+  ])('rejects %s -> %s', (parent, child) => {
+    expect(() => AccountCodeService.validateHierarchyCode(parent, child)).toThrow(
+      BadRequestException,
+    );
+  });
+
+  it.each([['1'], ['4'], ['9'], ['0']])(
+    'accepts root code %s',
+    (code) => {
+      expect(() => AccountCodeService.validateRootCode(code)).not.toThrow();
+    },
+  );
+
+  it.each([['10'], ['41'], [''], ['A'], [' 4'], ['4 '], ['4.0'], ['-1']])(
+    'rejects root code %s',
+    (code) => {
+      expect(() => AccountCodeService.validateRootCode(code)).toThrow(
+        BadRequestException,
+      );
+    },
+  );
+
+  it('reports exact required child lengths per level', () => {
+    expect(AccountCodeService.childCodeLengthFor('5')).toBe(2);
+    expect(AccountCodeService.childCodeLengthFor('50')).toBe(3);
+    expect(AccountCodeService.childCodeLengthFor('500')).toBe(4);
+    expect(AccountCodeService.childCodeLengthFor('5000')).toBe(8);
+    expect(AccountCodeService.childCodeLengthFor('50000000')).toBeNull();
+    expect(AccountCodeService.childCodeLengthFor('4A')).toBeNull();
+    expect(AccountCodeService.childCodeLengthFor('')).toBeNull();
+  });
+});
+
+describe('Strict structural child creation', () => {
+  const parent5 = { id: 60, code: '5', name: 'Finance', isGroup: true };
+
+  function childService(
+    parent: { id: number; code: string; name: string; isGroup: boolean },
+    queryRawResults: unknown[] = [],
+    accountCreate?: unknown,
+  ) {
+    const tx = transactionMock({
+      accountFindFirst: parent,
+      queryRawResults,
+      accountCreate,
+    });
+    return serviceWithTransaction(tx);
+  }
+
+  it('creates 5 -> 50 with an explicit valid code and syncs the branch', async () => {
+    const created = {
+      id: 61,
+      code: '50',
+      name: 'Cash',
+      type: 'GENERAL',
+      parentId: 60,
+      isGroup: true,
+    };
+    const { service, prisma } = childService(parent5, [[], []], created);
+    void prisma;
+
+    const result = await service.createAccount(school3, {
+      name: 'Cash',
+      type: 'GENERAL',
+      parentId: 60,
+      code: '50',
+      isGroup: true,
+    } as never);
+
+    expect(result).toMatchObject({ code: '50', parentId: 60 });
+  });
+
+  it('auto-allocates 5 -> 50 when no code is given', async () => {
+    const created = {
+      id: 61,
+      code: '50',
+      name: 'Cash',
+      type: 'GENERAL',
+      parentId: 60,
+      isGroup: true,
+    };
+    // allocate: ensure+lock (-1 fresh), max existing (none), bump;
+    // sync: max-code select + upsert
+    const { service } = childService(
+      parent5,
+      [[{ seq: -1 }], [], [], [], []],
+      created,
+    );
+
+    const result = await service.createAccount(school3, {
+      name: 'Cash',
+      type: 'GENERAL',
+      parentId: 60,
+    } as never);
+
+    expect(result).toMatchObject({ code: '50', parentId: 60 });
+  });
+
+  it.each([
+    ['60 under 5', '5', '60'],
+    ['500 under 5', '5', '500'],
+    ['5000 under 5', '5', '5000'],
+    ['510 under 50', '50', '510'],
+    ['5000 under 50', '50', '5000'],
+    ['50000 under 500', '500', '50000'],
+    ['50001 under 5000', '5000', '50001'],
+    ['500000000 under 5000', '5000', '500000000'],
+    ['non-numeric under 5', '5', '5A'],
+    ['whitespace under 5', '5', ' 50'],
+    ['decimal under 5', '5', '5.0'],
+  ])('rejects invalid %s without writing', async (_label, parentCode, code) => {
+    const { service, prisma } = childService({
+      id: 70,
+      code: parentCode,
+      name: 'Parent',
+      isGroup: true,
+    });
+
+    await expect(
+      service.createAccount(school3, {
+        name: 'Bad',
+        type: 'GENERAL',
+        parentId: 70,
+        code,
+      } as never),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.account.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects children under final 8-digit accounts', async () => {
+    const { service, prisma } = childService({
+      id: 80,
+      code: '50000000',
+      name: 'Leaf',
+      isGroup: true,
+    });
+
+    await expect(
+      service.createAccount(school3, {
+        name: 'Too deep',
+        type: 'GENERAL',
+        parentId: 80,
+        code: '500000000',
+      } as never),
+    ).rejects.toThrow('final posting account');
+    expect(prisma.account.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects duplicate codes in the same school', async () => {
+    const tx = transactionMock({
+      accountFindFirst: parent5,
+      queryRawResults: [[], []],
+    });
+    tx.account.create.mockRejectedValueOnce(uniqueViolation());
+    const { service } = serviceWithTransaction(tx);
+
+    await expect(
+      service.createAccount(school3, {
+        name: 'Dup',
+        type: 'GENERAL',
+        parentId: 60,
+        code: '50',
+      } as never),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('allows the same code in a different school', async () => {
+    const created = {
+      id: 71,
+      code: '50',
+      name: 'Cash',
+      type: 'GENERAL',
+      parentId: 60,
+      isGroup: true,
+    };
+    const tx = transactionMock({
+      accountFindFirst: parent5,
+      queryRawResults: [[], []],
+      accountCreate: created,
+    });
+    const { service } = serviceWithTransaction(tx);
+
+    // Same code 50 already exists for school 3; school 4 has its own scope.
+    const result = await service.createAccount({ schoolId: 4 } as never, {
+      name: 'Cash',
+      type: 'GENERAL',
+      parentId: 60,
+      code: '50',
+    } as never);
+
+    expect(result).toMatchObject({ code: '50' });
+    expect(tx.account.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ schoolId: 4, code: '50' }),
+      }),
+    );
+  });
+
+  it('rejects root codes that are not exactly one digit', async () => {
+    const { service, prisma } = childService(parent5);
+
+    for (const code of ['10', '41', 'AB', '']) {
+      await expect(
+        service.createAccount(school3, {
+          name: 'Bad root',
+          type: 'GENERAL',
+          code,
+        } as never),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    }
+    expect(prisma.account.create).not.toHaveBeenCalled();
+  });
+
+  it('auto-allocates structural children sequentially without reuse', async () => {
+    // Shared mutable counter emulating Postgres row-lock serialization for
+    // branch (school 3, parent 5); existing children 50,51.
+    let lastSeq = -1;
+    const existing = [{ code: '51' }, { code: '50' }];
+    const $queryRaw = jest.fn(
+      (sql: TemplateStringsArray, ...values: unknown[]) => {
+        const text = sql.join('?');
+        if (text.includes('RETURNING')) {
+          return Promise.resolve([{ seq: lastSeq }]);
+        }
+        if (text.includes('UPDATE "account_code_counters"')) {
+          lastSeq = Math.max(lastSeq, values[0] as number);
+          return Promise.resolve([]);
+        }
+        return Promise.resolve(existing);
+      },
+    );
+    const codes: string[] = [];
+    const tx = {
+      $queryRaw,
+      account: {
+        findFirst: jest.fn(() => Promise.resolve(parent5)),
+        create: jest.fn((args: { data: { code: string } }) => {
+          codes.push(args.data.code);
+          return Promise.resolve({ id: codes.length, ...args.data });
+        }),
+      },
+    };
+    const prisma = {
+      $transaction: jest.fn(
+        async (callback: (t: typeof tx) => Promise<unknown>) =>
+          callback(tx),
+      ),
+      account: tx.account,
+      person: { findMany: jest.fn(() => Promise.resolve([])) },
+    };
+    const service = new DashboardAccountingService(prisma as never);
+
+    for (const expected of ['52', '53']) {
+      const created = await service.createAccount(school3, {
+        name: `Child ${expected}`,
+        type: 'GENERAL',
+        parentId: 60,
+      } as never);
+      expect(created.code).toBe(expected);
+    }
+    expect(codes).toEqual(['52', '53']);
+  });
+});
+
+describe('Structural next-code previews', () => {
+  async function previewFor(
+    parent: { id: number; code: string; name: string },
+    queryRawResults: unknown[],
+  ) {
+    const tx = transactionMock({
+      accountFindFirst: parent,
+      queryRawResults,
+    });
+    const prisma = {
+      $transaction: jest.fn(
+        async (callback: (tx: unknown) => Promise<unknown>) => callback(tx),
+      ),
+      account: tx.account,
+    };
+    return new DashboardAccountingService(prisma as never).getNextChildCode(
+      school3,
+      parent.id,
+    );
+  }
+
+  it('proposes 50 for parent 5 with no children', async () => {
+    await expect(
+      previewFor({ id: 60, code: '5', name: 'Finance' }, [[{ seq: -1 }], []]),
+    ).resolves.toMatchObject({
+      expectedCode: '50',
+      autoAllocatable: true,
+      requiredLength: 2,
+    });
+  });
+
+  it('proposes 52 for parent 5 with children 50,51', async () => {
+    await expect(
+      previewFor(
+        { id: 60, code: '5', name: 'Finance' },
+        [[{ seq: -1 }], [{ code: '51' }, { code: '50' }]],
+      ),
+    ).resolves.toMatchObject({
+      expectedCode: '52',
+      autoAllocatable: true,
+      requiredLength: 2,
+    });
+  });
+
+  it('proposes 500 for parent 50 with no children', async () => {
+    await expect(
+      previewFor({ id: 61, code: '50', name: 'Cash' }, [[{ seq: -1 }], []]),
+    ).resolves.toMatchObject({
+      expectedCode: '500',
+      autoAllocatable: true,
+      requiredLength: 3,
+    });
+  });
+
+  it('proposes 502 for parent 50 with children 500,501', async () => {
+    await expect(
+      previewFor(
+        { id: 61, code: '50', name: 'Cash' },
+        [[{ seq: 1 }], [{ code: '501' }, { code: '500' }]],
+      ),
+    ).resolves.toMatchObject({
+      expectedCode: '502',
+      autoAllocatable: true,
+      requiredLength: 3,
+    });
+  });
+
+  it('proposes 5000 for parent 500 with no children', async () => {
+    await expect(
+      previewFor({ id: 62, code: '500', name: 'Bank' }, [[{ seq: -1 }], []]),
+    ).resolves.toMatchObject({
+      expectedCode: '5000',
+      autoAllocatable: true,
+      requiredLength: 4,
+    });
+  });
+
+  it('proposes 50000000 for parent 5000 with no children', async () => {
+    await expect(
+      previewFor({ id: 63, code: '5000', name: 'Vault' }, [[{ seq: -1 }], []]),
+    ).resolves.toMatchObject({
+      expectedCode: '50000000',
+      autoAllocatable: true,
+      requiredLength: 8,
+    });
+  });
+
+  it('proposes 50000001 for parent 5000 with child 50000000', async () => {
+    await expect(
+      previewFor(
+        { id: 63, code: '5000', name: 'Vault' },
+        [[{ seq: 0 }], [{ code: '50000000' }]],
+      ),
+    ).resolves.toMatchObject({
+      expectedCode: '50000001',
+      autoAllocatable: true,
+      requiredLength: 8,
+    });
   });
 });
