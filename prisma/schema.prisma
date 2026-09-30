@@ -42,6 +42,7 @@ model School {
   teacherTasks        TeacherTask[]
   accountingRegisters AccountingRegister[]
   accounts            Account[]
+  accountCodeCounters AccountCodeCounter[]
   documentCounters    AccountingDocumentCounter[]
   receipts            AccountingReceipt[]
   payments            AccountingPayment[]
@@ -1180,12 +1181,22 @@ model AccountingRegisterType {
 
 model Account {
   id       Int         @id @default(autoincrement())
-  code     String      @unique @db.VarChar(255)
+  /// Human chart code. Unique ONLY within one school (@@unique([schoolId, code])).
+  /// Never globally unique: every school owns its own 4 / 41 / 411 / 4111 rows.
+  code     String      @db.VarChar(255)
   name     String      @db.VarChar(255)
   type     AccountType
   schoolId Int         @map("school_id")
+  /// Hierarchical chart-of-accounts parent. NULL = root account.
+  /// Always references accounts.id — never derive hierarchy from code.
+  parentId Int?        @map("parent_id")
+  /// GROUP accounts organize the chart and must not receive journal postings.
+  /// POSTING (leaf) accounts are selectable in Receipt/Payment/Invoice/Record.
+  isGroup  Boolean     @default(false) @map("is_group")
 
   school         School                    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  parent         Account?                  @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children       Account[]                 @relation("AccountHierarchy")
   persons        Person[]
   dailyEntries   AccountingDaily[]
   installments   Installment[]
@@ -1193,7 +1204,25 @@ model Account {
   paymentDetails AccountingPaymentDetail[]
 
   @@index([schoolId])
+  @@index([schoolId, parentId])
+  @@index([parentId])
+  @@unique([schoolId, code])
   @@map("accounts")
+}
+
+/// Per-(school, code-prefix) sequence for deterministic hierarchical leaf
+/// allocation (e.g. 4111 -> 41110001, 41110002, ...). Incremented atomically
+/// inside the creation transaction so concurrent requests never collide.
+/// This replaces unsafe SELECT MAX(code)+1 patterns.
+model AccountCodeCounter {
+  schoolId Int    @map("school_id")
+  prefix   String @db.VarChar(32)
+  lastSeq  Int    @default(0) @map("last_seq")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@id([schoolId, prefix])
+  @@map("account_code_counters")
 }
 
 enum AccountType {

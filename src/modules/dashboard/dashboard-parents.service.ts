@@ -25,6 +25,7 @@ import {
 } from './person-contact-uniqueness';
 import { personNameContainsFilter } from './person-name-search';
 import { purgeStudentAndPerson } from './purge-student';
+import { AccountCodeService } from './account-code.service';
 
 const DEFAULT_PARENT_PASSWORD = 'password123';
 
@@ -74,7 +75,10 @@ type ParentDetailRecord = {
 
 @Injectable()
 export class DashboardParentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly accountCodes: AccountCodeService = new AccountCodeService(),
+  ) {}
 
   async listParents(
     user: AuthenticatedSchool,
@@ -204,19 +208,23 @@ export class DashboardParentsService {
         return this.toAccountResponse(existing);
       }
 
-      const [sequence] = await tx.$queryRaw<Array<{ code: string }>>`
-        SELECT nextval('"account_code_seq"')::text AS code
-      `;
-      if (!sequence) {
-        throw new ConflictException('Could not allocate an account code');
-      }
+      // Shared PERSON rule (same as invoice-time auto-creation): resolve the
+      // school's 4111 branch by school + code and allocate the next 8-digit
+      // leaf. Fails cleanly when the branch is missing — PERSON accounts must
+      // NEVER silently fall back to the legacy sequence.
+      const allocation = await this.accountCodes.allocateCustomerPersonAccount(
+        tx,
+        user.schoolId,
+      );
 
       const account = await tx.account.create({
         data: {
-          code: sequence.code,
+          code: allocation.code,
           name: formatPersonAccountName(parent),
           type: 'PERSON',
           schoolId: user.schoolId,
+          parentId: allocation.parentId,
+          isGroup: false,
         },
         select: { id: true, code: true, schoolId: true },
       });
@@ -224,6 +232,7 @@ export class DashboardParentsService {
         where: { id: parent.personId },
         data: { accountId: account.id },
       });
+      await this.accountCodes.syncCustomerCounter(tx, user.schoolId);
 
       return this.toAccountResponse(account);
     });

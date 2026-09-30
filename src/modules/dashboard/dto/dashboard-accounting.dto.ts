@@ -49,6 +49,27 @@ export class DashboardAccountDto {
   @ApiProperty({ example: false })
   protected!: boolean;
 
+  @ApiProperty({
+    example: null,
+    nullable: true,
+    description:
+      'Hierarchy parent account id (accounts.id). NULL = root account.',
+  })
+  parentId!: number | null;
+
+  @ApiProperty({
+    example: false,
+    description:
+      'GROUP accounts organize the chart and cannot receive journal postings.',
+  })
+  isGroup!: boolean;
+
+  @ApiProperty({
+    example: false,
+    description: 'Whether this account has direct children in the chart.',
+  })
+  hasChildren!: boolean;
+
   @ApiProperty({ type: () => DashboardAccountRelatedPersonDto, nullable: true })
   relatedPerson!: DashboardAccountRelatedPersonDto | null;
 }
@@ -138,20 +159,90 @@ export class CreateDashboardAccountDto {
 
   @ApiProperty({
     example: 'GENERAL',
-    description: 'Only GENERAL accounts can be created manually.',
-    enum: ['GENERAL'],
+    description:
+      'GENERAL accounts can be created anywhere in the chart. PERSON accounts can only be created as children of the 4111 customer branch.',
+    enum: ['GENERAL', 'PERSON'],
   })
-  @IsIn(['GENERAL'])
+  @IsIn(['GENERAL', 'PERSON'])
   type!: string;
-}
 
-export class UpdateDashboardAccountDto {
-  @ApiProperty({ example: 'Bank Audi Main Branch' })
+  @ApiPropertyOptional({
+    example: null,
+    nullable: true,
+    description:
+      'Hierarchy parent account id (accounts.id). Omit/NULL for a root account. The selected tree node determines this value; it is never typed manually.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  parentId?: number;
+
+  @ApiPropertyOptional({
+    example: '41',
+    description:
+      'Explicit structural code for group-hierarchy levels (e.g. 40, 41, 411). Ignored for PERSON leaves under 4111, which are always allocated by the backend.',
+  })
+  @IsOptional()
   @Transform(trimString)
   @IsString()
   @MinLength(1)
   @MaxLength(255)
-  name!: string;
+  code?: string;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'GROUP accounts organize the chart and cannot receive journal postings. PERSON leaves are always posting accounts.',
+  })
+  @IsOptional()
+  @Type(() => Boolean)
+  isGroup?: boolean;
+}
+
+export class UpdateDashboardAccountDto {
+  @ApiPropertyOptional({ example: 'Bank Audi Main Branch' })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(255)
+  name?: string;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'Toggle GROUP/POSTING designation. A group with children cannot become a posting account.',
+  })
+  @IsOptional()
+  @Type(() => Boolean)
+  isGroup?: boolean;
+}
+
+export class DashboardAccountNextCodeDto {
+  @ApiProperty({ example: 53 })
+  parentId!: number;
+
+  @ApiProperty({ example: '4111' })
+  parentCode!: string;
+
+  @ApiProperty({ example: 'Ordinary customers' })
+  parentName!: string;
+
+  @ApiProperty({
+    example: '41110004',
+    nullable: true,
+    description:
+      'Read-only preview of the next child code. NULL when the branch uses manually defined structural codes.',
+  })
+  expectedCode!: string | null;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'Whether the backend allocates the child code automatically (4111 PERSON leaves).',
+  })
+  autoAllocatable!: boolean;
 }
 
 export class DashboardAccountingDocumentQueryDto {

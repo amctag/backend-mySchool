@@ -58,7 +58,11 @@ describe('Accounting Phase 1 Prisma contract', () => {
   it('extends Account with name and controlled type (Phase 2B)', () => {
     const account = modelBlock('Account');
     expect(account).toMatch(/id\s+Int\s+@id\s+@default\(autoincrement\(\)\)/);
-    expect(account).toMatch(/code\s+String\s+@unique\s+@db\.VarChar\(255\)/);
+    // Chart of Accounts: codes are unique ONLY within one school, so every
+    // school owns its own 4 / 41 / 411 / 4111 rows.
+    expect(account).toMatch(/code\s+String\s+@db\.VarChar\(255\)/);
+    expect(account).not.toMatch(/code\s+String\s+@unique/);
+    expect(account).toMatch(/@@unique\(\[schoolId, code\]\)/);
     expect(account).toMatch(/name\s+String\s+@db\.VarChar\(255\)/);
     expect(account).toMatch(/type\s+AccountType/);
     expect(schema).toMatch(

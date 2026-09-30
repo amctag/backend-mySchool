@@ -188,8 +188,22 @@ describe('DashboardAccountingService manual accounts', () => {
       relatedPerson: null,
     });
     expect(tx.account.create).toHaveBeenCalledWith({
-      data: { code: '100005', name: 'Bank Audi', type: 'GENERAL', schoolId: 3 },
-      select: { id: true, code: true, name: true, type: true },
+      data: {
+        code: '100005',
+        name: 'Bank Audi',
+        type: 'GENERAL',
+        schoolId: 3,
+        parentId: null,
+        isGroup: false,
+      },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        type: true,
+        parentId: true,
+        isGroup: true,
+      },
     });
   });
 
@@ -236,7 +250,14 @@ describe('DashboardAccountingService manual accounts', () => {
     expect(tx.account.update).toHaveBeenCalledWith({
       where: { id: 32 },
       data: { name: 'Bank Audi Main' },
-      select: { id: true, code: true, name: true, type: true },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        type: true,
+        parentId: true,
+        isGroup: true,
+      },
     });
   });
 
@@ -271,10 +292,17 @@ describe('DashboardAccountingService manual accounts', () => {
         },
       ],
     });
-    type AccountWhere = { schoolId: number; type?: string; OR?: unknown[] };
-    let seenWhere: AccountWhere = { schoolId: 0 };
+    type AccountWhere = {
+      schoolId?: number;
+      type?: string;
+      OR?: unknown[];
+      parentId?: unknown;
+    };
     tx.account.findMany.mockImplementation((args: { where: AccountWhere }) => {
-      seenWhere = args.where;
+      // Paged list call returns the fixture; the hasChildren lookup returns none.
+      if (args.where.parentId !== undefined) {
+        return Promise.resolve([]);
+      }
       return Promise.resolve(accounts);
     });
 
@@ -287,8 +315,10 @@ describe('DashboardAccountingService manual accounts', () => {
 
     expect(tx.account.count).toHaveBeenCalled();
     expect(tx.account.findMany).toHaveBeenCalled();
-    expect(seenWhere).toMatchObject({ schoolId: 3, type: 'GENERAL' });
-    expect(seenWhere.OR).toHaveLength(2);
+    const listWhere = tx.account.findMany.mock.calls[0][0]
+      .where as AccountWhere;
+    expect(listWhere).toMatchObject({ schoolId: 3, type: 'GENERAL' });
+    expect(listWhere.OR).toHaveLength(2);
     expect(result).toMatchObject({
       page: 1,
       limit: 10,

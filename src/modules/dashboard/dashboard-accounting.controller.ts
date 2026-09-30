@@ -40,6 +40,7 @@ import {
   CreateDashboardRecordDto,
   CreateDashboardRegistrationInvoiceDto,
   DashboardAccountDto,
+  DashboardAccountNextCodeDto,
   DashboardAccountingDocumentQueryDto,
   DashboardAccountsQueryDto,
   DashboardAccountsResponseDto,
@@ -90,6 +91,45 @@ export class DashboardAccountingController {
     return this.dashboardAccountingService.listAccounts(request.user, query);
   }
 
+  @Get('accounts/roots')
+  @ApiOperation({
+    summary: 'List root accounts of the hierarchical chart of accounts',
+  })
+  @ApiOkResponse({ type: [DashboardAccountDto] })
+  listRootAccounts(
+    @Req() request: Request & { user: AuthenticatedSchool },
+  ): Promise<DashboardAccountDto[]> {
+    return this.dashboardAccountingService.listRootAccounts(request.user);
+  }
+
+  @Get('accounts/:id/children')
+  @ApiOperation({
+    summary: 'List direct children of a chart account (lazy tree loading)',
+  })
+  @ApiOkResponse({ type: [DashboardAccountDto] })
+  listAccountChildren(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<DashboardAccountDto[]> {
+    return this.dashboardAccountingService.listAccountChildren(
+      request.user,
+      id,
+    );
+  }
+
+  @Get('accounts/:id/next-code')
+  @ApiOperation({
+    summary:
+      'Preview the next expected child code (read-only; backend allocates the final code)',
+  })
+  @ApiOkResponse({ type: DashboardAccountNextCodeDto })
+  getNextChildCode(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<DashboardAccountNextCodeDto> {
+    return this.dashboardAccountingService.getNextChildCode(request.user, id);
+  }
+
   @Get('accounts/:id')
   @ApiOperation({ summary: 'Get an accounting account owned by this school' })
   @ApiOkResponse({ type: DashboardAccountDto })
@@ -100,9 +140,23 @@ export class DashboardAccountingController {
     return this.dashboardAccountingService.getAccount(request.user, id);
   }
 
+  @Delete('accounts/:id')
+  @ApiOperation({
+    summary:
+      'Delete an account (blocked when it has children or financial references)',
+  })
+  @ApiOkResponse({ type: Object })
+  deleteAccount(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<{ id: number }> {
+    return this.dashboardAccountingService.deleteAccount(request.user, id);
+  }
+
   @Post('accounts')
   @ApiOperation({
-    summary: 'Create a GENERAL accounting account for this school',
+    summary:
+      'Create a root or child chart account for this school (GENERAL anywhere, PERSON only under 4111)',
   })
   @ApiCreatedResponse({ type: DashboardAccountDto })
   createAccount(
@@ -114,7 +168,8 @@ export class DashboardAccountingController {
 
   @Patch('accounts/:id')
   @ApiOperation({
-    summary: 'Rename a GENERAL accounting account of this school',
+    summary:
+      'Rename a GENERAL chart account / toggle its group designation (codes are immutable)',
   })
   @ApiOkResponse({ type: DashboardAccountDto })
   updateAccount(

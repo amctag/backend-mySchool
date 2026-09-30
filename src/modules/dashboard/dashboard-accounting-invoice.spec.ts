@@ -44,6 +44,7 @@ function invoiceTransaction(overrides?: {
   parentRegistrations?: unknown[];
   currency?: unknown;
   salesAccount?: unknown;
+  branch?: unknown;
   registerType?: { id: number } | null;
   registerCreate?: { id: number };
   registerFindFirst?: unknown;
@@ -52,8 +53,9 @@ function invoiceTransaction(overrides?: {
   dailyRows?: Array<{ accountId: number; debit: unknown; credit: unknown }>;
 }) {
   const queue = [...(overrides?.queryRawResults ?? [])];
-  const has = (key: 'classRow' | 'yearRow' | 'packageRow' | 'studentRow' | 'sectionRow' | 'existingRegistration' | 'items' | 'parentRegistrations' | 'currency' | 'salesAccount' | 'creator' | 'dailyRows') =>
+  const has = (key: 'classRow' | 'yearRow' | 'packageRow' | 'studentRow' | 'sectionRow' | 'existingRegistration' | 'items' | 'parentRegistrations' | 'currency' | 'salesAccount' | 'branch' | 'creator' | 'dailyRows') =>
     overrides !== undefined && key in (overrides as Record<string, unknown>);
+  let branchServed = false;
   const tx = {
     $queryRaw: jest.fn(() => {
       const next = queue.shift();
@@ -115,9 +117,14 @@ function invoiceTransaction(overrides?: {
       ),
     },
     account: {
-      findFirst: jest.fn(() =>
-        Promise.resolve(has('salesAccount') ? overrides?.salesAccount : salesAccount),
-      ),
+      findFirst: jest.fn(() => {
+        if (has('branch') && !branchServed) {
+          branchServed = true;
+          return Promise.resolve(overrides?.branch);
+        }
+        return Promise.resolve(has('salesAccount') ? overrides?.salesAccount : salesAccount);
+      }),
+      findUnique: jest.fn(() => Promise.resolve(null)),
       create: jest.fn((args: { data: Record<string, unknown> }) =>
         Promise.resolve({ id: 12, ...args.data }),
       ),
@@ -521,6 +528,80 @@ describe('Normal parent invoice with per-line registrations', () => {
         details: [{ itemId: 5, unitPrice: 50 }],
       }),
     ).rejects.toThrow('Invalid currency');
+  });
+});
+
+describe('Invoice-time parent account creation (4111 rule)', () => {
+  const unlinkedParent = {
+    ...lockedParent,
+    accountId: null,
+    accountCode: null,
+    accountSchoolId: null,
+  };
+  const branch = { id: 53, code: '4111', name: 'Ordinary', isGroup: true };
+
+  function autoCreateMocks(branchOverride: unknown) {
+    return invoiceTransaction({
+      // lockParent; allocate: ensure+lock (last=0), max existing (none),
+      // bump; sync select, sync upsert; invoice numbering
+      queryRawResults: [
+        [unlinkedParent],
+        [{ seq: 0 }],
+        [],
+        [],
+        [{ code: '41110001' }],
+        [],
+        [{ nb: 42 }],
+      ],
+      branch: branchOverride,
+      currency: usdCurrency,
+      items: [{ id: 3, name: 'Registration Fee', price: '100' }],
+      dailyRows: [
+        { accountId: 12, debit: '100.00', credit: '0' },
+        { accountId: 55, debit: '0', credit: '100.00' },
+      ],
+    });
+  }
+
+  it('auto-creates an 8-digit PERSON leaf under the 4111 account id', async () => {
+    const { tx, service } = autoCreateMocks(branch);
+    jest.spyOn(service, 'getInvoice').mockResolvedValue({ id: 900 } as never);
+
+    await service.createInvoice({ schoolId: 3 } as never, {
+      parentId: 7,
+      currencyId: 1,
+      details: [{ itemId: 3 }],
+    } as never);
+
+    expect(tx.account.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          code: '41110001',
+          type: 'PERSON',
+          schoolId: 3,
+          parentId: 53,
+          isGroup: false,
+        }),
+      }),
+    );
+    expect(tx.person.update).toHaveBeenCalledWith({
+      where: { id: 70 },
+      data: { accountId: 12 },
+    });
+  });
+
+  it('fails cleanly when the school has no 4111 branch', async () => {
+    const { tx, service } = autoCreateMocks(null);
+
+    await expect(
+      service.createInvoice({ schoolId: 3 } as never, {
+        parentId: 7,
+        currencyId: 1,
+        details: [{ itemId: 3 }],
+      } as never),
+    ).rejects.toThrow('4111');
+    expect(tx.account.create).not.toHaveBeenCalled();
+    expect(tx.accountingRegister.create).not.toHaveBeenCalled();
   });
 });
 

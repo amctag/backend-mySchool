@@ -146,7 +146,14 @@ const balancedReceiptRows = [
   { accountId: 12, debit: '0', credit: '150.00' },
 ];
 
-const cashAccount = { id: 31, code: '200001', name: 'Cash', type: 'CASH' };
+const cashAccount = {
+  id: 31,
+  code: '200001',
+  name: 'Cash',
+  type: 'CASH',
+  parentId: null,
+  isGroup: false,
+};
 
 const usdCurrency = {
   id: 1,
@@ -156,7 +163,14 @@ const usdCurrency = {
   rate: '1',
 };
 
-const accountSelect = { id: true, code: true, name: true, type: true };
+const accountSelect = {
+  id: true,
+  code: true,
+  name: true,
+  type: true,
+  parentId: true,
+  isGroup: true,
+};
 
 describe('DashboardAccountingService document edits', () => {
   it('rebuilds a receipt journal on the same register and preserves its document identity', async () => {
@@ -362,6 +376,9 @@ describe('DashboardAccountingService system accounts', () => {
       name: 'Cash',
       type: 'CASH',
       protected: true,
+      parentId: null,
+      isGroup: false,
+      hasChildren: false,
       relatedPerson: null,
     });
   });

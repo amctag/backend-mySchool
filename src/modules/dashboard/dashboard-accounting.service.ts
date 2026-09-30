@@ -8,6 +8,7 @@ import {
 import { AccountType, Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
+import { AccountCodeService } from './account-code.service';
 import {
   CreateDashboardAccountDto,
   CreateDashboardInvoiceDto,
@@ -16,6 +17,7 @@ import {
   CreateDashboardRecordDto,
   CreateDashboardRegistrationInvoiceDto,
   DashboardAccountDto,
+  DashboardAccountNextCodeDto,
   DashboardAccountsQueryDto,
   DashboardAccountsResponseDto,
   DashboardAccountingDocumentQueryDto,
@@ -93,6 +95,8 @@ type AccountRow = {
   code: string;
   name: string;
   type: AccountType;
+  parentId: number | null;
+  isGroup: boolean;
 };
 
 type AllocationInput = {
@@ -177,7 +181,10 @@ type InvoiceRegistrationLabel = {
 
 @Injectable()
 export class DashboardAccountingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly accountCodes: AccountCodeService = new AccountCodeService(),
+  ) {}
 
   async listCurrencies(): Promise<DashboardCurrencyDto[]> {
     const currencies = await this.prisma.currency.findMany({
@@ -227,7 +234,14 @@ export class DashboardAccountingService {
       this.prisma.account.count({ where }),
       this.prisma.account.findMany({
         where,
-        select: { id: true, code: true, name: true, type: true },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          type: true,
+          parentId: true,
+          isGroup: true,
+        },
         orderBy: [{ code: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
@@ -237,10 +251,17 @@ export class DashboardAccountingService {
     const personByAccountId = await this.resolveAccountPersons(
       accounts.map((account) => account.id),
     );
+    const hasChildrenByAccountId = await this.resolveHasChildren(
+      accounts.map((account) => account.id),
+    );
 
     return {
       items: accounts.map((account) =>
-        this.toAccountDto(account, personByAccountId.get(account.id) ?? null),
+        this.toAccountDto(
+          account,
+          personByAccountId.get(account.id) ?? null,
+          hasChildrenByAccountId.get(account.id) ?? false,
+        ),
       ),
       page,
       limit,
@@ -255,15 +276,24 @@ export class DashboardAccountingService {
   ): Promise<DashboardAccountDto> {
     const account = await this.prisma.account.findFirst({
       where: { id, schoolId: user.schoolId },
-      select: { id: true, code: true, name: true, type: true },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        type: true,
+        parentId: true,
+        isGroup: true,
+      },
     });
     if (!account) {
       throw new NotFoundException('Account not found');
     }
     const personByAccountId = await this.resolveAccountPersons([account.id]);
+    const hasChildrenByAccountId = await this.resolveHasChildren([account.id]);
     return this.toAccountDto(
       account,
       personByAccountId.get(account.id) ?? null,
+      hasChildrenByAccountId.get(account.id) ?? false,
     );
   }
 
@@ -271,7 +301,7 @@ export class DashboardAccountingService {
     user: AuthenticatedSchool,
     dto: CreateDashboardAccountDto,
   ): Promise<DashboardAccountDto> {
-    if (dto.type !== 'GENERAL') {
+    if (dto.type !== 'GENERAL' && dto.type !== 'PERSON') {
       throw new BadRequestException(
         'Only GENERAL accounts can be created manually',
       );
@@ -281,31 +311,286 @@ export class DashboardAccountingService {
       throw new BadRequestException('Account name must not be empty');
     }
     return this.prisma.$transaction(async (tx) => {
-      const [sequence] = await tx.$queryRaw<Array<{ code: string }>>`
-        SELECT nextval('"account_code_seq"')::text AS code
-      `;
-      if (!sequence) {
-        throw new ConflictException('Could not allocate an account code');
+      // Root account (parentId NULL): GENERAL only, explicit structural
+      // code or legacy sequence allocation.
+      if (dto.parentId === undefined || dto.parentId === null) {
+        if (dto.type === 'PERSON') {
+          throw new BadRequestException(
+            'Person accounts must be created under the 4111 customer branch',
+          );
+        }
+        const code =
+          dto.code?.trim() || (await this.accountCodes.allocateLegacyCode(tx));
+        this.assertStructuralCode(code);
+        try {
+          const created = await tx.account.create({
+            data: {
+              code,
+              name,
+              type: 'GENERAL',
+              schoolId: user.schoolId,
+              parentId: null,
+              isGroup: dto.isGroup ?? false,
+            },
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              type: true,
+              parentId: true,
+              isGroup: true,
+            },
+          });
+          return this.toAccountDto(created, null, false);
+        } catch (error) {
+          if (this.isUniqueViolation(error)) {
+            throw new ConflictException(
+              'Account code is already used for another account',
+            );
+          }
+          throw error;
+        }
       }
+
+      // Child account: parent is resolved by database ID, never by code.
+      const parent = await tx.account.findFirst({
+        where: { id: dto.parentId, schoolId: user.schoolId },
+        select: { id: true, code: true, name: true, isGroup: true },
+      });
+      if (!parent) {
+        throw new BadRequestException(
+          'Parent account does not belong to the authenticated school',
+        );
+      }
+      if (!parent.isGroup) {
+        throw new BadRequestException(
+          'Children can only be added under a group account. Mark the parent as a group account first.',
+        );
+      }
+      if (dto.type === 'PERSON' && parent.code !== AccountCodeService.CUSTOMER_BRANCH_CODE) {
+        throw new BadRequestException(
+          'Person accounts must be created under the 4111 customer branch',
+        );
+      }
+
+      let code: string;
+      let isGroup = dto.isGroup ?? false;
+      if (parent.code === AccountCodeService.CUSTOMER_BRANCH_CODE) {
+        // Deterministic 8-digit PERSON leaf allocation (authoritative).
+        if (dto.type !== 'PERSON') {
+          throw new BadRequestException(
+            'Only PERSON leaf accounts can be created under 4111',
+          );
+        }
+        if (dto.code?.trim()) {
+          throw new BadRequestException(
+            'Account code under 4111 is allocated by the backend',
+          );
+        }
+        code = await this.accountCodes.allocateCustomerLeafCode(
+          tx,
+          user.schoolId,
+        );
+        isGroup = false;
+      } else {
+        // Structural group levels use explicitly entered admin codes.
+        if (!dto.code?.trim()) {
+          throw new BadRequestException(
+            'An explicit account code is required for this branch level',
+          );
+        }
+        code = dto.code.trim();
+        this.assertStructuralCode(code);
+        if (!code.startsWith(parent.code) || code.length <= parent.code.length) {
+          throw new BadRequestException(
+            `Account code must extend the parent code ${parent.code}`,
+          );
+        }
+      }
+
       try {
         const created = await tx.account.create({
           data: {
-            code: sequence.code,
+            code,
             name,
-            type: 'GENERAL',
+            type: dto.type as AccountType,
             schoolId: user.schoolId,
+            parentId: parent.id,
+            isGroup,
           },
-          select: { id: true, code: true, name: true, type: true },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            type: true,
+            parentId: true,
+            isGroup: true,
+          },
         });
-        return this.toAccountDto(created, null);
+        if (parent.code === AccountCodeService.CUSTOMER_BRANCH_CODE) {
+          await this.accountCodes.syncCustomerCounter(tx, user.schoolId);
+        }
+        return this.toAccountDto(created, null, false);
       } catch (error) {
         if (this.isUniqueViolation(error)) {
           throw new ConflictException(
-            'Account could not be created because it already exists',
+            'Account code is already used for another account',
           );
         }
         throw error;
       }
+    });
+  }
+
+  async listRootAccounts(
+    user: AuthenticatedSchool,
+  ): Promise<DashboardAccountDto[]> {
+    const roots = await this.prisma.account.findMany({
+      where: { schoolId: user.schoolId, parentId: null },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        type: true,
+        parentId: true,
+        isGroup: true,
+      },
+      orderBy: [{ code: 'asc' }],
+    });
+    const personByAccountId = await this.resolveAccountPersons(
+      roots.map((account) => account.id),
+    );
+    const hasChildrenByAccountId = await this.resolveHasChildren(
+      roots.map((account) => account.id),
+    );
+    return roots.map((account) =>
+      this.toAccountDto(
+        account,
+        personByAccountId.get(account.id) ?? null,
+        hasChildrenByAccountId.get(account.id) ?? false,
+      ),
+    );
+  }
+
+  async listAccountChildren(
+    user: AuthenticatedSchool,
+    id: number,
+  ): Promise<DashboardAccountDto[]> {
+    const parent = await this.prisma.account.findFirst({
+      where: { id, schoolId: user.schoolId },
+      select: { id: true },
+    });
+    if (!parent) {
+      throw new NotFoundException('Account not found');
+    }
+    const children = await this.prisma.account.findMany({
+      where: { schoolId: user.schoolId, parentId: parent.id },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        type: true,
+        parentId: true,
+        isGroup: true,
+      },
+      orderBy: [{ code: 'asc' }],
+    });
+    const personByAccountId = await this.resolveAccountPersons(
+      children.map((account) => account.id),
+    );
+    const hasChildrenByAccountId = await this.resolveHasChildren(
+      children.map((account) => account.id),
+    );
+    return children.map((account) =>
+      this.toAccountDto(
+        account,
+        personByAccountId.get(account.id) ?? null,
+        hasChildrenByAccountId.get(account.id) ?? false,
+      ),
+    );
+  }
+
+  async getNextChildCode(
+    user: AuthenticatedSchool,
+    id: number,
+  ): Promise<DashboardAccountNextCodeDto> {
+    const parent = await this.prisma.account.findFirst({
+      where: { id, schoolId: user.schoolId },
+      select: { id: true, code: true, name: true },
+    });
+    if (!parent) {
+      throw new NotFoundException('Account not found');
+    }
+    if (parent.code === AccountCodeService.CUSTOMER_BRANCH_CODE) {
+      const expectedCode = await this.prisma.$transaction((tx) =>
+        this.accountCodes.previewCustomerLeafCode(tx, user.schoolId),
+      );
+      return {
+        parentId: parent.id,
+        parentCode: parent.code,
+        parentName: parent.name,
+        expectedCode,
+        autoAllocatable: true,
+      };
+    }
+    return {
+      parentId: parent.id,
+      parentCode: parent.code,
+      parentName: parent.name,
+      expectedCode: null,
+      autoAllocatable: false,
+    };
+  }
+
+  async deleteAccount(
+    user: AuthenticatedSchool,
+    id: number,
+  ): Promise<{ id: number }> {
+    return this.prisma.$transaction(async (tx) => {
+      const account = await tx.account.findFirst({
+        where: { id, schoolId: user.schoolId },
+        select: { id: true, code: true, name: true, type: true },
+      });
+      if (!account) {
+        throw new NotFoundException('Account not found');
+      }
+      const children = await tx.account.count({
+        where: { parentId: account.id },
+      });
+      if (children > 0) {
+        throw new BadRequestException(
+          'Account cannot be deleted because it has child accounts',
+        );
+      }
+      const [journalRefs, receiptRefs, paymentRefs, installmentRefs, personRefs] =
+        await Promise.all([
+          tx.accountingDaily.count({ where: { accountId: account.id } }),
+          tx.accountingReceiptDetail.count({
+            where: { accountId: account.id },
+          }),
+          tx.accountingPaymentDetail.count({
+            where: { accountId: account.id },
+          }),
+          tx.installment.count({ where: { accountId: account.id } }),
+          tx.person.count({ where: { accountId: account.id } }),
+        ]);
+      if (journalRefs > 0) {
+        throw new BadRequestException(
+          'Account cannot be deleted because it is used in the journal',
+        );
+      }
+      if (receiptRefs > 0 || paymentRefs > 0 || installmentRefs > 0) {
+        throw new BadRequestException(
+          'Account cannot be deleted because it is used by accounting documents',
+        );
+      }
+      if (personRefs > 0) {
+        throw new BadRequestException(
+          'Account cannot be deleted because it is linked to a person',
+        );
+      }
+      await tx.account.delete({ where: { id: account.id } });
+      return { id: account.id };
     });
   }
 
@@ -316,7 +601,14 @@ export class DashboardAccountingService {
   ): Promise<DashboardAccountDto> {
     const account = await this.prisma.account.findFirst({
       where: { id, schoolId: user.schoolId },
-      select: { id: true, code: true, name: true, type: true },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        type: true,
+        parentId: true,
+        isGroup: true,
+      },
     });
     if (!account) {
       throw new NotFoundException('Account not found');
@@ -326,19 +618,52 @@ export class DashboardAccountingService {
         `Accounts of type ${account.type} cannot be edited manually`,
       );
     }
-    const name = dto.name.trim();
-    if (!name) {
-      throw new BadRequestException('Account name must not be empty');
+    const data: { name?: string; isGroup?: boolean } = {};
+    if (dto.name !== undefined) {
+      const name = dto.name.trim();
+      if (!name) {
+        throw new BadRequestException('Account name must not be empty');
+      }
+      data.name = name;
     }
+    if (dto.isGroup !== undefined && dto.isGroup !== account.isGroup) {
+      if (dto.isGroup === false) {
+        // A group with children must keep organizing them: changing its
+        // code/designation would silently corrupt chart semantics.
+        const children = await this.prisma.account.count({
+          where: { parentId: account.id },
+        });
+        if (children > 0) {
+          throw new BadRequestException(
+            'A group account with children cannot become a posting account',
+          );
+        }
+      }
+      data.isGroup = dto.isGroup;
+    }
+    if (data.name === undefined && data.isGroup === undefined) {
+      throw new BadRequestException('Nothing to update');
+    }
+    // Account codes are immutable via the API: renaming a group never
+    // rewrites descendant codes, and no silent cascade is performed.
     const updated = await this.prisma.account.update({
       where: { id: account.id },
-      data: { name },
-      select: { id: true, code: true, name: true, type: true },
+      data,
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        type: true,
+        parentId: true,
+        isGroup: true,
+      },
     });
     const personByAccountId = await this.resolveAccountPersons([updated.id]);
+    const hasChildrenByAccountId = await this.resolveHasChildren([updated.id]);
     return this.toAccountDto(
       updated,
       personByAccountId.get(updated.id) ?? null,
+      hasChildrenByAccountId.get(updated.id) ?? false,
     );
   }
 
@@ -743,11 +1068,16 @@ export class DashboardAccountingService {
 
       const destination = await tx.account.findFirst({
         where: { id: dto.accountId, schoolId: user.schoolId },
-        select: { id: true, code: true, name: true, type: true },
+        select: { id: true, code: true, name: true, type: true, isGroup: true },
       });
       if (!destination) {
         throw new BadRequestException(
           'Destination account does not belong to the authenticated school',
+        );
+      }
+      if (destination.isGroup) {
+        throw new BadRequestException(
+          'Group accounts cannot be payment destinations',
         );
       }
       const currency = await tx.currency.findUnique({
@@ -975,11 +1305,15 @@ export class DashboardAccountingService {
       if (!payment) throw new NotFoundException('Payment not found');
       const destination = await tx.account.findFirst({
         where: { id: dto.accountId, schoolId: user.schoolId },
-        select: { id: true },
+        select: { id: true, isGroup: true },
       });
       if (!destination)
         throw new BadRequestException(
           'Destination account does not belong to the authenticated school',
+        );
+      if (destination.isGroup)
+        throw new BadRequestException(
+          'Group accounts cannot be payment destinations',
         );
       const currency = await tx.currency.findUnique({
         where: { id: dto.currencyId },
@@ -1578,7 +1912,7 @@ export class DashboardAccountingService {
       const accountIds = [...new Set(dto.rows.map((row) => row.accountId))];
       const accounts = await tx.account.findMany({
         where: { id: { in: accountIds }, schoolId: user.schoolId },
-        select: { id: true },
+        select: { id: true, isGroup: true },
       });
       const foundAccountIds = new Set(accounts.map((row) => row.id));
       const missingAccountIds = accountIds.filter(
@@ -1587,6 +1921,11 @@ export class DashboardAccountingService {
       if (missingAccountIds.length > 0) {
         throw new BadRequestException(
           'Record account does not belong to the authenticated school',
+        );
+      }
+      if (accounts.some((row) => row.isGroup)) {
+        throw new BadRequestException(
+          'Group accounts cannot be used in manual records',
         );
       }
       const currency = await this.requireCurrency(tx, dto.currencyId);
@@ -2124,19 +2463,22 @@ export class DashboardAccountingService {
         parentName,
       };
     }
-    const [sequence] = await tx.$queryRaw<Array<{ code: string }>>`
-      SELECT nextval('"account_code_seq"')::text AS code
-    `;
-    if (!sequence) {
-      throw new ConflictException('Could not allocate an account code');
-    }
+    // Shared PERSON rule: resolve the school's 4111 branch by school + code
+    // and allocate the next 8-digit leaf. Fails cleanly when the branch is
+    // missing — never falls back to the legacy sequence for PERSON accounts.
+    const allocation = await this.accountCodes.allocateCustomerPersonAccount(
+      tx,
+      schoolId,
+    );
     try {
       const created = await tx.account.create({
         data: {
-          code: sequence.code,
+          code: allocation.code,
           name: parentName,
           type: 'PERSON',
           schoolId,
+          parentId: allocation.parentId,
+          isGroup: false,
         },
         select: { id: true, code: true },
       });
@@ -2144,6 +2486,7 @@ export class DashboardAccountingService {
         where: { id: locked.personId },
         data: { accountId: created.id },
       });
+      await this.accountCodes.syncCustomerCounter(tx, schoolId);
       return {
         parentId: locked.parentId,
         accountId: created.id,
@@ -2778,7 +3121,7 @@ export class DashboardAccountingService {
     }
     const accounts = await tx.account.findMany({
       where: { id: { in: accountIds }, schoolId },
-      select: { id: true, code: true, name: true, type: true },
+      select: { id: true, code: true, name: true, type: true, isGroup: true },
     });
     const accountById = new Map(
       accounts.map((account) => [account.id, account]),
@@ -2788,6 +3131,11 @@ export class DashboardAccountingService {
       if (!account) {
         throw new BadRequestException(
           'Funding account does not belong to the authenticated school',
+        );
+      }
+      if (account.isGroup) {
+        throw new BadRequestException(
+          'Group accounts cannot fund payments',
         );
       }
       if (!PAYMENT_SOURCE_TYPES.has(account.type)) {
@@ -2831,11 +3179,16 @@ export class DashboardAccountingService {
       seen.add(row.accountId);
       const destination = await tx.account.findFirst({
         where: { id: row.accountId, schoolId },
-        select: { id: true, code: true, name: true, type: true },
+        select: { id: true, code: true, name: true, type: true, isGroup: true },
       });
       if (!destination) {
         throw new BadRequestException(
           'Destination account does not belong to the authenticated school',
+        );
+      }
+      if (destination.isGroup) {
+        throw new BadRequestException(
+          'Group accounts cannot be receipt destinations',
         );
       }
       if (destination.type === 'PERSON') {
@@ -2867,30 +3220,46 @@ export class DashboardAccountingService {
   ): Promise<DashboardAccountDto> {
     const existing = await tx.account.findFirst({
       where: { schoolId, type },
-      select: { id: true, code: true, name: true, type: true },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        type: true,
+        parentId: true,
+        isGroup: true,
+      },
     });
     if (existing) {
       return this.toAccountDto(existing, null);
     }
 
-    const [sequence] = await tx.$queryRaw<Array<{ code: string }>>`
-      SELECT nextval('"account_code_seq"')::text AS code
-    `;
-    if (!sequence) {
-      throw new ConflictException('Could not allocate an account code');
-    }
+    const code = await this.accountCodes.allocateLegacyCode(tx);
 
     try {
       const created = await tx.account.create({
-        data: { code: sequence.code, name, type, schoolId },
-        select: { id: true, code: true, name: true, type: true },
+        data: { code, name, type, schoolId },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          type: true,
+          parentId: true,
+          isGroup: true,
+        },
       });
       return this.toAccountDto(created, null);
     } catch (error) {
       if (this.isUniqueViolation(error)) {
         const winner = await tx.account.findFirst({
           where: { schoolId, type },
-          select: { id: true, code: true, name: true, type: true },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            type: true,
+            parentId: true,
+            isGroup: true,
+          },
         });
         if (winner) {
           return this.toAccountDto(winner, null);
@@ -3267,6 +3636,7 @@ export class DashboardAccountingService {
   private toAccountDto(
     account: AccountRow,
     relatedPerson: { parentId: number | null; fullName: string } | null,
+    hasChildren = false,
   ): DashboardAccountDto {
     return {
       id: account.id,
@@ -3274,11 +3644,45 @@ export class DashboardAccountingService {
       name: account.name,
       type: account.type,
       protected: PROTECTED_ACCOUNT_TYPES.has(account.type),
+      parentId: account.parentId,
+      isGroup: account.isGroup,
+      hasChildren,
       relatedPerson:
         account.type === 'PERSON'
           ? (relatedPerson ?? { parentId: null, fullName: '' })
           : null,
     };
+  }
+
+  private async resolveHasChildren(
+    accountIds: number[],
+    client?: Prisma.TransactionClient,
+  ): Promise<Map<number, boolean>> {
+    const unique = [...new Set(accountIds)];
+    const flags = new Map<number, boolean>();
+    if (unique.length === 0) {
+      return flags;
+    }
+    const reader = client ?? this.prisma;
+    const rows = await reader.account.findMany({
+      where: { parentId: { in: unique } },
+      select: { parentId: true },
+    });
+    for (const row of rows) {
+      if (row.parentId !== null) {
+        flags.set(row.parentId, true);
+      }
+    }
+    return flags;
+  }
+
+  private assertStructuralCode(code: string): void {
+    const trimmed = code.trim();
+    if (!trimmed || trimmed.length > 255 || !/^[0-9A-Za-z_-]+$/.test(trimmed)) {
+      throw new BadRequestException(
+        'Account code must be 1 to 255 characters (letters, digits, _ or -)',
+      );
+    }
   }
 
   private toDocumentAmount(value: number): Prisma.Decimal {

@@ -62,6 +62,7 @@ import { DashboardOverviewController } from './dashboard-overview.controller';
 import { DashboardOverviewService } from './dashboard-overview.service';
 import { DashboardTeacherTasksController } from './dashboard-teacher-tasks.controller';
 import { DashboardTeacherTasksService } from './dashboard-teacher-tasks.service';
+import { AccountCodeService } from './account-code.service';
 import { DashboardAccountingController } from './dashboard-accounting.controller';
 import { DashboardAccountingService } from './dashboard-accounting.service';
 import { DashboardAccountingConfigService } from './dashboard-accounting-config.service';
@@ -134,6 +135,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     DashboardSchoolSettingsService,
     DashboardOverviewService,
     DashboardTeacherTasksService,
+    AccountCodeService,
     DashboardAccountingService,
     DashboardAccountingConfigService,
     MediaUploadService,
