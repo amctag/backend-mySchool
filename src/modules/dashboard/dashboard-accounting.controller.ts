@@ -53,6 +53,8 @@ import {
   DashboardParentRegistrationsQueryDto,
   DashboardPaymentDto,
   DashboardPaymentsResponseDto,
+  DashboardPostingLookupDto,
+  DashboardPostingLookupQueryDto,
   DashboardReceiptDto,
   DashboardReceiptsResponseDto,
   DashboardRecordDto,
@@ -128,6 +130,22 @@ export class DashboardAccountingController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DashboardAccountNextCodeDto> {
     return this.dashboardAccountingService.getNextChildCode(request.user, id);
+  }
+
+  @Get('accounts/posting-lookup')
+  @ApiOperation({
+    summary:
+      'Posting-only account autocomplete for transaction selectors (exact 8-digit non-group accounts of family 4 or 5, same school only)',
+  })
+  @ApiOkResponse({ type: [DashboardPostingLookupDto] })
+  lookupPostingAccounts(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Query() query: DashboardPostingLookupQueryDto,
+  ): Promise<DashboardPostingLookupDto[]> {
+    return this.dashboardAccountingService.lookupPostingAccounts(
+      request.user,
+      query,
+    );
   }
 
   @Get('accounts/:id')

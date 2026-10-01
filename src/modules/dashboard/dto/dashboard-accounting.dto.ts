@@ -149,6 +149,62 @@ export class DashboardAccountsResponseDto {
   totalPages!: number;
 }
 
+export class DashboardPostingLookupQueryDto {
+  @ApiProperty({
+    example: '4',
+    enum: ['4', '5'],
+    description:
+      'Chart family: 4 = entity/person posting accounts, 5 = financial posting accounts. Only exact 8-digit non-group accounts of this family are returned.',
+  })
+  @Transform(trimString)
+  @IsString()
+  @IsIn(['4', '5'])
+  family!: string;
+
+  @ApiPropertyOptional({
+    example: '41110001',
+    description:
+      'Free text matched against account code, account name, or linked person name.',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(255)
+  search?: string;
+
+  @ApiPropertyOptional({
+    example: 20,
+    description: 'Small result limit for autocomplete use.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number;
+}
+
+export class DashboardPostingLookupDto {
+  @ApiProperty({ example: 12 })
+  id!: number;
+
+  @ApiProperty({ example: '41110001' })
+  code!: string;
+
+  @ApiProperty({ example: 'Ahmad Hassan Khalil' })
+  name!: string;
+
+  @ApiProperty({
+    example: 'Ahmad Hassan Khalil',
+    nullable: true,
+    description:
+      'Linked person full name, when the posting account belongs to a person.',
+  })
+  personName!: string | null;
+
+  @ApiProperty({ example: 7, nullable: true })
+  parentId!: number | null;
+}
+
 export class CreateDashboardAccountDto {
   @ApiProperty({ example: 'Bank Audi' })
   @Transform(trimString)
@@ -291,6 +347,17 @@ export class DashboardAccountingDocumentQueryDto {
   @IsOptional()
   @IsDateString()
   dateTo?: string;
+
+  @ApiPropertyOptional({
+    example: 12,
+    description:
+      'Filter documents touching this posting account (matches either journal side). Applied server-side before pagination.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  accountId?: number;
 }
 
 class DashboardAccountingDocumentBody {

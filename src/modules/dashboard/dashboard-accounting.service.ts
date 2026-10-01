@@ -29,6 +29,8 @@ import {
   DashboardParentRegistrationDto,
   DashboardPaymentDto,
   DashboardPaymentsResponseDto,
+  DashboardPostingLookupDto,
+  DashboardPostingLookupQueryDto,
   DashboardReceiptAllocationDto,
   DashboardReceiptCurrencyDto,
   DashboardReceiptDto,
@@ -88,6 +90,7 @@ type LockedParentAccount = {
   lastName: string;
   accountCode: string | null;
   accountSchoolId: number | null;
+  isGroup: boolean | null;
 };
 
 type AccountRow = {
@@ -741,6 +744,14 @@ export class DashboardAccountingService {
           'Parent has no accounting account for this school',
         );
       }
+      // Contract: dto.parentId is parents.id (never accounts.id). The actual
+      // posting account is resolved server-side from the locked person row
+      // and must be an eligible family-4 To account.
+      this.assertPostingFamily(
+        { code: locked.accountCode, isGroup: locked.isGroup },
+        '4',
+        'To account',
+      );
 
       const currency = await tx.currency.findUnique({
         where: { id: dto.currencyId },
@@ -1006,6 +1017,11 @@ export class DashboardAccountingService {
           'Parent has no accounting account for this school',
         );
       }
+      this.assertPostingFamily(
+        { code: parent.accountCode, isGroup: parent.isGroup },
+        '4',
+        'To account',
+      );
       const currency = await tx.currency.findUnique({
         where: { id: dto.currencyId },
       });
@@ -1106,6 +1122,8 @@ export class DashboardAccountingService {
           'Group accounts cannot be payment destinations',
         );
       }
+      // Contract: dto.accountId is accounts.id of the entity side.
+      this.assertPostingFamily(destination, '4', 'To account');
       const currency = await tx.currency.findUnique({
         where: { id: dto.currencyId },
         select: {
@@ -1331,7 +1349,7 @@ export class DashboardAccountingService {
       if (!payment) throw new NotFoundException('Payment not found');
       const destination = await tx.account.findFirst({
         where: { id: dto.accountId, schoolId: user.schoolId },
-        select: { id: true, isGroup: true },
+        select: { id: true, code: true, name: true, type: true, isGroup: true },
       });
       if (!destination)
         throw new BadRequestException(
@@ -1341,6 +1359,7 @@ export class DashboardAccountingService {
         throw new BadRequestException(
           'Group accounts cannot be payment destinations',
         );
+      this.assertPostingFamily(destination, '4', 'To account');
       const currency = await tx.currency.findUnique({
         where: { id: dto.currencyId },
       });
@@ -2482,6 +2501,13 @@ export class DashboardAccountingService {
           'Parent account does not belong to the authenticated school',
         );
       }
+      // Contract: the posting account is resolved server-side from the
+      // locked person row (dto.parentId is parents.id, never accounts.id).
+      this.assertPostingFamily(
+        { code: locked.accountCode, isGroup: locked.isGroup },
+        '4',
+        'To account',
+      );
       return {
         parentId: locked.parentId,
         accountId: locked.accountId,
@@ -2525,7 +2551,9 @@ export class DashboardAccountingService {
           where: { id: locked.personId },
           select: {
             accountId: true,
-            account: { select: { id: true, code: true, schoolId: true } },
+            account: {
+              select: { id: true, code: true, schoolId: true, isGroup: true },
+            },
           },
         });
         if (
@@ -2533,6 +2561,14 @@ export class DashboardAccountingService {
           winner?.accountId !== undefined &&
           winner.account?.schoolId === schoolId
         ) {
+          this.assertPostingFamily(
+            {
+              code: winner.account?.code ?? null,
+              isGroup: winner.account?.isGroup ?? null,
+            },
+            '4',
+            'To account',
+          );
           return {
             parentId: locked.parentId,
             accountId: winner.accountId,
@@ -3169,6 +3205,7 @@ export class DashboardAccountingService {
           `Accounts of type ${account.type} cannot fund payments`,
         );
       }
+      this.assertPostingFamily(account, '5', 'Funding account');
       return {
         accountId: account.id,
         accountCode: account.code,
@@ -3227,6 +3264,7 @@ export class DashboardAccountingService {
           `Accounts of type ${destination.type} are not eligible receipt destinations`,
         );
       }
+      this.assertPostingFamily(destination, '5', 'Destination account');
       allocations.push({
         accountId: destination.id,
         amount: this.toDocumentAmount(row.amount),
@@ -3333,16 +3371,17 @@ export class DashboardAccountingService {
     parentId: number,
   ): Promise<LockedParentAccount> {
     const [locked] = await tx.$queryRaw<Array<LockedParentAccount>>`
-      SELECT
-        parent.id AS "parentId",
-        person.id AS "personId",
-        person.account_id AS "accountId",
-        person.first_name AS "firstName",
-        person.middle_name AS "middleName",
-        person.last_name AS "lastName",
-        account.code AS "accountCode",
-        account.school_id AS "accountSchoolId"
-      FROM parents parent
+        SELECT
+          parent.id AS "parentId",
+          person.id AS "personId",
+          person.account_id AS "accountId",
+          person.first_name AS "firstName",
+          person.middle_name AS "middleName",
+          person.last_name AS "lastName",
+          account.code AS "accountCode",
+          account.school_id AS "accountSchoolId",
+          account.is_group AS "isGroup"
+        FROM parents parent
       JOIN persons person ON person.id = parent.person_id
       LEFT JOIN accounts account ON account.id = person.account_id
       WHERE parent.id = ${parentId}
@@ -3710,6 +3749,35 @@ export class DashboardAccountingService {
     return amount;
   }
 
+  /**
+   * Shared posting-eligibility rule for transaction selectors. Family 4 =
+   * entity/person accounts, family 5 = financial accounts. Structural and
+   * group accounts (4/41/411/4111, 5/50/500/5000), wrong-family codes,
+   * non-8-digit codes, and group accounts are all rejected here so a direct
+   * API call can never bypass the frontend posting lookup.
+   */
+  private assertPostingFamily(
+    account:
+      | {
+          code: string | null;
+          isGroup?: boolean | null;
+        }
+      | null
+      | undefined,
+    family: '4' | '5',
+    role: string,
+  ): void {
+    const code = account?.code ?? '';
+    if (
+      account?.isGroup !== false ||
+      !new RegExp(`^${family}\\d{7}$`).test(code)
+    ) {
+      throw new BadRequestException(
+        `${role} must be an 8-digit non-group posting account of family ${family}`,
+      );
+    }
+  }
+
   private documentRegisterFilter(
     query: DashboardAccountingDocumentQueryDto,
   ): Prisma.AccountingRegisterWhereInput {
@@ -3734,6 +3802,11 @@ export class DashboardAccountingService {
         },
       ];
     }
+    if (query.dateFrom && query.dateTo && query.dateFrom > query.dateTo) {
+      throw new BadRequestException(
+        'The from date must be earlier than or equal to the to date',
+      );
+    }
     if (query.dateFrom || query.dateTo) {
       filter.dateCreated = {
         gte: query.dateFrom ? new Date(query.dateFrom) : undefined,
@@ -3742,7 +3815,75 @@ export class DashboardAccountingService {
           : undefined,
       };
     }
+    if (query.accountId) {
+      // Matches documents touching this account on either journal side.
+      // Coexists with the free-text OR clause above: both apply (AND).
+      filter.dailyEntries = { some: { accountId: query.accountId } };
+    }
     return filter;
+  }
+
+  /**
+   * Posting-only account autocomplete for transaction selectors.
+   *
+   * Returns ONLY structural-family leaves: code starts with the requested
+   * family digit, is exactly 8 digits, is_group = false, and belongs to the
+   * authenticated school. Group parents (4/41/411/4111, 5/50/500/5000) and
+   * the other family are never returned. Tenant isolation is enforced in
+   * SQL; matching happens in the database with a small capped limit —
+   * callers must never load all accounts and filter client-side.
+   */
+  async lookupPostingAccounts(
+    user: AuthenticatedSchool,
+    query: DashboardPostingLookupQueryDto,
+  ): Promise<DashboardPostingLookupDto[]> {
+    const family = query.family?.trim();
+    if (family !== '4' && family !== '5') {
+      throw new BadRequestException('Family must be 4 or 5');
+    }
+    const limit = Math.min(Math.max(query.limit ?? 20, 1), 50);
+    const search = query.search?.trim() || null;
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        id: number;
+        code: string;
+        name: string;
+        personName: string | null;
+        parentId: number | null;
+      }>
+    >`
+      SELECT
+        a.id AS "id",
+        a.code AS "code",
+        a.name AS "name",
+        NULLIF(
+          CONCAT_WS(' ', p.first_name, p.middle_name, p.last_name),
+          ''
+        ) AS "personName",
+        pa.id AS "parentId"
+      FROM accounts a
+      LEFT JOIN persons p ON p.account_id = a.id
+      LEFT JOIN parents pa ON pa.person_id = p.id
+      WHERE a.school_id = ${user.schoolId}
+        AND a.is_group = false
+        AND LENGTH(a.code) = 8
+        AND a.code LIKE ${family + '%'}
+        AND (
+          ${search} IS NULL
+          OR a.code ILIKE ${'%' + (search ?? '') + '%'}
+          OR a.name ILIKE ${'%' + (search ?? '') + '%'}
+          OR CONCAT_WS(' ', p.first_name, p.middle_name, p.last_name) ILIKE ${'%' + (search ?? '') + '%'}
+        )
+      ORDER BY a.code ASC
+      LIMIT ${limit}
+    `;
+    return rows.map((row) => ({
+      id: Number(row.id),
+      code: row.code,
+      name: row.name,
+      personName: row.personName,
+      parentId: row.parentId === null ? null : Number(row.parentId),
+    }));
   }
 
   private formatPersonName(person: {

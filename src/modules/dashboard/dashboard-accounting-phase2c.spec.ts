@@ -13,8 +13,9 @@ const lockedParent = {
   firstName: 'Ahmad',
   middleName: 'Hassan',
   lastName: 'Khalil',
-  accountCode: '100001',
+  accountCode: '41110001',
   accountSchoolId: 3,
+  isGroup: false,
 };
 
 const usdCurrency = {
@@ -25,12 +26,19 @@ const usdCurrency = {
   rate: '1',
 };
 
-const cashAccount = { id: 31, code: '200001', name: 'Cash', type: 'CASH' };
+const cashAccount = {
+  id: 31,
+  code: '50000001',
+  name: 'Cash',
+  type: 'CASH',
+  isGroup: false,
+};
 const bankAccount = {
   id: 32,
-  code: '100005',
+  code: '50000002',
   name: 'Bank Audi',
   type: 'GENERAL',
+  isGroup: false,
 };
 
 function mocks(overrides?: {
@@ -275,7 +283,7 @@ describe('DashboardAccountingService manual accounts', () => {
       name: 'Bank Audi Main',
     });
 
-    expect(account).toMatchObject({ code: '100005', name: 'Bank Audi Main' });
+    expect(account).toMatchObject({ code: '50000002', name: 'Bank Audi Main' });
     expect(tx.account.update).toHaveBeenCalledWith({
       where: { id: 32 },
       data: { name: 'Bank Audi Main' },
@@ -305,8 +313,8 @@ describe('DashboardAccountingService manual accounts', () => {
 
   it('lists accounts with search, type filter, pagination and related persons', async () => {
     const accounts = [
-      { id: 12, code: '100001', name: 'Ahmad Hassan Khalil', type: 'PERSON' },
-      { id: 32, code: '100005', name: 'Bank Audi', type: 'GENERAL' },
+      { id: 12, code: '41110001', name: 'Ahmad Hassan Khalil', type: 'PERSON' },
+      { id: 32, code: '50000002', name: 'Bank Audi', type: 'GENERAL' },
     ];
     const { service, tx } = mocks({
       accountFindMany: accounts,
@@ -355,12 +363,12 @@ describe('DashboardAccountingService manual accounts', () => {
       totalPages: 1,
     });
     expect(result.items[0]).toMatchObject({
-      code: '100001',
+      code: '41110001',
       protected: true,
       relatedPerson: { parentId: 7, fullName: 'Ahmad Hassan Khalil' },
     });
     expect(result.items[1]).toMatchObject({
-      code: '100005',
+      code: '50000002',
       protected: false,
       relatedPerson: null,
     });
@@ -553,7 +561,13 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
       queryRawResults: [[lockedParent]],
       currencyFindUnique: usdCurrency,
       accountFindFirst: [
-        { id: 50, code: '100009', name: 'Someone', type: 'PERSON' },
+        {
+          id: 50,
+          code: '41110009',
+          name: 'Someone',
+          type: 'PERSON',
+          isGroup: false,
+        },
       ],
     });
     await expect(
@@ -655,13 +669,13 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
               accountId: 31,
               amount: '500.00',
               description: 'Cash payment',
-              account: { id: 31, code: '200001', name: 'Cash' },
+              account: { id: 31, code: '50000001', name: 'Cash' },
             },
             {
               accountId: 32,
               amount: '500.00',
               description: 'Bank deposit',
-              account: { id: 32, code: '100005', name: 'Bank Audi' },
+              account: { id: 32, code: '50000002', name: 'Bank Audi' },
             },
           ],
         },
@@ -671,19 +685,19 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
           accountId: 31,
           debit: '500.00',
           credit: '0',
-          account: { id: 31, code: '200001' },
+          account: { id: 31, code: '50000001' },
         },
         {
           accountId: 32,
           debit: '500.00',
           credit: '0',
-          account: { id: 32, code: '100005' },
+          account: { id: 32, code: '50000002' },
         },
         {
           accountId: 12,
           debit: '0',
           credit: '1000.00',
-          account: { id: 12, code: '100001' },
+          account: { id: 12, code: '41110001' },
         },
       ],
     };
@@ -729,13 +743,13 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
           accountId: 31,
           debit: '150.00',
           credit: '0',
-          account: { id: 31, code: '200001', name: 'Cash' },
+          account: { id: 31, code: '50000001', name: 'Cash' },
         },
         {
           accountId: 12,
           debit: '0',
           credit: '150.00',
-          account: { id: 12, code: '100001' },
+          account: { id: 12, code: '41110001' },
         },
       ],
     };
@@ -761,7 +775,7 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
     expect(receipt.allocations).toEqual([
       {
         accountId: 31,
-        accountCode: '200001',
+        accountCode: '50000001',
         accountName: 'Cash',
         amount: '150.00',
         description: null,

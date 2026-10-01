@@ -137,8 +137,9 @@ const lockedParent = {
   firstName: 'Ahmad',
   middleName: 'Hassan',
   lastName: 'Khalil',
-  accountCode: '100001',
+  accountCode: '41110001',
   accountSchoolId: 3,
+  isGroup: false,
 };
 
 const balancedReceiptRows = [
@@ -148,7 +149,7 @@ const balancedReceiptRows = [
 
 const cashAccount = {
   id: 31,
-  code: '200001',
+  code: '50000001',
   name: 'Cash',
   type: 'CASH',
   parentId: null,
@@ -223,9 +224,10 @@ describe('DashboardAccountingService document edits', () => {
     const transaction = baseTransaction({
       accountFindFirst: {
         id: 12,
-        code: '100001',
+        code: '41110001',
         name: 'Parent',
         type: 'PERSON',
+        isGroup: false,
       },
       accountFindMany: [cashAccount],
       currency: usdCurrency,
@@ -292,8 +294,8 @@ describe('DashboardAccountingService system accounts', () => {
   it('creates Cash, Sales and Purchases once per school', async () => {
     const transaction = baseTransaction({
       queryRawResults: [
-        [{ code: '200001' }],
-        [{ code: '200002' }],
+        [{ code: '50000001' }],
+        [{ code: '50000002' }],
         [{ code: '200003' }],
       ],
       accountCreate: cashAccount,
@@ -307,11 +309,11 @@ describe('DashboardAccountingService system accounts', () => {
     expect(accounts).toHaveLength(3);
     expect(transaction.account.create).toHaveBeenCalledTimes(3);
     expect(transaction.account.create).toHaveBeenNthCalledWith(1, {
-      data: { code: '200001', name: 'Cash', type: 'CASH', schoolId: 3 },
+      data: { code: '50000001', name: 'Cash', type: 'CASH', schoolId: 3 },
       select: accountSelect,
     });
     expect(transaction.account.create).toHaveBeenNthCalledWith(2, {
-      data: { code: '200002', name: 'Sales', type: 'SALES', schoolId: 3 },
+      data: { code: '50000002', name: 'Sales', type: 'SALES', schoolId: 3 },
       select: accountSelect,
     });
     expect(transaction.account.create).toHaveBeenNthCalledWith(3, {
@@ -355,8 +357,8 @@ describe('DashboardAccountingService system accounts', () => {
   it('survives a concurrent setup race via the system-type unique index', async () => {
     const transaction = baseTransaction({
       queryRawResults: [
-        [{ code: '200001' }],
-        [{ code: '200002' }],
+        [{ code: '50000001' }],
+        [{ code: '50000002' }],
         [{ code: '200003' }],
       ],
     });
@@ -372,7 +374,7 @@ describe('DashboardAccountingService system accounts', () => {
 
     expect(accounts[0]).toEqual({
       id: 31,
-      code: '200001',
+      code: '50000001',
       name: 'Cash',
       type: 'CASH',
       protected: true,
@@ -405,13 +407,13 @@ describe('DashboardAccountingService receipts', () => {
       parentId: 7,
       parentName: 'Ahmad Hassan Khalil',
       accountId: 12,
-      accountCode: '100001',
+      accountCode: '41110001',
       amount: '150.00',
       total: '150.00',
       allocations: [
         {
           accountId: 31,
-          accountCode: '200001',
+          accountCode: '50000001',
           accountName: 'Cash',
           amount: '150.00',
           description: null,
@@ -538,13 +540,13 @@ describe('DashboardAccountingService receipts', () => {
           accountId: 31,
           debit: '150.00',
           credit: '0',
-          account: { id: 31, code: '200001' },
+          account: { id: 31, code: '50000001' },
         },
         {
           accountId: 12,
           debit: '0',
           credit: '150.00',
-          account: { id: 12, code: '100001' },
+          account: { id: 12, code: '41110001' },
         },
       ],
     };
@@ -578,17 +580,19 @@ describe('DashboardAccountingService receipts', () => {
 describe('DashboardAccountingService payments', () => {
   const destination = {
     id: 40,
-    code: '300001',
+    code: '41110002',
     name: 'Supplies',
     type: 'PERSON',
+    isGroup: false,
   };
 
   it('posts one balanced payment with two funding allocations', async () => {
     const bankAccount = {
       id: 32,
-      code: '200002',
+      code: '50000002',
       name: 'Bank Audi',
       type: 'GENERAL',
+      isGroup: false,
     };
     const transaction = baseTransaction({
       queryRawResults: [[{ nb: 2 }]],
@@ -615,7 +619,7 @@ describe('DashboardAccountingService payments', () => {
     expect(payment).toMatchObject({
       nb: 2,
       accountId: 40,
-      accountCode: '300001',
+      accountCode: '41110002',
       amount: '1000.00',
       total: '1000.00',
       allocations: [
@@ -707,7 +711,15 @@ describe('DashboardAccountingService payments', () => {
 
   it('rejects PERSON and cross-school funding accounts', async () => {
     for (const accounts of [
-      [{ id: 41, code: '100002', name: 'Person', type: 'PERSON' }],
+      [
+        {
+          id: 41,
+          code: '41110003',
+          name: 'Person',
+          type: 'PERSON',
+          isGroup: false,
+        },
+      ],
       [],
     ]) {
       const transaction = baseTransaction({
@@ -743,13 +755,13 @@ describe('DashboardAccountingService payments', () => {
           accountId: 40,
           debit: '75.50',
           credit: '0',
-          account: { id: 40, code: '300001', name: 'Supplies' },
+          account: { id: 40, code: '41110002', name: 'Supplies' },
         },
         {
           accountId: 31,
           debit: '0',
           credit: '75.50',
-          account: { id: 31, code: '200001', name: 'Cash' },
+          account: { id: 31, code: '50000001', name: 'Cash' },
         },
       ],
     };
@@ -765,11 +777,11 @@ describe('DashboardAccountingService payments', () => {
 
     expect(payment).toMatchObject({
       nb: 6,
-      accountCode: '300001',
+      accountCode: '41110002',
       allocations: [
         {
           accountId: 31,
-          accountCode: '200001',
+          accountCode: '50000001',
           amount: '75.50',
         },
       ],

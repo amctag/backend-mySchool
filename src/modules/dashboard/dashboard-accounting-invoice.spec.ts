@@ -18,8 +18,9 @@ const lockedParent = {
   firstName: 'John',
   middleName: '',
   lastName: 'Doe',
-  accountCode: '100001',
+  accountCode: '41110001',
   accountSchoolId: 3,
+  isGroup: false,
 };
 
 const usdCurrency = {
