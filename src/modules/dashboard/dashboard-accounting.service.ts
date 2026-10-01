@@ -3842,7 +3842,8 @@ export class DashboardAccountingService {
       throw new BadRequestException('Family must be 4 or 5');
     }
     const limit = Math.min(Math.max(query.limit ?? 20, 1), 50);
-    const search = query.search?.trim() || null;
+    const searchText = query.search?.trim() ?? '';
+    const likePattern = `%${searchText}%`;
     const rows = await this.prisma.$queryRaw<
       Array<{
         id: number;
@@ -3869,10 +3870,10 @@ export class DashboardAccountingService {
         AND LENGTH(a.code) = 8
         AND a.code LIKE ${family + '%'}
         AND (
-          ${search} IS NULL
-          OR a.code ILIKE ${'%' + (search ?? '') + '%'}
-          OR a.name ILIKE ${'%' + (search ?? '') + '%'}
-          OR CONCAT_WS(' ', p.first_name, p.middle_name, p.last_name) ILIKE ${'%' + (search ?? '') + '%'}
+          ${searchText} = ''
+          OR a.code ILIKE ${likePattern}
+          OR a.name ILIKE ${likePattern}
+          OR CONCAT_WS(' ', p.first_name, p.middle_name, p.last_name) ILIKE ${likePattern}
         )
       ORDER BY a.code ASC
       LIMIT ${limit}
