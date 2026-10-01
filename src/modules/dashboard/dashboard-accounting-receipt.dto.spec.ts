@@ -27,7 +27,7 @@ async function validateReceipt(
 }
 
 const bankCashReceipt = {
-  parentId: 7,
+  accountId: 12,
   currencyId: 1,
   description: 'Tuition',
   idempotencyKey: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
@@ -40,7 +40,7 @@ const bankCashReceipt = {
 describe('CreateDashboardReceiptDto contract', () => {
   it('accepts the current UI Cash 150 payload without a top-level amount', async () => {
     const errors = await validateReceipt({
-      parentId: 7,
+      accountId: 12,
       currencyId: 1,
       idempotencyKey: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
       allocations: [{ accountId: 31, amount: 150 }],

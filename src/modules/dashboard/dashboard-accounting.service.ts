@@ -374,7 +374,10 @@ export class DashboardAccountingService {
           'Children can only be added under a group account. Mark the parent as a group account first.',
         );
       }
-      if (dto.type === 'PERSON' && parent.code !== AccountCodeService.CUSTOMER_BRANCH_CODE) {
+      if (
+        dto.type === 'PERSON' &&
+        parent.code !== AccountCodeService.CUSTOMER_BRANCH_CODE
+      ) {
         throw new BadRequestException(
           'Person accounts must be created under the 4111 customer branch',
         );
@@ -411,7 +414,11 @@ export class DashboardAccountingService {
           user.schoolId,
         );
         isGroup = false;
-      } else if (dto.code !== undefined && dto.code !== null && dto.code.trim() !== '') {
+      } else if (
+        dto.code !== undefined &&
+        dto.code !== null &&
+        dto.code.trim() !== ''
+      ) {
         // Explicit structural code: must satisfy the exact hierarchy rule.
         AccountCodeService.validateHierarchyCode(parent.code, dto.code);
         code = dto.code.trim();
@@ -591,18 +598,23 @@ export class DashboardAccountingService {
           'Account cannot be deleted because it has child accounts',
         );
       }
-      const [journalRefs, receiptRefs, paymentRefs, installmentRefs, personRefs] =
-        await Promise.all([
-          tx.accountingDaily.count({ where: { accountId: account.id } }),
-          tx.accountingReceiptDetail.count({
-            where: { accountId: account.id },
-          }),
-          tx.accountingPaymentDetail.count({
-            where: { accountId: account.id },
-          }),
-          tx.installment.count({ where: { accountId: account.id } }),
-          tx.person.count({ where: { accountId: account.id } }),
-        ]);
+      const [
+        journalRefs,
+        receiptRefs,
+        paymentRefs,
+        installmentRefs,
+        personRefs,
+      ] = await Promise.all([
+        tx.accountingDaily.count({ where: { accountId: account.id } }),
+        tx.accountingReceiptDetail.count({
+          where: { accountId: account.id },
+        }),
+        tx.accountingPaymentDetail.count({
+          where: { accountId: account.id },
+        }),
+        tx.installment.count({ where: { accountId: account.id } }),
+        tx.person.count({ where: { accountId: account.id } }),
+      ]);
       if (journalRefs > 0) {
         throw new BadRequestException(
           'Account cannot be deleted because it is used in the journal',
@@ -731,27 +743,19 @@ export class DashboardAccountingService {
         }
       }
 
-      const locked = await this.lockParentAccount(
-        tx,
-        user.schoolId,
-        dto.parentId,
-      );
-      if (
-        locked.accountId === null ||
-        locked.accountSchoolId !== user.schoolId
-      ) {
+      // Contract: dto.accountId is accounts.id (never parents.id). The
+      // selected family-4 posting account is used directly as the CREDIT
+      // account; no Parent/Person relation is required.
+      const entity = await tx.account.findFirst({
+        where: { id: dto.accountId, schoolId: user.schoolId },
+        select: { id: true, code: true, name: true, isGroup: true },
+      });
+      if (!entity) {
         throw new BadRequestException(
-          'Parent has no accounting account for this school',
+          'To account does not belong to the authenticated school',
         );
       }
-      // Contract: dto.parentId is parents.id (never accounts.id). The actual
-      // posting account is resolved server-side from the locked person row
-      // and must be an eligible family-4 To account.
-      this.assertPostingFamily(
-        { code: locked.accountCode, isGroup: locked.isGroup },
-        '4',
-        'To account',
-      );
+      this.assertPostingFamily(entity, '4', 'To account');
 
       const currency = await tx.currency.findUnique({
         where: { id: dto.currencyId },
@@ -859,7 +863,7 @@ export class DashboardAccountingService {
             accountingRegisterId: register.id,
           })),
           {
-            accountId: locked.accountId,
+            accountId: entity.id,
             debit: new Prisma.Decimal(0),
             credit: total,
             description: dto.description ?? null,
@@ -875,14 +879,14 @@ export class DashboardAccountingService {
         total,
       );
 
-      const parentName = this.formatPersonName(locked);
+      const linkage = await this.resolveReceiptEntityParent(tx, entity.id);
       return {
         id: receiptRow.id,
         nb: numbering.nb,
-        parentId: locked.parentId,
-        parentName,
-        accountId: locked.accountId,
-        accountCode: locked.accountCode ?? '',
+        parentId: linkage.parentId,
+        parentName: linkage.parentName,
+        accountId: entity.id,
+        accountCode: entity.code,
         amount: total.toFixed(2),
         total: total.toFixed(2),
         allocations: allocations.map((allocation) => ({
@@ -1004,24 +1008,16 @@ export class DashboardAccountingService {
         select: { id: true, accountingRegisterId: true },
       });
       if (!receipt) throw new NotFoundException('Receipt not found');
-      const parent = await this.lockParentAccount(
-        tx,
-        user.schoolId,
-        dto.parentId,
-      );
-      if (
-        parent.accountId === null ||
-        parent.accountSchoolId !== user.schoolId
-      ) {
+      const entity = await tx.account.findFirst({
+        where: { id: dto.accountId, schoolId: user.schoolId },
+        select: { id: true, code: true, name: true, isGroup: true },
+      });
+      if (!entity) {
         throw new BadRequestException(
-          'Parent has no accounting account for this school',
+          'To account does not belong to the authenticated school',
         );
       }
-      this.assertPostingFamily(
-        { code: parent.accountCode, isGroup: parent.isGroup },
-        '4',
-        'To account',
-      );
+      this.assertPostingFamily(entity, '4', 'To account');
       const currency = await tx.currency.findUnique({
         where: { id: dto.currencyId },
       });
@@ -1074,7 +1070,7 @@ export class DashboardAccountingService {
             accountingRegisterId: receipt.accountingRegisterId,
           })),
           {
-            accountId: parent.accountId,
+            accountId: entity.id,
             debit: new Prisma.Decimal(0),
             credit: total,
             description: dto.description ?? null,
@@ -1659,9 +1655,7 @@ export class DashboardAccountingService {
 
     const parentByAccountId = await this.resolveAccountPersons(
       invoices.flatMap((invoice) =>
-        invoice.accountingRegister.dailyEntries.map(
-          (entry) => entry.accountId,
-        ),
+        invoice.accountingRegister.dailyEntries.map((entry) => entry.accountId),
       ),
     );
 
@@ -1760,11 +1754,7 @@ export class DashboardAccountingService {
         user.schoolId,
         dto.parentId,
       );
-      const account = await this.ensureParentAccount(
-        tx,
-        user.schoolId,
-        locked,
-      );
+      const account = await this.ensureParentAccount(tx, user.schoolId, locked);
       const currency = await this.requireCurrency(tx, dto.currencyId);
       const lines = await this.resolveInvoiceLines(tx, {
         schoolId: user.schoolId,
@@ -2315,7 +2305,10 @@ export class DashboardAccountingService {
           openingBalance: opening.toFixed(2),
           totalDebit: bucket.debit.toFixed(2),
           totalCredit: bucket.credit.toFixed(2),
-          closingBalance: opening.plus(bucket.credit).minus(bucket.debit).toFixed(2),
+          closingBalance: opening
+            .plus(bucket.credit)
+            .minus(bucket.debit)
+            .toFixed(2),
         };
       }),
       rows: pageRows.map(({ row, balance }) => {
@@ -2356,21 +2349,41 @@ export class DashboardAccountingService {
   } {
     const receipt = register.receipts[0];
     if (receipt) {
-      return { type: 'Receipt', nb: receipt.nb, id: receipt.id, kind: 'receipts' };
+      return {
+        type: 'Receipt',
+        nb: receipt.nb,
+        id: receipt.id,
+        kind: 'receipts',
+      };
     }
     const payment = register.payments[0];
     if (payment) {
-      return { type: 'Payment', nb: payment.nb, id: payment.id, kind: 'payments' };
+      return {
+        type: 'Payment',
+        nb: payment.nb,
+        id: payment.id,
+        kind: 'payments',
+      };
     }
     const invoice = register.invoices[0];
     if (invoice) {
-      return { type: 'Invoice', nb: invoice.nb, id: invoice.id, kind: 'invoices' };
+      return {
+        type: 'Invoice',
+        nb: invoice.nb,
+        id: invoice.id,
+        kind: 'invoices',
+      };
     }
     const record = register.records[0];
     if (record) {
       return { type: 'Record', nb: record.nb, id: record.id, kind: 'records' };
     }
-    return { type: register.accountingRegisterType.name, nb: null, id: null, kind: null };
+    return {
+      type: register.accountingRegisterType.name,
+      nb: null,
+      id: null,
+      kind: null,
+    };
   }
 
   private async findRecordIdByIdempotencyKey(
@@ -2481,7 +2494,13 @@ export class DashboardAccountingService {
   ): Promise<InvoiceCurrencyRow> {
     const currency = await tx.currency.findUnique({
       where: { id: currencyId },
-      select: { id: true, title: true, shortCode: true, symbol: true, rate: true },
+      select: {
+        id: true,
+        title: true,
+        shortCode: true,
+        symbol: true,
+        rate: true,
+      },
     });
     if (!currency) {
       throw new BadRequestException('Invalid currency');
@@ -2718,7 +2737,10 @@ export class DashboardAccountingService {
           `Invoice line ${index + 1}: item is not part of the class registration package`,
         );
       }
-      if (packageRef?.currencyId != null && packageRef.currencyId !== args.currencyId) {
+      if (
+        packageRef?.currencyId != null &&
+        packageRef.currencyId !== args.currencyId
+      ) {
         throw new BadRequestException(
           `Invoice line ${index + 1}: package item currency does not match the invoice currency`,
         );
@@ -2850,20 +2872,26 @@ export class DashboardAccountingService {
     classId: number,
     yearId: number,
   ): Promise<{ id: number; name: string; items: PackageItemRef[] } | null> {
-    const registrationPackage = await tx.accountingRegistrationPackage.findFirst({
-      where: {
-        yearId,
-        year: { schoolId },
-        classes: { some: { classId } },
-      },
-      select: {
-        id: true,
-        name: true,
-        items: {
-          select: { itemId: true, price: true, currencyId: true, mandatory: true },
+    const registrationPackage =
+      await tx.accountingRegistrationPackage.findFirst({
+        where: {
+          yearId,
+          year: { schoolId },
+          classes: { some: { classId } },
         },
-      },
-    });
+        select: {
+          id: true,
+          name: true,
+          items: {
+            select: {
+              itemId: true,
+              price: true,
+              currencyId: true,
+              mandatory: true,
+            },
+          },
+        },
+      });
     return registrationPackage;
   }
 
@@ -3196,9 +3224,7 @@ export class DashboardAccountingService {
         );
       }
       if (account.isGroup) {
-        throw new BadRequestException(
-          'Group accounts cannot fund payments',
-        );
+        throw new BadRequestException('Group accounts cannot fund payments');
       }
       if (!PAYMENT_SOURCE_TYPES.has(account.type)) {
         throw new BadRequestException(
@@ -3549,6 +3575,40 @@ export class DashboardAccountingService {
     return resolved;
   }
 
+  /**
+   * Optional parent linkage for a receipt To account. Returns the linked
+   * parent when the account belongs to a parent's person row, otherwise
+   * NULL with the account name so non-parent accounts stay readable.
+   */
+  private async resolveReceiptEntityParent(
+    tx: Prisma.TransactionClient,
+    accountId: number,
+  ): Promise<{ parentId: number | null; parentName: string }> {
+    const person = await tx.person.findFirst({
+      where: { accountId },
+      select: {
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        parent: { select: { id: true } },
+      },
+    });
+    if (!person) {
+      const account = await tx.account.findFirst({
+        where: { id: accountId },
+        select: { name: true, code: true },
+      });
+      return {
+        parentId: null,
+        parentName: account?.name ?? account?.code ?? '',
+      };
+    }
+    return {
+      parentId: person.parent?.id ?? null,
+      parentName: this.formatPersonName(person),
+    };
+  }
+
   private toReceiptDto(
     receipt: { id: number; nb: number; details?: ReceiptDetailRow[] },
     register: RegisterBlock,
@@ -3561,9 +3621,6 @@ export class DashboardAccountingService {
       throw new InternalServerErrorException('Receipt journal is missing');
     }
     const parent = parentByAccountId.get(creditLine.accountId);
-    if (!parent) {
-      throw new InternalServerErrorException('Receipt parent is missing');
-    }
     const total = new Prisma.Decimal(creditLine.credit);
     const allocations = this.toAllocationDtos(
       receipt.details ?? [],
@@ -3572,8 +3629,11 @@ export class DashboardAccountingService {
     return {
       id: receipt.id,
       nb: receipt.nb,
-      parentId: parent.parentId,
-      parentName: parent.parentName,
+      parentId: parent?.parentId ?? null,
+      parentName:
+        parent?.parentName ??
+        creditLine.account.name ??
+        creditLine.account.code,
       accountId: creditLine.account.id,
       accountCode: creditLine.account.code,
       amount: total.toFixed(2),

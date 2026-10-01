@@ -92,6 +92,7 @@ function postingTx(
   rawQueue: unknown[],
   dailyRows: Array<{ accountId: number; debit: string; credit: string }>,
   items: unknown[] = [ITEM],
+  personByAccountId: Record<number, unknown> = {},
 ) {
   const queue = [...rawQueue];
   const posted: Array<Record<string, unknown>> = [];
@@ -117,6 +118,15 @@ function postingTx(
       ),
     },
     currency: { findUnique: jest.fn(() => Promise.resolve(USD)) },
+    person: {
+      findFirst: jest.fn((args: { where: { accountId?: number } }) =>
+        Promise.resolve(
+          args.where.accountId === undefined
+            ? null
+            : (personByAccountId[args.where.accountId] ?? null),
+        ),
+      ),
+    },
     item: { findMany: jest.fn(() => Promise.resolve(items)) },
     registration: { findMany: jest.fn(() => Promise.resolve([])) },
     accountingRegisterType: {
@@ -190,18 +200,22 @@ describe('Receipt backend family enforcement', () => {
     { accountId: 12, debit: '0', credit: '150.00' },
   ];
 
-  it('accepts a family-4 To account with a family-5 destination', async () => {
+  it('accepts a valid family-4 To account with NO parent relation', async () => {
     const { service, posted } = postingTx(
       ACCOUNTS,
-      [[lockedRow(ENTITY)], [{ nb: 1 }]],
+      [[{ nb: 1 }]],
       balanced,
+      [ITEM],
+      {},
     );
     const receipt = await service.createReceipt(user, {
-      parentId: 7,
+      accountId: 12,
       currencyId: 1,
       allocations: [{ accountId: 31, amount: 150 }],
     });
     expect(receipt.accountCode).toBe('41110001');
+    expect(receipt.parentId).toBeNull();
+    expect(receipt.parentName).toBe('Ahmad Hassan Khalil');
     // Journal direction unchanged: destination DEBIT, To account CREDIT.
     expect(posted).toHaveLength(2);
     expect(posted[0]).toMatchObject({ accountId: 31 });
@@ -210,20 +224,34 @@ describe('Receipt backend family enforcement', () => {
     expect((posted[1].credit as Prisma.Decimal).toFixed(2)).toBe('150.00');
   });
 
+  it('resolves the parent linkage when the To account belongs to a parent', async () => {
+    const { service } = postingTx(ACCOUNTS, [[{ nb: 1 }]], balanced, [ITEM], {
+      12: {
+        firstName: 'Ahmad',
+        middleName: 'Hassan',
+        lastName: 'Khalil',
+        parent: { id: 7 },
+      },
+    });
+    const receipt = await service.createReceipt(user, {
+      accountId: 12,
+      currencyId: 1,
+      allocations: [{ accountId: 31, amount: 150 }],
+    });
+    expect(receipt.parentId).toBe(7);
+    expect(receipt.parentName).toBe('Ahmad Hassan Khalil');
+  });
+
   it.each([
-    ['family-5 To account', CASH],
-    ['structural 4111 To account', { ...GROUP4, id: 12 }],
-    ['group To account', { ...ENTITY, id: 12, isGroup: true }],
-    ['short-code To account', { ...ENTITY, id: 12, code: '411' }],
-  ])('rejects %s', async (_label, account) => {
-    const { service, tx } = postingTx(
-      ACCOUNTS,
-      [[lockedRow(account as PostingAccount)]],
-      balanced,
-    );
+    ['family-5 To account', 31],
+    ['structural To account', 54],
+    ['group To account', 53],
+    ['cross-school To account', 99],
+  ])('rejects %s', async (_label, accountId) => {
+    const { service, tx } = postingTx(ACCOUNTS, [], balanced);
     await expect(
       service.createReceipt(user, {
-        parentId: 7,
+        accountId,
         currencyId: 1,
         allocations: [{ accountId: 31, amount: 150 }],
       }),
@@ -237,14 +265,10 @@ describe('Receipt backend family enforcement', () => {
     ['group 4111 destination', GROUP4.id],
     ['cross-school destination', 99],
   ])('rejects %s', async (_label, accountId) => {
-    const { service, tx } = postingTx(
-      ACCOUNTS,
-      [[lockedRow(ENTITY)]],
-      balanced,
-    );
+    const { service, tx } = postingTx(ACCOUNTS, [], balanced);
     await expect(
       service.createReceipt(user, {
-        parentId: 7,
+        accountId: 12,
         currencyId: 1,
         allocations: [{ accountId, amount: 150 }],
       }),

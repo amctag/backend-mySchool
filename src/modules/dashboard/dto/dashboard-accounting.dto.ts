@@ -429,10 +429,14 @@ export class DashboardReceiptAllocationBody {
 }
 
 export class CreateDashboardReceiptDto extends DashboardAccountingDocumentBody {
-  @ApiProperty({ example: 7 })
+  @ApiProperty({
+    example: 12,
+    description:
+      'To account: any same-school posting account of family 4 (exactly 8 digits, non-group). Used directly as the CREDIT account; no Parent relation required.',
+  })
   @Type(() => Number)
   @IsInt()
-  parentId!: number;
+  accountId!: number;
 
   @ApiProperty({
     example: 1,
@@ -446,7 +450,7 @@ export class CreateDashboardReceiptDto extends DashboardAccountingDocumentBody {
   @ApiProperty({
     type: [DashboardReceiptAllocationBody],
     description:
-      'One or more destination allocations. Backend posts one debit row per allocation and a single parent credit for the total.',
+      'One or more destination allocations. Backend posts one debit row per allocation and a single To-account credit for the total.',
   })
   @IsArray()
   @ArrayMinSize(1)
@@ -520,8 +524,13 @@ export class DashboardReceiptDto {
   @ApiProperty({ example: 1 })
   nb!: number;
 
-  @ApiProperty({ example: 7 })
-  parentId!: number;
+  @ApiProperty({
+    example: 7,
+    nullable: true,
+    description:
+      'Linked parent id when the To account belongs to a parent; NULL otherwise. Old parent-created receipts keep resolving.',
+  })
+  parentId!: number | null;
 
   @ApiProperty({ example: 'Ahmad Hassan Khalil' })
   parentName!: string;

@@ -33,6 +33,13 @@ const cashAccount = {
   type: 'CASH',
   isGroup: false,
 };
+const entityAccount = {
+  id: 12,
+  code: '41110001',
+  name: 'Ahmad Hassan Khalil',
+  type: 'PERSON',
+  isGroup: false,
+};
 const bankAccount = {
   id: 32,
   code: '50000002',
@@ -121,6 +128,7 @@ function mocks(overrides?: {
     },
     person: {
       findMany: jest.fn(() => Promise.resolve(overrides?.persons ?? [])),
+      findFirst: jest.fn(() => Promise.resolve(null)),
     },
   };
   tx.$queryRaw = jest.fn(() => {
@@ -384,7 +392,7 @@ describe('DashboardAccountingService manual accounts', () => {
 
 describe('DashboardAccountingService multi-allocation receipts', () => {
   const twoWayInput = {
-    parentId: 7,
+    accountId: 12,
     currencyId: 1,
     allocations: [
       { accountId: 31, amount: 500, description: 'Cash payment' },
@@ -396,8 +404,8 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
     dailyRows?: Array<{ accountId: number; debit: unknown; credit: unknown }>,
   ) {
     return mocks({
-      queryRawResults: [[lockedParent], [{ nb: 1 }]],
-      accountFindFirst: [cashAccount, bankAccount],
+      queryRawResults: [[{ nb: 1 }]],
+      accountFindFirst: [entityAccount, cashAccount, bankAccount],
       currencyFindUnique: usdCurrency,
       dailyRows: dailyRows ?? [
         { accountId: 31, debit: '500.00', credit: '0' },
@@ -429,7 +437,7 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
 
     expect(receipt).toMatchObject({
       nb: 1,
-      parentId: 7,
+      parentId: null,
       total: '1000.00',
       amount: '1000.00',
       currency: { id: 1, shortCode: 'USD', symbol: '$', rate: '1' },
@@ -475,8 +483,8 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
 
   it('posts Bank 1200 + Cash 300 debits with a single 1500 parent credit', async () => {
     const { service, tx } = mocks({
-      queryRawResults: [[lockedParent], [{ nb: 7 }]],
-      accountFindFirst: [bankAccount, cashAccount],
+      queryRawResults: [[{ nb: 7 }]],
+      accountFindFirst: [entityAccount, bankAccount, cashAccount],
       currencyFindUnique: usdCurrency,
       dailyRows: [
         { accountId: 32, debit: '1200.00', credit: '0' },
@@ -498,7 +506,7 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
     );
 
     const receipt = await service.createReceipt({ schoolId: 3 } as never, {
-      parentId: 7,
+      accountId: 12,
       currencyId: 1,
       allocations: [
         { accountId: 32, amount: 1200 },
@@ -532,7 +540,7 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
     });
     await expect(
       service.createReceipt({ schoolId: 3 } as never, {
-        parentId: 7,
+        accountId: 12,
         currencyId: 1,
         allocations: [],
       }),
@@ -544,11 +552,11 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
     const { service, tx } = mocks({
       queryRawResults: [[lockedParent]],
       currencyFindUnique: usdCurrency,
-      accountFindFirst: [cashAccount],
+      accountFindFirst: [entityAccount, cashAccount],
     });
     await expect(
       service.createReceipt({ schoolId: 3 } as never, {
-        parentId: 7,
+        accountId: 12,
         currencyId: 1,
         allocations: [{ accountId: 31, amount }],
       }),
@@ -572,7 +580,7 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
     });
     await expect(
       service.createReceipt({ schoolId: 3 } as never, {
-        parentId: 7,
+        accountId: 12,
         currencyId: 1,
         allocations: [{ accountId: 50, amount: 100 }],
       }),
@@ -586,11 +594,14 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
       const { service, tx } = mocks({
         queryRawResults: [[lockedParent]],
         currencyFindUnique: usdCurrency,
-        accountFindFirst: [{ id: 60, code: '600001', name: type, type }],
+        accountFindFirst: [
+          entityAccount,
+          { id: 60, code: '600001', name: type, type },
+        ],
       });
       await expect(
         service.createReceipt({ schoolId: 3 } as never, {
-          parentId: 7,
+          accountId: 12,
           currencyId: 1,
           allocations: [{ accountId: 60, amount: 100 }],
         }),
@@ -607,7 +618,7 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
     });
     await expect(
       service.createReceipt({ schoolId: 3 } as never, {
-        parentId: 7,
+        accountId: 12,
         currencyId: 1,
         allocations: [{ accountId: 77, amount: 100 }],
       }),
@@ -619,11 +630,11 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
     const { service, tx } = mocks({
       queryRawResults: [[lockedParent]],
       currencyFindUnique: usdCurrency,
-      accountFindFirst: [cashAccount, cashAccount],
+      accountFindFirst: [entityAccount, cashAccount, cashAccount],
     });
     await expect(
       service.createReceipt({ schoolId: 3 } as never, {
-        parentId: 7,
+        accountId: 12,
         currencyId: 1,
         allocations: [
           { accountId: 31, amount: 100 },
@@ -641,7 +652,7 @@ describe('DashboardAccountingService multi-allocation receipts', () => {
     });
     await expect(
       service.createReceipt({ schoolId: 3 } as never, {
-        parentId: 7,
+        accountId: 12,
         currencyId: 4242,
         allocations: [{ accountId: 31, amount: 100 }],
       }),

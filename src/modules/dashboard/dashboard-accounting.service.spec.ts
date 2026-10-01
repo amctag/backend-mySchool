@@ -30,6 +30,8 @@ function baseTransaction(overrides?: {
   paymentCreate?: unknown;
   dailyRows?: Array<{ accountId: number; debit: unknown; credit: unknown }>;
   persons?: unknown[];
+  personFindFirst?: unknown;
+  accountById?: Record<number, unknown>;
 }) {
   const queue = [...(overrides?.queryRawResults ?? [])];
   const $queryRaw = jest.fn(() => {
@@ -42,9 +44,14 @@ function baseTransaction(overrides?: {
   return {
     $queryRaw,
     account: {
-      findFirst: jest.fn(() =>
-        Promise.resolve(overrides?.accountFindFirst ?? null),
-      ),
+      findFirst: jest.fn((args?: { where?: { id?: number } }) => {
+        const byId = overrides?.accountById;
+        const id = args?.where?.id;
+        if (byId && id !== undefined) {
+          return Promise.resolve(byId[id] ?? null);
+        }
+        return Promise.resolve(overrides?.accountFindFirst ?? null);
+      }),
       create: jest.fn(() =>
         Promise.resolve(overrides?.accountCreate ?? { id: 1 }),
       ),
@@ -107,6 +114,9 @@ function baseTransaction(overrides?: {
     },
     person: {
       findMany: jest.fn(() => Promise.resolve(overrides?.persons ?? [])),
+      findFirst: jest.fn(() =>
+        Promise.resolve(overrides?.personFindFirst ?? null),
+      ),
     },
   };
 }
@@ -129,18 +139,6 @@ function serviceWith(transaction: ReturnType<typeof baseTransaction>) {
   };
   return new DashboardAccountingService(prisma as never);
 }
-
-const lockedParent = {
-  parentId: 7,
-  personId: 70,
-  accountId: 12,
-  firstName: 'Ahmad',
-  middleName: 'Hassan',
-  lastName: 'Khalil',
-  accountCode: '41110001',
-  accountSchoolId: 3,
-  isGroup: false,
-};
 
 const balancedReceiptRows = [
   { accountId: 31, debit: '150.00', credit: '0' },
@@ -176,8 +174,16 @@ const accountSelect = {
 describe('DashboardAccountingService document edits', () => {
   it('rebuilds a receipt journal on the same register and preserves its document identity', async () => {
     const transaction = baseTransaction({
-      queryRawResults: [[lockedParent]],
-      accountFindFirst: cashAccount,
+      accountById: {
+        12: {
+          id: 12,
+          code: '41110001',
+          name: 'Ahmad Hassan Khalil',
+          type: 'PERSON',
+          isGroup: false,
+        },
+        31: cashAccount,
+      },
       currency: usdCurrency,
       dailyRows: balancedReceiptRows,
     });
@@ -192,7 +198,7 @@ describe('DashboardAccountingService document edits', () => {
     } as never);
 
     const edited = await service.updateReceipt({ schoolId: 3 } as never, 10, {
-      parentId: 7,
+      accountId: 12,
       currencyId: 1,
       allocations: [{ accountId: 31, amount: 150 }],
     });
@@ -266,7 +272,7 @@ describe('DashboardAccountingService document edits', () => {
 
     await expect(
       service.updateReceipt({ schoolId: 3 } as never, 99, {
-        parentId: 7,
+        accountId: 12,
         currencyId: 1,
         allocations: [{ accountId: 31, amount: 150 }],
       }),
@@ -387,24 +393,32 @@ describe('DashboardAccountingService system accounts', () => {
 });
 
 describe('DashboardAccountingService receipts', () => {
-  it('posts a balanced receipt with Cash debit and Parent credit', async () => {
+  const entityAccount = {
+    id: 12,
+    code: '41110001',
+    name: 'Ahmad Hassan Khalil',
+    type: 'PERSON',
+    isGroup: false,
+  };
+
+  it('posts a balanced receipt with Cash debit and To-account credit', async () => {
     const transaction = baseTransaction({
-      queryRawResults: [[lockedParent], [{ nb: 1 }]],
-      accountFindFirst: cashAccount,
+      queryRawResults: [[{ nb: 1 }]],
+      accountById: { 12: entityAccount, 31: cashAccount },
       currency: usdCurrency,
       dailyRows: balancedReceiptRows,
     });
     const service = serviceWith(transaction);
 
     const receipt = await service.createReceipt({ schoolId: 3 } as never, {
-      parentId: 7,
+      accountId: 12,
       currencyId: 1,
       allocations: [{ accountId: 31, amount: 150 }],
     });
 
     expect(receipt).toMatchObject({
       nb: 1,
-      parentId: 7,
+      parentId: null,
       parentName: 'Ahmad Hassan Khalil',
       accountId: 12,
       accountCode: '41110001',
@@ -470,24 +484,16 @@ describe('DashboardAccountingService receipts', () => {
     });
   });
 
-  it('rejects a parent without an accounting account', async () => {
+  it('rejects a To account from another school', async () => {
     const transaction = baseTransaction({
-      queryRawResults: [
-        [
-          {
-            ...lockedParent,
-            accountId: null,
-            accountCode: null,
-            accountSchoolId: null,
-          },
-        ],
-      ],
+      queryRawResults: [[{ nb: 1 }]],
+      accountById: {},
     });
     const service = serviceWith(transaction);
 
     await expect(
       service.createReceipt({ schoolId: 3 } as never, {
-        parentId: 7,
+        accountId: 12,
         currencyId: 1,
         allocations: [{ accountId: 31, amount: 50 }],
       }),
@@ -495,15 +501,16 @@ describe('DashboardAccountingService receipts', () => {
     expect(transaction.accountingRegister.create).not.toHaveBeenCalled();
   });
 
-  it('rejects a parent whose account belongs to another school', async () => {
+  it('rejects a To account outside family 4', async () => {
     const transaction = baseTransaction({
-      queryRawResults: [[{ ...lockedParent, accountSchoolId: 9 }]],
+      accountById: { 12: cashAccount, 31: cashAccount },
+      currency: usdCurrency,
     });
     const service = serviceWith(transaction);
 
     await expect(
       service.createReceipt({ schoolId: 3 } as never, {
-        parentId: 7,
+        accountId: 12,
         currencyId: 1,
         allocations: [{ accountId: 31, amount: 50 }],
       }),
@@ -511,17 +518,17 @@ describe('DashboardAccountingService receipts', () => {
     expect(transaction.accountingRegister.create).not.toHaveBeenCalled();
   });
 
-  it('rejects a parent outside the authenticated school', async () => {
+  it('rejects a receipt with an invalid document body', async () => {
     const transaction = baseTransaction({ queryRawResults: [[]] });
     const service = serviceWith(transaction);
 
     await expect(
       service.createReceipt({ schoolId: 3 } as never, {
-        parentId: 7,
+        accountId: 12,
         currencyId: 1,
-        allocations: [{ accountId: 31, amount: 50 }],
+        allocations: [],
       }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('returns the original receipt for a duplicate idempotency key', async () => {
@@ -565,7 +572,7 @@ describe('DashboardAccountingService receipts', () => {
     const service = serviceWith(transaction);
 
     const receipt = await service.createReceipt({ schoolId: 3 } as never, {
-      parentId: 7,
+      accountId: 12,
       currencyId: 1,
       allocations: [{ accountId: 31, amount: 150 }],
       idempotencyKey: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
