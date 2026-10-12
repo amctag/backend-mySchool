@@ -17,7 +17,7 @@ export class DashboardAgendaSectionsQueryDto {
   @Min(1)
   page?: number;
 
-  @ApiPropertyOptional({ example: 10, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({ example: 100, minimum: 1, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

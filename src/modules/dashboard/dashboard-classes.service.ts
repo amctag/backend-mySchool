@@ -25,7 +25,7 @@ export class DashboardClassesService {
     query: DashboardClassesQueryDto,
   ): Promise<DashboardClassesResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const search = query.search?.trim();
     const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc';
     await ensureStandardClassesForSchool(this.prisma, user.schoolId);

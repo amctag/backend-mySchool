@@ -39,7 +39,7 @@ export class DashboardTeacherTasksQueryDto {
   @Min(1)
   page?: number;
 
-  @ApiPropertyOptional({ example: 10 })
+  @ApiPropertyOptional({ example: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

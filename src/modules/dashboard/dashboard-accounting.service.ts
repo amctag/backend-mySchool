@@ -918,7 +918,7 @@ export class DashboardAccountingService {
     query: DashboardAccountingDocumentQueryDto,
   ): Promise<DashboardReceiptsResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const where: Prisma.AccountingReceiptWhereInput = {
       schoolId: user.schoolId,
       accountingRegister: this.documentRegisterFilter(query),
@@ -1266,7 +1266,7 @@ export class DashboardAccountingService {
     query: DashboardAccountingDocumentQueryDto,
   ): Promise<DashboardPaymentsResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const where: Prisma.AccountingPaymentWhereInput = {
       schoolId: user.schoolId,
       accountingRegister: this.documentRegisterFilter(query),
@@ -1583,7 +1583,7 @@ export class DashboardAccountingService {
     query: DashboardInvoicesQueryDto,
   ): Promise<DashboardInvoicesResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const registerFilter = this.documentRegisterFilter(query);
     const where: Prisma.AccountingInvoiceWhereInput = {
       schoolId: user.schoolId,
@@ -2092,7 +2092,7 @@ export class DashboardAccountingService {
     query: DashboardAccountingDocumentQueryDto,
   ): Promise<DashboardRecordsResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const where: Prisma.AccountingRecordWhereInput = {
       schoolId: user.schoolId,
       accountingRegister: this.documentRegisterFilter(query),

@@ -107,7 +107,7 @@ export class DashboardAccountsQueryDto {
   @Min(1)
   page?: number;
 
-  @ApiPropertyOptional({ example: 10 })
+  @ApiPropertyOptional({ example: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -317,7 +317,7 @@ export class DashboardAccountingDocumentQueryDto {
   @Min(1)
   page?: number;
 
-  @ApiPropertyOptional({ example: 10 })
+  @ApiPropertyOptional({ example: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

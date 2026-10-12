@@ -49,7 +49,7 @@ export class DashboardSectionsService {
     query: DashboardSectionsQueryDto,
   ): Promise<DashboardSectionsResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const yearId =
       query.yearId ?? (await this.currentYearId(user.schoolId));
     const where = this.buildWhere(user.schoolId, { ...query, yearId });

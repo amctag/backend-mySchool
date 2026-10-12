@@ -15,7 +15,7 @@ export class DashboardChildrenService {
     query: DashboardChildrenQueryDto,
   ): Promise<DashboardChildrenResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const schoolId = user.schoolId;
 
     if (query.parentId) {

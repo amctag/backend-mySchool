@@ -60,7 +60,7 @@ export class DashboardTeachersService {
     query: DashboardTeachersQueryDto,
   ): Promise<DashboardTeachersResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const schoolId = user.schoolId;
     const where = this.buildWhere(schoolId, query);
     const orderBy = this.buildOrderBy(query.sortBy, query.sortOrder);

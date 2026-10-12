@@ -20,8 +20,8 @@ export class DashboardChildrenQueryDto {
 
   @ApiPropertyOptional({
     description: 'Number of items per page',
-    example: 10,
-    default: 10,
+    example: 100,
+    default: 100,
   })
   @IsOptional()
   @Type(() => Number)

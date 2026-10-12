@@ -22,7 +22,7 @@ export class DashboardTeacherTasksService {
     query: DashboardTeacherTasksQueryDto,
   ): Promise<DashboardTeacherTasksResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const where = this.buildWhere(user.schoolId, query.search);
     const teacherCount = await this.countActiveTeachers(user.schoolId);
 

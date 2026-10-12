@@ -74,7 +74,7 @@ export class DashboardAgendasService {
     query: DashboardAgendasQueryDto,
   ): Promise<DashboardAgendasResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const sortBy = query.sortBy ?? 'agendaDate';
     const sortOrder = query.sortOrder ?? 'desc';
     const where = this.buildWhere(user.schoolId, query);

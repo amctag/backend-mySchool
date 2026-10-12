@@ -85,7 +85,7 @@ export class DashboardParentsService {
     query: DashboardParentsQueryDto,
   ): Promise<DashboardParentsResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const schoolId = user.schoolId;
     const where = await this.buildWhere(schoolId, query);
     const orderBy = this.buildOrderBy(query.sortBy, query.sortOrder);

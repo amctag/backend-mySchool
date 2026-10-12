@@ -168,7 +168,7 @@ describe('Receipt/Payment server-side filtering', () => {
     }
     const [pageArgs] = prisma.accountingReceipt.findMany.mock.calls[0];
     expect(pageArgs.skip).toBe(0);
-    expect(pageArgs.take).toBe(10);
+    expect(pageArgs.take).toBe(100);
   });
 
   it('applies accountId to the database query before pagination (payments)', async () => {
@@ -211,7 +211,7 @@ describe('Receipt/Payment server-side filtering', () => {
       dateTo: '2026-09-30',
     });
     const [args] = prisma.accountingPayment.findMany.mock.calls[0];
-    expect(args.skip).toBe(10);
+    expect(args.skip).toBe(100);
     expect(args.where.schoolId).toBe(3);
     expect(args.where.accountingRegister?.dailyEntries).toEqual({
       some: { accountId: 44 },

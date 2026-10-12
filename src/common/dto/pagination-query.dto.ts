@@ -2,6 +2,13 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
+/**
+ * Default number of records returned per page by paginated list endpoints.
+ * Dashboard query DTOs cap `limit` at 100 (`@Max(100)`), so this is also the
+ * maximum page size the API accepts.
+ */
+export const DEFAULT_PAGE_LIMIT = 100;
+
 export class PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'Page number (starts at 1)',
@@ -16,8 +23,8 @@ export class PaginationQueryDto {
 
   @ApiPropertyOptional({
     description: 'Number of items per page',
-    example: 10,
-    default: 10,
+    example: 100,
+    default: 100,
   })
   @IsOptional()
   @Type(() => Number)
@@ -32,7 +39,7 @@ export function resolvePagination(query: {
   limit?: number;
 }): { page: number; limit: number; skip: number } {
   const page = query.page ?? 1;
-  const limit = query.limit ?? 10;
+  const limit = query.limit ?? DEFAULT_PAGE_LIMIT;
   return { page, limit, skip: (page - 1) * limit };
 }
 

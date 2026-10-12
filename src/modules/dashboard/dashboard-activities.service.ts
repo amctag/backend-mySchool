@@ -62,7 +62,7 @@ export class DashboardActivitiesService {
     await this.assertCreatorPersonExists();
 
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const where = this.buildWhere(user.schoolId, query);
 
     const [total, activities] = await this.prisma.$transaction([

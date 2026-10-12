@@ -85,7 +85,7 @@ export class DashboardRegistrationsService {
     query: DashboardRegistrationsQueryDto,
   ): Promise<DashboardRegistrationsResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const yearId =
       query.yearId !== undefined
         ? query.yearId

@@ -26,7 +26,7 @@ export class DashboardAccountingConfigService {
 
   async listItems(user: AuthenticatedSchool, query: DashboardItemsQueryDto) {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const where: Prisma.ItemWhereInput = {
       schoolId: user.schoolId,
       itemTypeId: query.itemTypeId,
@@ -106,7 +106,7 @@ export class DashboardAccountingConfigService {
     query: DashboardPackagesQueryDto,
   ) {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const where: Prisma.AccountingRegistrationPackageWhereInput = {
       year: { schoolId: user.schoolId },
       yearId: query.yearId,

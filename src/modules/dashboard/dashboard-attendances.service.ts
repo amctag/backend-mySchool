@@ -25,7 +25,7 @@ export class DashboardAttendancesService {
     query: DashboardAttendancesQueryDto,
   ): Promise<DashboardAttendancesResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const sortBy = query.sortBy ?? 'date';
     const sortOrder = query.sortOrder ?? 'desc';
     const where = this.buildWhere(user.schoolId, query);

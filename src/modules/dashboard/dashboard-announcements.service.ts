@@ -75,7 +75,7 @@ export class DashboardAnnouncementsService {
     await this.assertCreatorPersonExists();
 
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const where = this.buildWhere(query);
 
     const [total, announcements] = await this.prisma.$transaction([

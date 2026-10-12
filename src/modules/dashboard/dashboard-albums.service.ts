@@ -32,7 +32,7 @@ export class DashboardAlbumsService {
     query: DashboardAlbumsQueryDto,
   ): Promise<DashboardAlbumsResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const search = query.search?.trim();
     const where: Prisma.AlbumWhereInput = {
       deletedAt: null,

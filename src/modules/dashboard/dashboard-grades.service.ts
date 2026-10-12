@@ -765,7 +765,7 @@ export class DashboardGradesService {
     query: DashboardGradesByCourseQueryDto,
   ): Promise<DashboardGradesByCourseResponseDto> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
+    const limit = query.limit ?? 100;
     const yearId =
       query.yearId ?? (await this.currentYearId(user.schoolId)) ?? undefined;
     const where = this.buildWhere(user.schoolId, { ...query, yearId });
