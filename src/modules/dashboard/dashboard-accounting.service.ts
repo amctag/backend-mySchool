@@ -9,6 +9,7 @@ import { AccountType, Prisma } from '@prisma/client';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { AccountCodeService } from './account-code.service';
+import { studentNameFromRow } from './student-name';
 import {
   CreateDashboardAccountDto,
   CreateDashboardInvoiceDto,
@@ -1552,6 +1553,13 @@ export class DashboardAccountingService {
             person: {
               select: { firstName: true, middleName: true, lastName: true },
             },
+            parent: {
+              select: {
+                person: {
+                  select: { firstName: true, lastName: true },
+                },
+              },
+            },
           },
         },
         section: {
@@ -1565,7 +1573,7 @@ export class DashboardAccountingService {
       orderBy: { id: 'desc' },
     });
     return rows.map((row) => {
-      const studentName = this.formatPersonName(row.student.person);
+      const studentName = studentNameFromRow(row.student).studentFullName;
       return {
         id: row.id,
         studentId: row.student.id,
@@ -1634,6 +1642,16 @@ export class DashboardAccountingService {
                           lastName: true,
                         },
                       },
+                      parent: {
+                        select: {
+                          person: {
+                            select: {
+                              firstName: true,
+                              lastName: true,
+                            },
+                          },
+                        },
+                      },
                     },
                   },
                   section: {
@@ -1700,6 +1718,16 @@ export class DashboardAccountingService {
                         firstName: true,
                         middleName: true,
                         lastName: true,
+                      },
+                    },
+                    parent: {
+                      select: {
+                        person: {
+                          select: {
+                            firstName: true,
+                            lastName: true,
+                          },
+                        },
                       },
                     },
                   },
@@ -2835,6 +2863,13 @@ export class DashboardAccountingService {
             person: {
               select: { firstName: true, middleName: true, lastName: true },
             },
+            parent: {
+              select: {
+                person: {
+                  select: { firstName: true, lastName: true },
+                },
+              },
+            },
           },
         },
         section: {
@@ -2859,7 +2894,7 @@ export class DashboardAccountingService {
       }
       labels.set(id, {
         id: row.id,
-        studentName: this.formatPersonName(row.student.person),
+        studentName: studentNameFromRow(row.student).studentFullName,
         className: row.section.class.className,
       });
     }
@@ -3125,6 +3160,9 @@ export class DashboardAccountingService {
           id: number;
           student: {
             person: { firstName: string; middleName: string; lastName: string };
+            parent?: {
+              person: { firstName: string; lastName: string };
+            } | null;
           };
           section: {
             class: { className: string };
@@ -3160,7 +3198,7 @@ export class DashboardAccountingService {
       details: invoice.details.map((detail) => {
         const forRegistration = detail.forRegistration;
         const label = forRegistration
-          ? `${this.formatPersonName(forRegistration.student.person)} — ${forRegistration.section.class.className}`
+          ? `${studentNameFromRow(forRegistration.student).studentFullName} — ${forRegistration.section.class.className}`
           : null;
         const lineTotal = new Prisma.Decimal(detail.unitPrice)
           .times(detail.quantity)

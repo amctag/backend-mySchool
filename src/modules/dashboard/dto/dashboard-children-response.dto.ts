@@ -11,8 +11,24 @@ export class DashboardChildItemDto {
   })
   personId!: number;
 
-  @ApiProperty({ example: 'Omar Ahmad Khalil' })
+  @ApiProperty({
+    example: 'Omar Ahmad Khalil',
+    description:
+      'Canonical student name: student first name + father first name + family name (from the linked Parent record)',
+  })
   fullName!: string;
+
+  @ApiProperty({ example: 'Omar', nullable: true })
+  studentFirstName!: string | null;
+
+  @ApiProperty({ example: 'Ahmad', nullable: true })
+  fatherFirstName!: string | null;
+
+  @ApiProperty({ example: 'Khalil', nullable: true })
+  familyName!: string | null;
+
+  @ApiProperty({ example: 'Omar Ahmad Khalil' })
+  studentFullName!: string;
 
   @ApiProperty({ example: 'Omar' })
   firstName!: string;

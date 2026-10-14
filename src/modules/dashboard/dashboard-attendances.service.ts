@@ -13,6 +13,7 @@ import {
   DashboardAttendancesResponseDto,
 } from './dto/dashboard-attendances-response.dto';
 import { SaveDashboardAttendanceDto } from './dto/save-dashboard-attendance.dto';
+import { studentNameFromRow } from './student-name';
 
 const DASHBOARD_CREATOR_PERSON_ID = 1;
 
@@ -101,6 +102,13 @@ export class DashboardAttendancesService {
               person: {
                 select: { firstName: true, middleName: true, lastName: true },
               },
+              parent: {
+                select: {
+                  person: {
+                    select: { firstName: true, lastName: true },
+                  },
+                },
+              },
             },
           },
         },
@@ -151,7 +159,7 @@ export class DashboardAttendancesService {
         return {
           studentId: registration.studentId,
           registrationId: registration.id,
-          studentName: this.formatPersonName(registration.student.person),
+          studentName: studentNameFromRow(registration.student).studentFullName,
           status: (detail?.status ?? 'present') as
             | 'present'
             | 'absent'
@@ -197,6 +205,13 @@ export class DashboardAttendancesService {
                     lastName: true,
                   },
                 },
+                parent: {
+                  select: {
+                    person: {
+                      select: { firstName: true, lastName: true },
+                    },
+                  },
+                },
               },
             },
           },
@@ -235,7 +250,7 @@ export class DashboardAttendancesService {
       students: row.details.map((detail) => ({
         studentId: detail.studentId,
         registrationId: registrationByStudent.get(detail.studentId) ?? 0,
-        studentName: this.formatPersonName(detail.student.person),
+        studentName: studentNameFromRow(detail.student).studentFullName,
         status: detail.status,
         attendanceReasonId: detail.attendanceReasonId ?? null,
         attendanceReasonTitle: detail.attendanceReason?.title ?? null,
@@ -508,17 +523,6 @@ export class DashboardAttendancesService {
 
   private formatDate(value: Date): string {
     return value.toISOString().slice(0, 10);
-  }
-
-  private formatPersonName(person: {
-    firstName: string;
-    middleName: string;
-    lastName: string;
-  }): string {
-    return [person.firstName, person.middleName, person.lastName]
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .join(' ');
   }
 
   private async assertCreatorPersonExists(): Promise<void> {

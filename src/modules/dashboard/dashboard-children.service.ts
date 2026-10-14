@@ -5,6 +5,7 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 import { DashboardChildrenQueryDto } from './dto/dashboard-children-query.dto';
 import { DashboardChildrenResponseDto } from './dto/dashboard-children-response.dto';
 import { personNameContainsFilter } from './person-name-search';
+import { studentNameFromRow } from './student-name';
 
 @Injectable()
 export class DashboardChildrenService {
@@ -96,10 +97,19 @@ export class DashboardChildrenService {
           student.registrations.find((item) => item.section.year.isCurrent) ??
           student.registrations[0];
 
+        // Canonical name: student first + father's first + family.
+        const name = studentNameFromRow({
+          person: student.person,
+          parent: student.parent,
+        });
         return {
           id: student.id,
           personId: student.personId,
-          fullName: this.formatFullName(student.person),
+          fullName: name.studentFullName,
+          studentFirstName: name.studentFirstName,
+          fatherFirstName: name.fatherFirstName,
+          familyName: name.familyName,
+          studentFullName: name.studentFullName,
           firstName: student.person.firstName,
           lastName: student.person.lastName,
           username: student.person.username,
@@ -199,17 +209,23 @@ export class DashboardChildrenService {
               },
             }
           : {},
+        // Father's first name (Parent record), not the student's middle_name.
         middleName
           ? {
-              person: {
-                middleName: { contains: middleName, mode: 'insensitive' },
+              parent: {
+                person: {
+                  firstName: { contains: middleName, mode: 'insensitive' },
+                },
               },
             }
           : {},
+        // Father's family name (Parent record), not the student's last_name.
         lastName
           ? {
-              person: {
-                lastName: { contains: lastName, mode: 'insensitive' },
+              parent: {
+                person: {
+                  lastName: { contains: lastName, mode: 'insensitive' },
+                },
               },
             }
           : {},
@@ -231,6 +247,8 @@ export class DashboardChildrenService {
       OR: [
         ...(parsedId ? [{ id: parsedId }] : []),
         ...(nameMatch ? [{ person: nameMatch }] : []),
+        // Free search also matches the linked father's names.
+        ...(nameMatch ? [{ parent: { person: nameMatch } }] : []),
         { person: { username: { contains: search, mode: 'insensitive' } } },
         { person: { address: { contains: search, mode: 'insensitive' } } },
         { person: { phoneNumber: { contains: search, mode: 'insensitive' } } },
@@ -254,7 +272,8 @@ export class DashboardChildrenService {
     if (sortBy === 'name') {
       return [
         { person: { firstName: direction } },
-        { person: { lastName: direction } },
+        { parent: { person: { firstName: direction } } },
+        { parent: { person: { lastName: direction } } },
         idTieBreaker,
       ];
     }

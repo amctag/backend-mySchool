@@ -8,8 +8,24 @@ export class DashboardRegistrationItemDto {
   @ApiProperty({ example: 1 })
   studentId!: number;
 
-  @ApiProperty({ example: 'Layla Fadi Student' })
+  @ApiProperty({
+    example: 'Layla Fadi Haddad',
+    description:
+      'Canonical student name: student first name + father first name + family name (from the linked Parent record)',
+  })
   studentName!: string;
+
+  @ApiProperty({ example: 'Layla', nullable: true })
+  studentFirstName!: string | null;
+
+  @ApiProperty({ example: 'Fadi', nullable: true })
+  fatherFirstName!: string | null;
+
+  @ApiProperty({ example: 'Haddad', nullable: true })
+  familyName!: string | null;
+
+  @ApiProperty({ example: 'Layla Fadi Haddad' })
+  studentFullName!: string;
 
   @ApiProperty({ example: 1 })
   classId!: number;

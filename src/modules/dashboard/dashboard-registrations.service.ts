@@ -20,6 +20,7 @@ import {
   ProgressDashboardRegistrationDto,
 } from './dto/progress-dashboard-registration.dto';
 import { UpdateDashboardRegistrationDto } from './dto/update-dashboard-registration.dto';
+import { studentNameFromRow } from './student-name';
 
 const DASHBOARD_CREATOR_PERSON_ID = 1;
 
@@ -32,6 +33,17 @@ const registrationInclude = {
           firstName: true,
           middleName: true,
           lastName: true,
+        },
+      },
+      // Linked father (Parent record) — canonical student name parts.
+      parent: {
+        select: {
+          person: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
         },
       },
     },
@@ -57,6 +69,12 @@ type RegistrationRecord = {
       middleName: string;
       lastName: string;
     };
+    parent?: {
+      person: {
+        firstName: string;
+        lastName: string;
+      };
+    } | null;
   };
   section: {
     id: number;
@@ -394,6 +412,16 @@ export class DashboardRegistrationsService {
                 lastName: true,
               },
             },
+            parent: {
+              select: {
+                person: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -403,7 +431,7 @@ export class DashboardRegistrationsService {
       return `Registration #${registrationId}`;
     }
 
-    return this.formatPersonName(row.student.person);
+    return studentNameFromRow(row.student).studentFullName;
   }
 
   private toErrorMessage(error: unknown): string {
@@ -508,6 +536,10 @@ export class DashboardRegistrationsService {
           ? {
               OR: [
                 ...(nameMatch ? [{ student: { person: nameMatch } }] : []),
+                // Free search also matches the linked father's names.
+                ...(nameMatch
+                  ? [{ student: { parent: { person: nameMatch } } }]
+                  : []),
                 ...(/^\d+$/.test(search)
                   ? [{ studentId: Number(search) }]
                   : []),
@@ -523,20 +555,28 @@ export class DashboardRegistrationsService {
               },
             }
           : {},
+        // "Middle name" filter searches the father's first name (Parent
+        // record), never the student's middle_name.
         middleName
           ? {
               student: {
-                person: {
-                  middleName: { contains: middleName, mode: 'insensitive' },
+                parent: {
+                  person: {
+                    firstName: { contains: middleName, mode: 'insensitive' },
+                  },
                 },
               },
             }
           : {},
+        // "Family" filter searches the father's family name (Parent record),
+        // never the student's last_name.
         lastName
           ? {
               student: {
-                person: {
-                  lastName: { contains: lastName, mode: 'insensitive' },
+                parent: {
+                  person: {
+                    lastName: { contains: lastName, mode: 'insensitive' },
+                  },
                 },
               },
             }
@@ -558,7 +598,8 @@ export class DashboardRegistrationsService {
       case 'student':
         return [
           { student: { person: { firstName: direction } } },
-          { student: { person: { lastName: direction } } },
+          { student: { parent: { person: { firstName: direction } } } },
+          { student: { parent: { person: { lastName: direction } } } },
           idTieBreaker,
         ];
       case 'class':
@@ -579,10 +620,16 @@ export class DashboardRegistrationsService {
   }
 
   private toItem(row: RegistrationRecord): DashboardRegistrationItemDto {
+    // Canonical name: student first + father's first + family (from Parent).
+    const name = studentNameFromRow(row.student);
     return {
       id: row.id,
       studentId: row.student.id,
-      studentName: this.formatPersonName(row.student.person),
+      studentName: name.studentFullName,
+      studentFirstName: name.studentFirstName,
+      fatherFirstName: name.fatherFirstName,
+      familyName: name.familyName,
+      studentFullName: name.studentFullName,
       classId: row.section.classId,
       className: row.section.class.className,
       classLevel: row.section.class.classLevel,
@@ -592,17 +639,6 @@ export class DashboardRegistrationsService {
       yearTitle: row.section.year.title,
       createdAt: row.createdAt.toISOString(),
     };
-  }
-
-  private formatPersonName(person: {
-    firstName: string;
-    middleName: string;
-    lastName: string;
-  }): string {
-    return [person.firstName, person.middleName, person.lastName]
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .join(' ');
   }
 
   private async currentYearId(schoolId: number): Promise<number | null> {

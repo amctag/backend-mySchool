@@ -22,6 +22,7 @@ import {
 import { SaveDashboardGradeByCourseDto } from './dto/save-dashboard-grade-by-course.dto';
 import { SaveDashboardGradeTypeDto } from './dto/save-dashboard-grade-type.dto';
 import { DashboardGradeTypeListItemDto } from './dto/dashboard-grade-types-list-response.dto';
+import { studentNameFromRow } from './student-name';
 
 const DASHBOARD_CREATOR_PERSON_ID = 1;
 const DEFAULT_MAX_GRADE = 100;
@@ -49,6 +50,16 @@ const gradeSheetInclude = {
                   firstName: true,
                   middleName: true,
                   lastName: true,
+                },
+              },
+              parent: {
+                select: {
+                  person: {
+                    select: {
+                      firstName: true,
+                      lastName: true,
+                    },
+                  },
                 },
               },
             },
@@ -87,6 +98,12 @@ type GradeSheetRecord = {
           middleName: string;
           lastName: string;
         };
+        parent?: {
+          person: {
+            firstName: string;
+            lastName: string;
+          };
+        } | null;
       };
     };
   }>;
@@ -228,6 +245,16 @@ export class DashboardGradesService {
                 firstName: true,
                 middleName: true,
                 lastName: true,
+              },
+            },
+            parent: {
+              select: {
+                person: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
               },
             },
           },
@@ -504,7 +531,7 @@ export class DashboardGradesService {
       student: {
         registrationId: registration.id,
         studentId: registration.student.id,
-        studentName: this.formatPersonName(registration.student.person),
+        studentName: studentNameFromRow(registration.student).studentFullName,
         classId: section.classId,
         className: section.class.className,
         sectionId: section.id,
@@ -839,12 +866,23 @@ export class DashboardGradesService {
                 lastName: true,
               },
             },
+            parent: {
+              select: {
+                person: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
       orderBy: [
         { student: { person: { firstName: 'asc' } } },
-        { student: { person: { lastName: 'asc' } } },
+        { student: { parent: { person: { firstName: 'asc' } } } },
+        { student: { parent: { person: { lastName: 'asc' } } } },
         { id: 'asc' },
       ],
     });
@@ -885,7 +923,7 @@ export class DashboardGradesService {
         return {
           registrationId: registration.id,
           studentId: registration.student.id,
-          studentName: this.formatPersonName(registration.student.person),
+          studentName: studentNameFromRow(registration.student).studentFullName,
           grade: detail?.grade == null ? null : Number(detail.grade),
           comment: detail?.comment ?? null,
         };
@@ -1217,22 +1255,12 @@ export class DashboardGradesService {
       students: row.details.map((detail) => ({
         registrationId: detail.registrationId,
         studentId: detail.registration.student.id,
-        studentName: this.formatPersonName(detail.registration.student.person),
+        studentName: studentNameFromRow(detail.registration.student)
+          .studentFullName,
         grade: detail.grade == null ? null : Number(detail.grade),
         comment: detail.comment,
       })),
     };
-  }
-
-  private formatPersonName(person: {
-    firstName: string;
-    middleName: string;
-    lastName: string;
-  }): string {
-    return [person.firstName, person.middleName, person.lastName]
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .join(' ');
   }
 
   private formatDateOnly(value: Date): string {
