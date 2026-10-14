@@ -5,6 +5,12 @@ export class DashboardParentItemDto {
   @ApiProperty({ example: 1 })
   id!: number;
 
+  @ApiProperty({
+    example: 669,
+    description: 'Linked persons.id used for app login',
+  })
+  personId!: number;
+
   @ApiProperty({ example: 'Ahmad Hassan Khalil' })
   fullName!: string;
 

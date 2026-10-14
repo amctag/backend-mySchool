@@ -5,6 +5,12 @@ export class DashboardTeacherItemDto {
   @ApiProperty({ example: 1 })
   id!: number;
 
+  @ApiProperty({
+    example: 669,
+    description: 'Linked persons.id used for app login',
+  })
+  personId!: number;
+
   @ApiProperty({ example: 'Sara Nabil Haddad' })
   fullName!: string;
 

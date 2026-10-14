@@ -129,6 +129,7 @@ export class DashboardParentsService {
     return {
       items: parents.map((parent) => ({
         id: parent.id,
+        personId: parent.personId,
         fullName: this.formatFullName(parent.person),
         firstName: parent.person.firstName,
         lastName: parent.person.lastName,

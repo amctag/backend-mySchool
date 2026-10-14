@@ -98,6 +98,7 @@ export class DashboardChildrenService {
 
         return {
           id: student.id,
+          personId: student.personId,
           fullName: this.formatFullName(student.person),
           firstName: student.person.firstName,
           lastName: student.person.lastName,

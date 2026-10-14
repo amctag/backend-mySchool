@@ -91,6 +91,7 @@ export class DashboardTeachersService {
     return {
       items: teachers.map((teacher) => ({
         id: teacher.id,
+        personId: teacher.personId,
         fullName: this.formatFullName(teacher.person),
         firstName: teacher.person.firstName,
         lastName: teacher.person.lastName,
