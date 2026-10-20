@@ -65,6 +65,7 @@ import {
   DashboardStatementQueryDto,
   UpdateDashboardAccountDto,
 } from './dto/dashboard-accounting.dto';
+import { CreateDashboardInstallmentBatchDto, CreateDashboardInstallmentDto, DashboardInstallmentsQueryDto, LinkDashboardInstallmentReceiptDto, UpdateDashboardInstallmentDto } from './dto/dashboard-installment.dto';
 
 @ApiTags('Dashboard Accounting v1')
 @ApiBearerAuth()
@@ -82,6 +83,23 @@ export class DashboardAccountingController {
   listCurrencies(): Promise<DashboardCurrencyDto[]> {
     return this.dashboardAccountingService.listCurrencies();
   }
+
+  @Get('installments')
+  listInstallments(@Req() request: Request & { user: AuthenticatedSchool }, @Query() query: DashboardInstallmentsQueryDto) {
+    return this.dashboardAccountingService.listInstallments(request.user, query);
+  }
+  @Post('installments')
+  createInstallment(@Req() request: Request & { user: AuthenticatedSchool }, @Body() dto: CreateDashboardInstallmentDto) { return this.dashboardAccountingService.createInstallment(request.user, dto); }
+  @Post('installments/batch')
+  createInstallmentBatch(@Req() request: Request & { user: AuthenticatedSchool }, @Body() dto: CreateDashboardInstallmentBatchDto) { return this.dashboardAccountingService.createInstallmentBatch(request.user, dto); }
+  @Patch('installments/:id')
+  updateInstallment(@Req() request: Request & { user: AuthenticatedSchool }, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateDashboardInstallmentDto) { return this.dashboardAccountingService.updateInstallment(request.user, id, dto); }
+  @Delete('installments/:id')
+  deleteInstallment(@Req() request: Request & { user: AuthenticatedSchool }, @Param('id', ParseIntPipe) id: number) { return this.dashboardAccountingService.deleteInstallment(request.user, id); }
+  @Post('installments/:id/link-receipt')
+  linkInstallmentReceipt(@Req() request: Request & { user: AuthenticatedSchool }, @Param('id', ParseIntPipe) id: number, @Body() dto: LinkDashboardInstallmentReceiptDto) { return this.dashboardAccountingService.linkInstallmentReceipt(request.user, id, dto.receiptId); }
+  @Post('installments/:id/unlink-receipt')
+  unlinkInstallmentReceipt(@Req() request: Request & { user: AuthenticatedSchool }, @Param('id', ParseIntPipe) id: number) { return this.dashboardAccountingService.unlinkInstallmentReceipt(request.user, id); }
 
   @Get('accounts')
   @ApiOperation({ summary: 'List accounting accounts owned by this school' })

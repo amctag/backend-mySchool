@@ -61,6 +61,15 @@ export class DashboardTeachersController {
     return this.dashboardTeachersService.listTeachers(request.user, query);
   }
 
+  @Post(':id/accounting-account')
+  @ApiOperation({ summary: 'Create or return the teacher accounting account' })
+  createAccountingAccount(
+    @Req() request: Request & { user: AuthenticatedSchool },
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.dashboardTeachersService.createAccountingAccount(request.user, id);
+  }
+
   @Post()
   @ApiOperation({ summary: 'Create a teacher for this school' })
   @ApiCreatedResponse({ type: DashboardTeacherDetailDto })

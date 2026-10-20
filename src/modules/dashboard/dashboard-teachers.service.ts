@@ -14,6 +14,7 @@ import { DashboardTeachersQueryDto } from './dto/dashboard-teachers-query.dto';
 import { DashboardTeachersResponseDto } from './dto/dashboard-teachers-response.dto';
 import { UpdateDashboardTeacherDto } from './dto/update-dashboard-teacher.dto';
 import { personNameContainsFilter } from './person-name-search';
+import { AccountCodeService } from './account-code.service';
 import {
   assertUniquePersonContacts,
   emptyToNull,
@@ -53,7 +54,10 @@ type TeacherDetailRecord = {
 
 @Injectable()
 export class DashboardTeachersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly accountCodes: AccountCodeService = new AccountCodeService(),
+  ) {}
 
   async listTeachers(
     user: AuthenticatedSchool,
@@ -79,6 +83,9 @@ export class DashboardTeachersService {
               phoneNumber: true,
               birthday: true,
               status: true,
+              schoolId: true,
+              accountId: true,
+              account: { select: { id: true, code: true, schoolId: true } },
             },
           },
         },
@@ -99,6 +106,10 @@ export class DashboardTeachersService {
         address: teacher.person.address,
         birthday: this.formatDate(teacher.person.birthday),
         status: teacher.person.status,
+        accountId: teacher.person.account?.schoolId === schoolId ? teacher.person.accountId : null,
+        accountCode: teacher.person.account?.schoolId === schoolId ? teacher.person.account.code : null,
+        hasAccountingAccount: teacher.person.accountId !== null && teacher.person.account?.schoolId === schoolId,
+        canCreateAccountingAccount: teacher.person.schoolId === schoolId,
       })),
       pagination: {
         page,
@@ -107,6 +118,34 @@ export class DashboardTeachersService {
         totalPages: total === 0 ? 0 : Math.ceil(total / limit),
       },
     };
+  }
+
+  async createAccountingAccount(user: AuthenticatedSchool, teacherId: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const teacher = await tx.teacher.findFirst({
+        where: { id: teacherId, person: { schoolId: user.schoolId } },
+        select: { id: true, personId: true, person: { select: { accountId: true, firstName: true, middleName: true, lastName: true } } },
+      });
+      if (!teacher) throw new NotFoundException('Teacher not found');
+      if (teacher.person.accountId !== null) {
+        const existing = await tx.account.findFirst({ where: { id: teacher.person.accountId, schoolId: user.schoolId }, select: { id: true, code: true } });
+        if (!existing) throw new ConflictException('Teacher account does not belong to the authenticated school');
+        return existing;
+      }
+      const ensure = async (code: string, name: string, parentId: number | null) => {
+        const found = await tx.account.findFirst({ where: { schoolId: user.schoolId, code }, select: { id: true, isGroup: true } });
+        if (found) return found;
+        return tx.account.create({ data: { schoolId: user.schoolId, code, name, type: 'GENERAL', parentId, isGroup: true }, select: { id: true, isGroup: true } });
+      };
+      const root = await ensure('4', 'Third accounts', null);
+      const employees = await ensure('42', 'Employees', root.id);
+      const teachersGroup = await ensure('4211', 'Teachers', employees.id);
+      if (!teachersGroup.isGroup) throw new ConflictException('Teacher account group 4211 must be a group');
+      const code = await this.accountCodes.allocateNextChildCode(tx, user.schoolId, '4211');
+      const account = await tx.account.create({ data: { schoolId: user.schoolId, code, name: [teacher.person.firstName, teacher.person.middleName, teacher.person.lastName].filter(Boolean).join(' '), type: 'PERSON', parentId: teachersGroup.id, isGroup: false }, select: { id: true, code: true } });
+      await tx.person.update({ where: { id: teacher.personId }, data: { accountId: account.id } });
+      return account;
+    });
   }
 
   async getTeacher(

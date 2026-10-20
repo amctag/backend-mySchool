@@ -45,6 +45,7 @@ import {
   DashboardStatementQueryDto,
   UpdateDashboardAccountDto,
 } from './dto/dashboard-accounting.dto';
+import { CreateDashboardInstallmentBatchDto, CreateDashboardInstallmentDto, DashboardInstallmentsQueryDto, UpdateDashboardInstallmentDto } from './dto/dashboard-installment.dto';
 
 const SYSTEM_ACCOUNT_DEFINITIONS: Array<{ type: AccountType; name: string }> = [
   { type: 'CASH', name: 'Cash' },
@@ -209,6 +210,53 @@ export class DashboardAccountingService {
       rate: new Prisma.Decimal(currency.rate).toString(),
     }));
   }
+
+  async listInstallments(user: AuthenticatedSchool, query: DashboardInstallmentsQueryDto) {
+    const page = query.page ?? 1;
+    const take = Math.min(query.limit ?? 100, 100);
+    const where: Prisma.InstallmentWhereInput = { year: { schoolId: user.schoolId } };
+    if (query.accountId) where.accountId = query.accountId;
+    if (query.yearId) where.yearId = query.yearId;
+    if (query.paid !== undefined) where.paid = query.paid;
+    if (query.date || query.dateFrom || query.dateTo) where.date = { ...(query.date ? { equals: new Date(query.date) } : {}), ...(query.dateFrom ? { gte: new Date(query.dateFrom) } : {}), ...(query.dateTo ? { lte: new Date(query.dateTo) } : {}) };
+    const [total, items] = await this.prisma.$transaction([this.prisma.installment.count({ where }), this.prisma.installment.findMany({ where, include: { account: true, year: true, receipt: true }, orderBy: { id: 'desc' }, skip: (page - 1) * take, take })]);
+    return { items, page, limit: take, total, totalPages: total ? Math.ceil(total / take) : 0 };
+  }
+  async createInstallment(user: AuthenticatedSchool, dto: CreateDashboardInstallmentDto) {
+    const [account, year] = await Promise.all([this.prisma.account.findFirst({ where: { id: dto.accountId, schoolId: user.schoolId, isGroup: false, code: { startsWith: '4' } } }), this.prisma.year.findFirst({ where: { id: dto.yearId, schoolId: user.schoolId } })]);
+    if (!account || !year) throw new BadRequestException('Account and year must belong to the authenticated school');
+    return this.prisma.installment.create({ data: { accountId: account.id, amount: new Prisma.Decimal(dto.amount), yearId: year.id, date: dto.date ? new Date(dto.date) : null, paid: false, receiptId: null }, include: { account: true, year: true } });
+  }
+  async createInstallmentBatch(user: AuthenticatedSchool, dto: CreateDashboardInstallmentBatchDto) {
+    if (!dto.rows.length || dto.rows.length > 100) throw new BadRequestException('Batch must contain 1 to 100 installments');
+    return this.prisma.$transaction(async (tx) => {
+      const accountIds = [...new Set(dto.rows.map((row) => row.accountId))];
+      const yearIds = [...new Set(dto.rows.map((row) => row.yearId))];
+      const [accounts, years] = await Promise.all([
+        tx.account.findMany({ where: { id: { in: accountIds }, schoolId: user.schoolId, isGroup: false, code: { startsWith: '4' } }, select: { id: true } }),
+        tx.year.findMany({ where: { id: { in: yearIds }, schoolId: user.schoolId }, select: { id: true } }),
+      ]);
+      if (accounts.length !== accountIds.length || years.length !== yearIds.length) throw new BadRequestException('All accounts and years must belong to the authenticated school');
+      return Promise.all(dto.rows.map((row) => tx.installment.create({ data: { accountId: row.accountId, amount: new Prisma.Decimal(row.amount), yearId: row.yearId, date: row.date ? new Date(row.date) : null, paid: false, receiptId: null }, include: { account: true, year: true } })));
+    });
+  }
+  async updateInstallment(user: AuthenticatedSchool, id: number, dto: UpdateDashboardInstallmentDto) { const existing = await this.prisma.installment.findFirst({ where: { id, year: { schoolId: user.schoolId } } }); if (!existing) throw new NotFoundException('Installment not found'); if (existing.paid) throw new BadRequestException('Paid installments cannot be edited'); const account = await this.prisma.account.findFirst({ where: { id: dto.accountId, schoolId: user.schoolId, isGroup: false, code: { startsWith: '4' } } }); const year = await this.prisma.year.findFirst({ where: { id: dto.yearId, schoolId: user.schoolId } }); if (!account || !year) throw new BadRequestException('Account and year must belong to the authenticated school'); return this.prisma.installment.update({ where: { id }, data: { accountId: account.id, yearId: year.id, amount: new Prisma.Decimal(dto.amount), date: dto.date ? new Date(dto.date) : null } }); }
+  async deleteInstallment(user: AuthenticatedSchool, id: number) { const row = await this.prisma.installment.findFirst({ where: { id, year: { schoolId: user.schoolId } } }); if (!row) throw new NotFoundException('Installment not found'); if (row.paid) throw new BadRequestException('Paid installments cannot be deleted'); await this.prisma.installment.delete({ where: { id } }); return { id }; }
+  async linkInstallmentReceipt(user: AuthenticatedSchool, id: number, receiptId: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.installment.findFirst({ where: { id, year: { schoolId: user.schoolId } }, include: { year: true } });
+      const receipt = await tx.accountingReceipt.findFirst({ where: { id: receiptId, schoolId: user.schoolId }, include: { details: true, accountingRegister: true } });
+      if (!row || !receipt) throw new NotFoundException('Installment or receipt not found');
+      const used = await tx.installment.findFirst({ where: { receiptId, id: { not: id } } });
+      if (used) throw new ConflictException('Receipt is already linked to another installment');
+      const creditEntry = await tx.accountingDaily.findFirst({ where: { accountingRegisterId: receipt.accountingRegisterId, credit: { gt: 0 }, accountId: row.accountId } });
+      if (!creditEntry || !new Prisma.Decimal(creditEntry.credit).eq(row.amount)) throw new BadRequestException('Receipt account and amount must exactly match the installment');
+      const yearStart = /^([0-9]{4})/.exec(row.year.title)?.[1];
+      if (yearStart && receipt.accountingRegister.dateCreated.getUTCFullYear() < Number(yearStart)) throw new BadRequestException('Receipt is not compatible with the installment year');
+      return tx.installment.update({ where: { id }, data: { receiptId, paid: true } });
+    });
+  }
+  async unlinkInstallmentReceipt(user: AuthenticatedSchool, id: number) { const row = await this.prisma.installment.findFirst({ where: { id, year: { schoolId: user.schoolId } } }); if (!row) throw new NotFoundException('Installment not found'); return this.prisma.installment.update({ where: { id }, data: { receiptId: null, paid: false } }); }
 
   async listAccounts(
     user: AuthenticatedSchool,
@@ -787,6 +835,17 @@ export class DashboardAccountingService {
         );
       }
 
+      if (dto.installmentId) {
+        const installment = await tx.installment.findFirst({
+          where: { id: dto.installmentId, year: { schoolId: user.schoolId } },
+        });
+        if (!installment) throw new BadRequestException('Installment not found');
+        if (installment.receiptId || installment.paid) throw new ConflictException('Installment is already settled');
+        if (installment.accountId !== entity.id || !new Prisma.Decimal(installment.amount).eq(total)) {
+          throw new BadRequestException('Receipt account and total must exactly match the installment');
+        }
+      }
+
       const numbering = await this.nextDocumentNumber(
         tx,
         user.schoolId,
@@ -879,6 +938,13 @@ export class DashboardAccountingService {
         allocations.length + 1,
         total,
       );
+
+      if (dto.installmentId) {
+        await tx.installment.update({
+          where: { id: dto.installmentId },
+          data: { receiptId: receiptRow.id, paid: true },
+        });
+      }
 
       const linkage = await this.resolveReceiptEntityParent(tx, entity.id);
       return {

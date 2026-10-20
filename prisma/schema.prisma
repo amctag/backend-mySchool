@@ -1591,7 +1591,7 @@ model Installment {
   id          Int       @id @default(autoincrement())
   accountId   Int       @map("account_id")
   paid        Boolean   @default(false)
-  receiptId   Int       @map("receipt_id")
+  receiptId   Int?      @map("receipt_id")
   amount      Decimal   @db.Decimal(18, 2)
   yearId      Int       @map("year_id")
   date        DateTime? @db.Date
@@ -1599,7 +1599,7 @@ model Installment {
   userId      Int?      @map("user_id")
 
   account Account           @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  receipt AccountingReceipt @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  receipt AccountingReceipt? @relation(fields: [receiptId], references: [id], onDelete: Restrict)
   year    Year              @relation(fields: [yearId], references: [id], onDelete: Restrict)
 
   @@index([accountId])

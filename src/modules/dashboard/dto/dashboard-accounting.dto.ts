@@ -429,6 +429,11 @@ export class DashboardReceiptAllocationBody {
 }
 
 export class CreateDashboardReceiptDto extends DashboardAccountingDocumentBody {
+  @ApiPropertyOptional({ example: 42, description: 'Installment to settle atomically with this receipt' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  installmentId?: number;
   @ApiProperty({
     example: 12,
     description:

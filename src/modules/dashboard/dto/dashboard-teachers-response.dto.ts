@@ -31,6 +31,15 @@ export class DashboardTeacherItemDto {
 
   @ApiProperty({ example: true })
   status!: boolean;
+
+  @ApiProperty({ nullable: true })
+  accountId!: number | null;
+  @ApiProperty({ nullable: true })
+  accountCode!: string | null;
+  @ApiProperty()
+  hasAccountingAccount!: boolean;
+  @ApiProperty()
+  canCreateAccountingAccount!: boolean;
 }
 
 export class DashboardTeachersResponseDto {
