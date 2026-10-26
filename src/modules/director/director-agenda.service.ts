@@ -31,6 +31,7 @@ export class DirectorAgendaService {
     });
 
     const where: any = {
+      course: { schoolId: user.schoolId },
       ...(query.date ? { agendaDate: query.date } : {}),
     };
 
@@ -71,6 +72,7 @@ export class DirectorAgendaService {
     const agenda = await this.prisma.agenda.findFirst({
       where: {
         id: agendaId,
+        course: { schoolId: user.schoolId },
       },
     });
 
@@ -139,6 +141,7 @@ export class DirectorAgendaService {
     const agenda = await this.prisma.agenda.findFirst({
       where: {
         id: agendaId,
+        course: { schoolId: user.schoolId },
       },
     });
 
@@ -179,6 +182,7 @@ export class DirectorAgendaService {
     const agenda = await this.prisma.agenda.findFirst({
       where: {
         id: agendaId,
+        course: { schoolId: user.schoolId },
       },
     });
 

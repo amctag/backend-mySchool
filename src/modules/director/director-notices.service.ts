@@ -31,6 +31,7 @@ export class DirectorNoticesService {
     });
 
     const where: any = {
+      schoolId: user.schoolId,
       ...(query.date ? { date: query.date } : {}),
     };
 
@@ -66,6 +67,7 @@ export class DirectorNoticesService {
     const notice = await this.prisma.notice.findFirst({
       where: {
         id: noticeId,
+        schoolId: user.schoolId,
       },
     });
 
@@ -119,6 +121,7 @@ export class DirectorNoticesService {
     const notice = await this.prisma.notice.findFirst({
       where: {
         id: noticeId,
+        schoolId: user.schoolId,
       },
     });
 
@@ -154,6 +157,7 @@ export class DirectorNoticesService {
     const notice = await this.prisma.notice.findFirst({
       where: {
         id: noticeId,
+        schoolId: user.schoolId,
       },
     });
 
