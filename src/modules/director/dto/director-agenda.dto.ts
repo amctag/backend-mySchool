@@ -10,6 +10,12 @@ export class DirectorAgendasQueryDto extends PaginationQueryDto {
   @Type(() => String)
   @IsString()
   date?: string;
+
+  @ApiPropertyOptional({ example: '2025-01' })
+  @IsOptional()
+  @Type(() => String)
+  @IsString()
+  month?: string;
 }
 
 export class DirectorAgendaItemDto {
@@ -22,7 +28,11 @@ export class DirectorAgendaItemDto {
   @ApiProperty({ example: 'Mathematics Final' })
   title!: string;
 
-  @ApiProperty({ type: 'string', format: 'html', example: '<p>Study for exam</p>' })
+  @ApiProperty({
+    type: 'string',
+    format: 'html',
+    example: '<p>Study for exam</p>',
+  })
   description!: string;
 
   @ApiProperty({ example: '2025-03-10' })

@@ -1,4 +1,9 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuthenticatedDirector } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { DirectorAccessService } from './director-access.service';
@@ -11,6 +16,7 @@ import {
   DirectorAgendaItemDto,
   DirectorAgendasResponseDto,
 } from './dto/director-agenda.dto';
+import { parseDateOnly } from '../teacher/teacher.util';
 
 @Injectable()
 export class DirectorAgendaService {
@@ -30,9 +36,10 @@ export class DirectorAgendaService {
       limit: query.limit ?? 20,
     });
 
+    const dateFilter = this.dateFilter(query.date, query.month);
     const where: any = {
       course: { schoolId: user.schoolId },
-      ...(query.date ? { agendaDate: query.date } : {}),
+      ...(dateFilter ? { agendaDate: dateFilter } : {}),
     };
 
     const [total, rows] = await this.prisma.$transaction([
@@ -61,6 +68,49 @@ export class DirectorAgendaService {
       })),
       pagination: buildPaginationMeta(page, limit, total),
     };
+  }
+
+  private dateFilter(
+    date?: string,
+    month?: string,
+  ): { gte: Date; lt: Date } | undefined {
+    if (date && month) {
+      throw new BadRequestException('Use either date or month, not both');
+    }
+    if (date) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        throw new BadRequestException('date must use YYYY-MM-DD format');
+      }
+      const day = parseDateOnly(date);
+      const [year, monthNumber, dayNumber] = date.split('-').map(Number);
+      if (
+        Number.isNaN(day.getTime()) ||
+        day.getUTCFullYear() !== year ||
+        day.getUTCMonth() + 1 !== monthNumber ||
+        day.getUTCDate() !== dayNumber
+      ) {
+        throw new BadRequestException('date must be a valid calendar date');
+      }
+      const next = new Date(day);
+      next.setUTCDate(next.getUTCDate() + 1);
+      return { gte: day, lt: next };
+    }
+    if (month) {
+      if (!/^\d{4}-\d{2}$/.test(month)) {
+        throw new BadRequestException('month must use YYYY-MM format');
+      }
+      const [year, monthNumber] = month.split('-').map(Number);
+      const start = new Date(Date.UTC(year, monthNumber - 1, 1));
+      if (
+        monthNumber < 1 ||
+        monthNumber > 12 ||
+        Number.isNaN(start.getTime())
+      ) {
+        throw new BadRequestException('month must be a valid calendar month');
+      }
+      return { gte: start, lt: new Date(Date.UTC(year, monthNumber, 1)) };
+    }
+    return undefined;
   }
 
   async getAgenda(
