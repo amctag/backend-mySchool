@@ -1102,6 +1102,22 @@ export class DashboardAccountingService {
         throw new BadRequestException(
           'Receipt total must be greater than zero',
         );
+      const linkedInstallment = await tx.installment.findFirst({
+        where: { receiptId: id, year: { schoolId: user.schoolId } },
+        select: { accountId: true, amount: true },
+      });
+      if (linkedInstallment) {
+        if (
+          allocations.length !== 1 ||
+          allocations[0].accountId !== linkedInstallment.accountId ||
+          !allocations[0].amount.eq(linkedInstallment.amount) ||
+          dto.accountId !== linkedInstallment.accountId
+        ) {
+          throw new ConflictException(
+            'A receipt linked to a paid installment can only keep the same account and amount',
+          );
+        }
+      }
       await tx.accountingRegister.update({
         where: { id: receipt.accountingRegisterId },
         data: {
@@ -1873,6 +1889,28 @@ export class DashboardAccountingService {
     return this.getInvoice(user, created);
   }
 
+  async updateInvoice(user: AuthenticatedSchool, id: number, dto: CreateDashboardInvoiceDto): Promise<DashboardInvoiceDto> {
+    await this.prisma.$transaction(async (tx) => {
+      const invoice = await tx.accountingInvoice.findFirst({ where: { id, schoolId: user.schoolId, accountingRegister: { schoolId: user.schoolId } }, select: { id: true, accountingRegisterId: true } });
+      if (!invoice) throw new NotFoundException('Invoice not found');
+      const locked = await this.lockParentAccount(tx, user.schoolId, dto.parentId);
+      const account = await this.ensureParentAccount(tx, user.schoolId, locked);
+      const currency = await this.requireCurrency(tx, dto.currencyId);
+      const lines = await this.resolveInvoiceLines(tx, { schoolId: user.schoolId, parentId: locked.parentId, rows: dto.details, currencyId: currency.id });
+      const total = lines.reduce((sum, line) => sum.plus(line.lineTotal), new Prisma.Decimal(0));
+      if (total.lte(0)) throw new BadRequestException('Invoice total must be greater than zero');
+      const sales = await this.ensureSystemAccount(tx, user.schoolId, 'SALES', 'Sales');
+      await tx.accountingRegister.update({ where: { id: invoice.accountingRegisterId }, data: { description: dto.description ?? null, dateCreated: dto.date ? new Date(dto.date) : undefined, currencyId: currency.id, currencyRate: new Prisma.Decimal(currency.rate), notes: dto.notes ?? null, comments: dto.comments ?? null } });
+      await tx.accountingInvoice.update({ where: { id }, data: { description: dto.description ?? null, dateCreated: dto.date ? new Date(dto.date) : undefined, total } });
+      await tx.accountingInvoiceDetail.deleteMany({ where: { invoiceId: id } });
+      await tx.accountingInvoiceDetail.createMany({ data: lines.map((line) => ({ invoiceId: id, itemId: line.itemId, unitPrice: line.unitPrice, quantity: line.quantity, description: line.description, discount: new Prisma.Decimal(0), tax: new Prisma.Decimal(0), forRegistrationId: line.forRegistrationId })) });
+      await tx.accountingDaily.deleteMany({ where: { accountingRegisterId: invoice.accountingRegisterId } });
+      await tx.accountingDaily.createMany({ data: [{ accountId: account.accountId, debit: total, credit: new Prisma.Decimal(0), description: dto.description ?? null, accountingRegisterId: invoice.accountingRegisterId }, { accountId: sales.id, debit: new Prisma.Decimal(0), credit: total, description: dto.description ?? null, accountingRegisterId: invoice.accountingRegisterId }] });
+      await this.assertBalancedJournal(tx, invoice.accountingRegisterId, 2, total);
+    });
+    return this.getInvoice(user, id);
+  }
+
   async createRegistrationWithInvoice(
     user: AuthenticatedSchool,
     dto: CreateDashboardRegistrationInvoiceDto,
@@ -2238,6 +2276,26 @@ export class DashboardAccountingService {
       throw new NotFoundException('Record not found');
     }
     return this.toRecordDto(record, record.accountingRegister);
+  }
+
+  async updateRecord(user: AuthenticatedSchool, id: number, dto: CreateDashboardRecordDto): Promise<DashboardRecordDto> {
+    await this.prisma.$transaction(async (tx) => {
+      const record = await tx.accountingRecord.findFirst({ where: { id, schoolId: user.schoolId, accountingRegister: { schoolId: user.schoolId } }, select: { id: true, accountingRegisterId: true } });
+      if (!record) throw new NotFoundException('Record not found');
+      if (dto.rows.length < 2 || dto.rows.length > MAX_INVOICE_LINES) throw new BadRequestException(`Record must include 2 to ${MAX_INVOICE_LINES} journal rows`);
+      const ids = [...new Set(dto.rows.map((row) => row.accountId))];
+      const accounts = await tx.account.findMany({ where: { id: { in: ids }, schoolId: user.schoolId }, select: { id: true, isGroup: true } });
+      if (accounts.length !== ids.length || accounts.some((a) => a.isGroup)) throw new BadRequestException('Record accounts must be posting accounts belonging to this school');
+      const currency = await this.requireCurrency(tx, dto.currencyId);
+      const postings = dto.rows.map((row, index) => { const debit = new Prisma.Decimal(row.debit ?? 0); const credit = new Prisma.Decimal(row.credit ?? 0); if (debit.lt(0) || credit.lt(0) || (debit.gt(0) && credit.gt(0)) || (debit.eq(0) && credit.eq(0))) throw new BadRequestException(`Invalid record row ${index + 1}`); return { accountId: row.accountId, debit, credit, description: row.description?.trim() || null }; });
+      const totalDebit = postings.reduce((s, r) => s.plus(r.debit), new Prisma.Decimal(0)); const totalCredit = postings.reduce((s, r) => s.plus(r.credit), new Prisma.Decimal(0));
+      if (totalDebit.lte(0) || !totalDebit.equals(totalCredit)) throw new BadRequestException('Record is out of balance');
+      await tx.accountingRegister.update({ where: { id: record.accountingRegisterId }, data: { description: dto.description ?? null, dateCreated: dto.date ? new Date(dto.date) : undefined, currencyId: currency.id, currencyRate: new Prisma.Decimal(currency.rate), notes: dto.notes ?? null, comments: dto.comments ?? null } });
+      await tx.accountingDaily.deleteMany({ where: { accountingRegisterId: record.accountingRegisterId } });
+      await tx.accountingDaily.createMany({ data: postings.map((row) => ({ ...row, accountingRegisterId: record.accountingRegisterId, description: row.description ?? dto.description ?? null })) });
+      await this.assertBalancedJournal(tx, record.accountingRegisterId, postings.length, totalDebit);
+    });
+    return this.getRecord(user, id);
   }
 
   async getAccountStatement(

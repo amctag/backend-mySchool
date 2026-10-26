@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { DashboardAccountingService } from './dashboard-accounting.service';
 
@@ -89,6 +89,9 @@ function baseTransaction(overrides?: {
         Promise.resolve({ count: args.data.length }),
       ),
       deleteMany: jest.fn(),
+    },
+    installment: {
+      findFirst: jest.fn(() => Promise.resolve(null)),
     },
     currency: {
       findUnique: jest.fn(() => Promise.resolve(overrides?.currency ?? null)),
@@ -293,6 +296,18 @@ describe('DashboardAccountingService document edits', () => {
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(transaction.accountingRegister.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects changing the amount of a receipt linked to a paid installment', async () => {
+    const transaction = baseTransaction({
+      accountById: { 12: { id: 12, code: '41110001', name: 'Parent', type: 'PERSON', isGroup: false }, 31: cashAccount },
+      currency: usdCurrency,
+    });
+    transaction.accountingReceipt.findFirst.mockResolvedValue({ id: 10, accountingRegisterId: 100 });
+    transaction.installment.findFirst.mockResolvedValue({ accountId: 12, amount: new Prisma.Decimal(150) });
+    const service = serviceWith(transaction);
+    await expect(service.updateReceipt({ schoolId: 3 } as never, 10, { accountId: 12, currencyId: 1, allocations: [{ accountId: 31, amount: 200 }] })).rejects.toBeInstanceOf(ConflictException);
+    expect(transaction.accountingDaily.deleteMany).not.toHaveBeenCalled();
   });
 });
 

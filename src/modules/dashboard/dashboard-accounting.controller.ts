@@ -364,6 +364,11 @@ export class DashboardAccountingController {
     return this.dashboardAccountingService.getInvoice(request.user, id);
   }
 
+  @Patch('invoices/:id')
+  updateInvoice(@Req() request: Request & { user: AuthenticatedSchool }, @Param('id', ParseIntPipe) id: number, @Body() dto: CreateDashboardInvoiceDto): Promise<DashboardInvoiceDto> {
+    return this.dashboardAccountingService.updateInvoice(request.user, id, dto);
+  }
+
   @Get('records')
   @ApiOperation({ summary: 'List manual Record documents for this school' })
   @ApiOkResponse({ type: DashboardRecordsResponseDto })
@@ -395,6 +400,11 @@ export class DashboardAccountingController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DashboardRecordDto> {
     return this.dashboardAccountingService.getRecord(request.user, id);
+  }
+
+  @Patch('records/:id')
+  updateRecord(@Req() request: Request & { user: AuthenticatedSchool }, @Param('id', ParseIntPipe) id: number, @Body() dto: CreateDashboardRecordDto): Promise<DashboardRecordDto> {
+    return this.dashboardAccountingService.updateRecord(request.user, id, dto);
   }
 
   @Get('accounts/:id/statement')
