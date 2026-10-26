@@ -19,6 +19,7 @@ import { ParentModule } from './modules/parent/parent.module';
 import { TeacherModule } from './modules/teacher/teacher.module';
 import { SchoolModule } from './modules/school/school.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DirectorModule } from './modules/director/director.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     ParentModule,
     TeacherModule,
     SchoolModule,
+    DirectorModule,
     DashboardModule,
   ],
   providers: [

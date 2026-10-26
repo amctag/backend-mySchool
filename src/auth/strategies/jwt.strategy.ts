@@ -53,6 +53,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       };
     }
 
+    if (payload.role === 'director' && payload.directorId && payload.personId && payload.schoolId) {
+      return {
+        id: Number(payload.sub),
+        username: payload.username,
+        role: 'director',
+        directorId: payload.directorId,
+        personId: payload.personId,
+        schoolId: payload.schoolId,
+        sessionId: payload.sid,
+      };
+    }
+
     throw new UnauthorizedException();
   }
 }

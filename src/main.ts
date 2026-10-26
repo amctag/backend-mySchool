@@ -10,6 +10,7 @@ import { createValidationPipe } from './config/validation';
 import { ParentModule } from './modules/parent/parent.module';
 import { TeacherModule } from './modules/teacher/teacher.module';
 import { SchoolModule } from './modules/school/school.module';
+import { DirectorModule } from './modules/director/director.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 async function bootstrap() {
@@ -39,7 +40,7 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('My School API')
     .setDescription(
-      'Parent and school public API v1. Teacher APIs are documented at /api/docs/teachers. Dashboard admin APIs are documented at /api/docs/dashboard',
+      'Parent and school public API v1. Teacher APIs are documented at /api/docs/teachers. Director APIs are documented at /api/docs/directors. Dashboard admin APIs are documented at /api/docs/dashboard',
     )
     .setVersion('1.0')
     .addBearerAuth()
@@ -80,6 +81,24 @@ async function bootstrap() {
     { include: [TeacherModule] },
   );
   SwaggerModule.setup('api/docs/teachers', app, teacherDocument);
+
+  const directorSwaggerConfig = new DocumentBuilder()
+    .setTitle('My School Director API')
+    .setDescription(
+      'Director API v1. Login with email and password to receive an access token and refresh token.',
+    )
+    .setVersion('1.0')
+    .addBearerAuth()
+    .addTag('Director Auth v1', 'Login, refresh, and logout')
+    .addTag('Director Profile v1', 'Director profile and settings')
+    .build();
+
+  const directorDocument = SwaggerModule.createDocument(
+    app,
+    directorSwaggerConfig,
+    { include: [DirectorModule] },
+  );
+  SwaggerModule.setup('api/docs/directors', app, directorDocument);
 
   const dashboardSwaggerConfig = new DocumentBuilder()
     .setTitle('My School Dashboard API')

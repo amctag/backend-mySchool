@@ -15,6 +15,10 @@ export class SessionService {
       return this.isTeacherSessionActive(sessionId);
     }
 
+    if (role === 'director') {
+      return this.isDirectorSessionActive(sessionId);
+    }
+
     return this.isParentSessionActive(sessionId);
   }
 
@@ -27,12 +31,16 @@ export class SessionService {
       where: { refreshExpiresAt: { lt: new Date() } },
     });
 
+    await this.prisma.directorSession.deleteMany({
+      where: { refreshExpiresAt: { lt: new Date() } },
+    });
+
     await this.prisma.schoolSession.deleteMany({
       where: { refreshExpiresAt: { lt: new Date() } },
     });
   }
 
-  private async isParentSessionActive(sessionId: string): Promise<boolean> {
+  async isParentSessionActive(sessionId: string): Promise<boolean> {
     const session = await this.prisma.parentSession.findUnique({
       where: { id: sessionId },
     });
@@ -49,7 +57,7 @@ export class SessionService {
     return true;
   }
 
-  private async isTeacherSessionActive(sessionId: string): Promise<boolean> {
+  async isTeacherSessionActive(sessionId: string): Promise<boolean> {
     const session = await this.prisma.teacherSession.findUnique({
       where: { id: sessionId },
     });
@@ -66,7 +74,7 @@ export class SessionService {
     return true;
   }
 
-  private async isSchoolSessionActive(sessionId: string): Promise<boolean> {
+  async isSchoolSessionActive(sessionId: string): Promise<boolean> {
     const session = await this.prisma.schoolSession.findUnique({
       where: { id: sessionId },
     });
@@ -77,6 +85,23 @@ export class SessionService {
 
     if (session.refreshExpiresAt <= new Date()) {
       await this.prisma.schoolSession.delete({ where: { id: sessionId } });
+      return false;
+    }
+
+    return true;
+  }
+
+  async isDirectorSessionActive(sessionId: string): Promise<boolean> {
+    const session = await this.prisma.directorSession.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      return false;
+    }
+
+    if (session.refreshExpiresAt <= new Date()) {
+      await this.prisma.directorSession.delete({ where: { id: sessionId } });
       return false;
     }
 

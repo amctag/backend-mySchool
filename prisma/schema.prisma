@@ -21,34 +21,36 @@ model School {
   createdAt                  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  persons             Person[]
-  years               Year[]
-  stages              Stage[]
-  sectionTitles       SectionTitle[]
-  sections            Section[]
-  courses             Course[]
-  days                Day[]
-  sessions            Session[]
-  teacherSchools      TeacherSchool[]
-  teacherSessions     TeacherSession[]
-  schoolSessions      SchoolSession[]
-  details             SchoolDetail?
-  notices             Notice[]
-  albums              Album[]
-  grades              Grade[]
-  gradeForms          GradeForm[]
-  gradeTypes          GradeType[]
-  registrations       Registration[]
-  teacherTasks        TeacherTask[]
-  accountingRegisters AccountingRegister[]
-  accounts            Account[]
-  accountCodeCounters AccountCodeCounter[]
-  documentCounters    AccountingDocumentCounter[]
-  receipts            AccountingReceipt[]
-  payments            AccountingPayment[]
-  invoices            AccountingInvoice[]
-  records             AccountingRecord[]
-  items               Item[]
+  persons                Person[]
+  years                  Year[]
+  stages                 Stage[]
+  sectionTitles          SectionTitle[]
+  sections               Section[]
+  courses                Course[]
+  days                   Day[]
+  sessions               Session[]
+  teacherSchools         TeacherSchool[]
+  teacherSessions        TeacherSession[]
+  directorSchools        DirectorSchool[]
+  directorSessions       DirectorSession[]
+  schoolSessions         SchoolSession[]
+  details                SchoolDetail?
+  notices                Notice[]
+  albums                 Album[]
+  grades                 Grade[]
+  gradeForms             GradeForm[]
+  gradeTypes             GradeType[]
+  registrations          Registration[]
+  teacherTasks           TeacherTask[]
+  accountingRegisters    AccountingRegister[]
+  accounts               Account[]
+  accountCodeCounters    AccountCodeCounter[]
+  documentCounters       AccountingDocumentCounter[]
+  receipts               AccountingReceipt[]
+  payments               AccountingPayment[]
+  invoices               AccountingInvoice[]
+  records                AccountingRecord[]
+  items                  Item[]
   legacyMigrationBatches LegacyMigrationBatch[]
 
   @@map("school")
@@ -92,6 +94,8 @@ model Person {
   bloodType             BloodType?             @relation(fields: [bloodTypeId], references: [id], onDelete: SetNull)
   account               Account?               @relation(fields: [accountId], references: [id], onDelete: Restrict)
   teacher               Teacher?
+  director              Director?
+  directorSessions      DirectorSession[]
   parent                Parent?
   student               Student?
   weeklyScheduleDetails WeeklyScheduleDetail[]
@@ -517,11 +521,11 @@ model Registration {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  school       School        @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  section      Section       @relation(fields: [sectionId], references: [id], onDelete: Restrict)
-  student      Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  person       Person        @relation(fields: [personId], references: [id], onDelete: Restrict)
-  gradeDetails GradeDetail[]
+  school         School                    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  section        Section                   @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  student        Student                   @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  person         Person                    @relation(fields: [personId], references: [id], onDelete: Restrict)
+  gradeDetails   GradeDetail[]
   invoiceDetails AccountingInvoiceDetail[]
 
   @@index([studentId, status])
@@ -1203,10 +1207,10 @@ model Account {
   receiptDetails AccountingReceiptDetail[]
   paymentDetails AccountingPaymentDetail[]
 
+  @@unique([schoolId, code])
   @@index([schoolId])
   @@index([schoolId, parentId])
   @@index([parentId])
-  @@unique([schoolId, code])
   @@map("accounts")
 }
 
@@ -1598,12 +1602,58 @@ model Installment {
   dateCreated DateTime  @default(now()) @map("date_created") @db.Timestamptz(6)
   userId      Int?      @map("user_id")
 
-  account Account           @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  account Account            @relation(fields: [accountId], references: [id], onDelete: Restrict)
   receipt AccountingReceipt? @relation(fields: [receiptId], references: [id], onDelete: Restrict)
-  year    Year              @relation(fields: [yearId], references: [id], onDelete: Restrict)
+  year    Year               @relation(fields: [yearId], references: [id], onDelete: Restrict)
 
   @@index([accountId])
   @@index([receiptId])
   @@index([yearId])
   @@map("installment")
+}
+
+model Director {
+  id        Int      @id @default(autoincrement())
+  personId  Int      @unique @map("person_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  person  Person           @relation(fields: [personId], references: [id], onDelete: Cascade)
+  schools DirectorSchool[]
+
+  @@map("director")
+}
+
+model DirectorSchool {
+  id         Int      @id @default(autoincrement())
+  directorId Int      @map("director_id")
+  schoolId   Int      @map("school_id")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  director Director @relation(fields: [directorId], references: [id], onDelete: Cascade)
+  school   School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([directorId, schoolId])
+  @@index([directorId, isActive])
+  @@index([schoolId, isActive])
+  @@map("director_schools")
+}
+
+model DirectorSession {
+  id               String   @id @default(uuid()) @db.Uuid
+  personId         Int      @map("person_id")
+  schoolId         Int      @map("school_id")
+  refreshTokenHash String   @unique @map("refresh_token_hash") @db.VarChar(64)
+  refreshExpiresAt DateTime @map("refresh_expires_at") @db.Timestamptz(6)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([personId])
+  @@index([schoolId])
+  @@map("director_sessions")
 }

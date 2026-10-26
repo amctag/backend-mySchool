@@ -1,4 +1,4 @@
-export type JwtRole = 'parent' | 'school' | 'teacher';
+export type JwtRole = 'parent' | 'school' | 'teacher' | 'director';
 
 export type ParentJwtPayload = {
   sub: string;
@@ -25,7 +25,17 @@ export type TeacherJwtPayload = {
   sid: string;
 };
 
-export type JwtPayload = ParentJwtPayload | SchoolJwtPayload | TeacherJwtPayload;
+export type DirectorJwtPayload = {
+  sub: string;
+  username: string;
+  role: 'director';
+  directorId: number;
+  personId: number;
+  schoolId: number;
+  sid: string;
+};
+
+export type JwtPayload = ParentJwtPayload | SchoolJwtPayload | TeacherJwtPayload | DirectorJwtPayload;
 
 export interface PasswordResetJwtPayload {
   sub: string;
@@ -57,7 +67,18 @@ export interface AuthenticatedTeacher {
   sessionId: string;
 }
 
+export interface AuthenticatedDirector {
+  id: number;
+  username: string;
+  role: 'director';
+  directorId: number;
+  personId: number;
+  schoolId: number;
+  sessionId: string;
+}
+
 export type AuthenticatedUser =
   | AuthenticatedParent
   | AuthenticatedSchool
-  | AuthenticatedTeacher;
+  | AuthenticatedTeacher
+  | AuthenticatedDirector;
