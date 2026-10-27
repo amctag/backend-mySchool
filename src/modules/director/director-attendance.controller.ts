@@ -74,7 +74,7 @@ export class DirectorAttendanceController {
   listAttendances(
     @Req() request: Request & { user: AuthenticatedDirector },
     @Query() query: DirectorAttendancesQueryDto,
-  ): Promise<TeacherAttendanceSheetDto> {
+  ): Promise<any> {
     return this.directorAttendanceService.listAttendances(request.user, query);
   }
 

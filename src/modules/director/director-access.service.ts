@@ -106,6 +106,7 @@ export class DirectorAccessService {
           id: true,
           class: {
             select: {
+              id: true,
               className: true,
               stage: { select: { title: true } },
             },

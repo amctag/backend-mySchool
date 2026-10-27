@@ -40,16 +40,16 @@ export class DirectorAttendanceService {
     const seen = new Set<string>();
 
     for (const section of sections) {
-      const key = section.class.className;
+      const key = String(section.class.id);
       if (!seen.has(key)) {
         seen.add(key);
         classes.push({
-          id: section.id,
-          name: key,
+          id: section.class.id,
+          name: section.class.className,
           sections: [],
         });
       }
-      const existingClass = classes.find((c) => c.name === key);
+      const existingClass = classes.find((c) => c.id === section.class.id);
       if (existingClass) {
         existingClass.sections.push({
           id: section.id,
@@ -68,39 +68,23 @@ export class DirectorAttendanceService {
     };
   }
 
-  async listAttendances(
-    user: AuthenticatedDirector,
-    query: DirectorAttendancesQueryDto,
-  ): Promise<TeacherAttendanceSheetDto> {
+  async listAttendances(user: AuthenticatedDirector, query: DirectorAttendancesQueryDto) {
     this.directorAccess.ensureDirectorRole(user.role);
-
-    const day = query.date ? new Date(query.date) : new Date();
-
-    const { sections } = await this.directorAccess.listSectionsInSchool(
-      user.schoolId,
-    );
-
-    const sectionIds = sections.map((s) => s.id);
-
-    // Build OR filters for each section (without courseId restriction)
-    const orFilters = sectionIds.length > 0
-      ? sectionIds.map((sid) => ({ sectionId: sid }))
-      : [];
-
+    const { page, limit, skip } = resolvePagination({ page: query.page, limit: query.limit ?? 20 });
+    const { sections } = await this.directorAccess.listSectionsInSchool(user.schoolId);
+    const sectionIds = sections.map((section) => section.id);
+    if (sectionIds.length === 0) {
+      return { items: [], pagination: buildPaginationMeta(page, limit, 0) };
+    }
+    const where = {
+      deletedAt: null,
+      sectionId: { in: sectionIds },
+      ...(query.date ? { date: new Date(query.date) } : {}),
+    };
     const [total, rows] = await this.prisma.$transaction([
-      this.prisma.attendance.count({
-        where: {
-          deletedAt: null,
-          date: day,
-          ...(orFilters.length > 0 ? { OR: orFilters } : {}),
-        },
-      }),
+      this.prisma.attendance.count({ where }),
       this.prisma.attendance.findMany({
-        where: {
-          deletedAt: null,
-          date: day,
-          ...(orFilters.length > 0 ? { OR: orFilters } : {}),
-        },
+        where,
         include: {
           section: {
             select: {
@@ -109,40 +93,25 @@ export class DirectorAttendanceService {
             },
           },
           course: { select: { id: true, title: true } },
-          details: {
-            where: { deletedAt: null },
-            select: {
-              studentId: true,
-              status: true,
-              attendanceReason: {
-                select: {
-                  id: true,
-                  title: true,
-                },
-              },
-            },
-          },
+          details: { where: { deletedAt: null }, select: { status: true } },
         },
-        orderBy: [{ id: 'desc' }],
+        orderBy: [{ date: 'desc' }, { id: 'desc' }],
+        skip,
+        take: limit,
       }),
     ]);
-
-    const firstRow = total > 0 ? rows[0] : undefined;
     return {
-      attendanceId: firstRow?.id ?? 0,
-      date: day.toISOString().split('T')[0],
-      sectionId: firstRow?.sectionId ?? 1,
-      classLabel: firstRow?.section?.class?.className + ' - ' + firstRow?.section?.sectionTitle.title || '',
-      courseTitle: null,
-      students: rows.map((row) => ({
-        studentId: row.details?.[0]?.studentId ?? 0,
-        registrationId: row.id,
-        studentName: 'Student',
-        status: row.details?.[0]?.status ?? 'present',
-        attendanceReasonId: row.details?.[0]?.attendanceReason?.id ?? null,
-        attendanceReasonTitle: row.details?.[0]?.attendanceReason?.title ?? null,
-        description: row.details?.[0]?.attendanceReason?.title ?? null,
+      items: rows.map((row) => ({
+        id: row.id,
+        date: row.date.toISOString().split('T')[0],
+        sectionId: row.sectionId ?? 0,
+        classLabel: row.section ? `${row.section.class.className} - ${row.section.sectionTitle.title}` : '',
+        courseId: row.course?.id ?? null,
+        courseTitle: row.course?.title ?? null,
+        studentCount: row.details.length,
+        absentCount: row.details.filter((detail) => detail.status === 'absent').length,
       })),
+      pagination: buildPaginationMeta(page, limit, total),
     };
   }
 
@@ -153,7 +122,7 @@ export class DirectorAttendanceService {
     this.directorAccess.ensureDirectorRole(user.role);
 
     const day = new Date(query.date);
-    const sectionId = query.sectionId;
+    const sectionId = Number(query.sectionId);
 
     const section = await this.directorAccess.resolveSectionInSchool(
       user.schoolId,
@@ -182,6 +151,7 @@ export class DirectorAttendanceService {
         sectionId,
         date: day,
         deletedAt: null,
+        ...(query.courseId != null ? { courseId: Number(query.courseId) } : {}),
       },
       include: {
         details: {
@@ -193,6 +163,9 @@ export class DirectorAttendanceService {
       },
     });
 
+    const detailsByStudent = new Map(
+      (existingAttendance?.details ?? []).map((detail) => [detail.studentId, detail]),
+    );
     return {
       attendanceId: existingAttendance?.id ?? 0,
       date: day.toISOString().split('T')[0],
@@ -208,10 +181,10 @@ export class DirectorAttendanceService {
           studentName: registration.student.person
             ? registration.student.person.firstName + ' ' + (registration.student.person.middleName || '') + ' ' + registration.student.person.lastName
             : '',
-          status: 'present',
-          attendanceReasonId: null,
-          attendanceReasonTitle: null,
-          description: null,
+          status: detailsByStudent.get(registration.studentId)?.status ?? 'present',
+          attendanceReasonId: detailsByStudent.get(registration.studentId)?.attendanceReason?.id ?? null,
+          attendanceReasonTitle: detailsByStudent.get(registration.studentId)?.attendanceReason?.title ?? null,
+          description: detailsByStudent.get(registration.studentId)?.description ?? null,
         };
       }),
     };
