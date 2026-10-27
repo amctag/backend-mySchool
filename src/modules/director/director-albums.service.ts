@@ -12,6 +12,28 @@ import {
   TeacherAlbumsResponseDto,
 } from './dto/director-albums.dto';
 
+const albumInclude = {
+  year: { select: { id: true, title: true } },
+  images: {
+    select: {
+      id: true,
+      imageLink: true,
+      caption: true,
+      position: true,
+    },
+  },
+} as const;
+
+const albumItemInclude = {
+  year: { select: { title: true } },
+  images: {
+    select: {
+      imageLink: true,
+      caption: true,
+    },
+  },
+} as const;
+
 @Injectable()
 export class DirectorAlbumsService {
   constructor(
@@ -40,6 +62,7 @@ export class DirectorAlbumsService {
       this.prisma.album.count({ where }),
       this.prisma.album.findMany({
         where,
+        include: albumInclude,
         orderBy: [{ date: 'desc' }, { id: 'desc' }],
         skip,
         take: limit,
@@ -51,8 +74,8 @@ export class DirectorAlbumsService {
         id: row.id,
         date: row.date?.toISOString().split('T')[0],
         title: row.title,
-        images: [],
-        yearTitle: '',
+        images: row.images?.map((img) => img.imageLink) ?? [],
+        yearTitle: row.year?.title || '',
       })),
       pagination: buildPaginationMeta(page, limit, total),
     };
@@ -69,6 +92,7 @@ export class DirectorAlbumsService {
         id: albumId,
         schoolId: user.schoolId,
       },
+      include: albumInclude,
     });
 
     if (!album) {
@@ -79,8 +103,8 @@ export class DirectorAlbumsService {
       id: album.id,
       date: album.date?.toISOString().split('T')[0],
       title: album.title,
-      images: [],
-      yearTitle: '',
+      images: album.images?.map((img) => img.imageLink) ?? [],
+      yearTitle: album.year?.title || '',
     };
   }
 

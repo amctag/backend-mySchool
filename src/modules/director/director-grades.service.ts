@@ -39,9 +39,21 @@ export class DirectorGradesService {
         where: { schoolId: user.schoolId },
         select: {
           id: true,
-          person: true,
+          person: {
+            select: {
+              firstName: true,
+              middleName: true,
+              lastName: true,
+            },
+          },
           gradeType: true,
-          section: true,
+          section: {
+            select: {
+              class: { select: { className: true } },
+              sectionTitle: { select: { title: true } },
+              year: { select: { title: true } },
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip,

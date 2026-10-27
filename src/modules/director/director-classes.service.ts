@@ -35,6 +35,32 @@ export class DirectorClassesService {
     );
     const { page, limit } = resolvePagination({ page: query.page, limit: query.limit });
 
+    // Load teaches records for all sections to get course titles
+    const sectionIds = sections.map((s) => s.id);
+    const teaches = await this.prisma.teach.findMany({
+      where: {
+        sectionId: { in: sectionIds },
+        ...(yearId ? { yearId } : {}),
+      },
+      select: {
+        sectionId: true,
+        course: { select: { id: true, title: true } },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    // Build a map of sectionId -> course titles
+    const courseMap = new Map<number, string[]>();
+    teaches.forEach((t) => {
+      if (!courseMap.has(t.sectionId)) {
+        courseMap.set(t.sectionId, []);
+      }
+      const titles = courseMap.get(t.sectionId)!;
+      if (!titles.includes(t.course.title)) {
+        titles.push(t.course.title);
+      }
+    });
+
     return {
       items: sections.map((section) => ({
         id: section.id,
@@ -42,8 +68,9 @@ export class DirectorClassesService {
         sectionTitle: section.sectionTitle.title,
         yearTitle: section.year.title,
         stage: section.class.stage.title,
-        primaryCourseTitle: '',
-        courseTitles: [],
+        primaryCourseTitle:
+          courseMap.get(section.id)?.join(', ') ?? '',
+        courseTitles: courseMap.get(section.id) ?? [],
         studentCount: section._count.registrations,
         isAssignedToCurrentDirector: true,
       })),
@@ -64,6 +91,32 @@ export class DirectorClassesService {
     );
     const { page, limit } = resolvePagination({ page: query.page, limit: query.limit });
 
+    // Load teaches records for all sections to get course titles
+    const sectionIds = sections.map((s) => s.id);
+    const teaches = await this.prisma.teach.findMany({
+      where: {
+        sectionId: { in: sectionIds },
+        ...(yearId ? { yearId } : {}),
+      },
+      select: {
+        sectionId: true,
+        course: { select: { id: true, title: true } },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    // Build a map of sectionId -> course titles
+    const courseMap = new Map<number, string[]>();
+    teaches.forEach((t) => {
+      if (!courseMap.has(t.sectionId)) {
+        courseMap.set(t.sectionId, []);
+      }
+      const titles = courseMap.get(t.sectionId)!;
+      if (!titles.includes(t.course.title)) {
+        titles.push(t.course.title);
+      }
+    });
+
     return {
       items: sections.map((section) => ({
         id: section.id,
@@ -71,8 +124,9 @@ export class DirectorClassesService {
         sectionTitle: section.sectionTitle.title,
         yearTitle: section.year.title,
         stage: section.class.stage.title,
-        primaryCourseTitle: '',
-        courseTitles: [],
+        primaryCourseTitle:
+          courseMap.get(section.id)?.join(', ') ?? '',
+        courseTitles: courseMap.get(section.id) ?? [],
         studentCount: section._count.registrations,
         isAssignedToCurrentDirector: true,
       })),

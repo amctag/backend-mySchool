@@ -82,8 +82,9 @@ export class DirectorAttendanceService {
 
     const sectionIds = sections.map((s) => s.id);
 
+    // Build OR filters for each section (without courseId restriction)
     const orFilters = sectionIds.length > 0
-      ? sectionIds.map((sid) => ({ sectionId: sid, courseId: null }))
+      ? sectionIds.map((sid) => ({ sectionId: sid }))
       : [];
 
     const [total, rows] = await this.prisma.$transaction([
@@ -91,14 +92,14 @@ export class DirectorAttendanceService {
         where: {
           deletedAt: null,
           date: day,
-          OR: orFilters,
+          ...(orFilters.length > 0 ? { OR: orFilters } : {}),
         },
       }),
       this.prisma.attendance.findMany({
         where: {
           deletedAt: null,
           date: day,
-          OR: orFilters,
+          ...(orFilters.length > 0 ? { OR: orFilters } : {}),
         },
         include: {
           section: {
@@ -130,7 +131,7 @@ export class DirectorAttendanceService {
     return {
       attendanceId: firstRow?.id ?? 0,
       date: day.toISOString().split('T')[0],
-      sectionId: 1,
+      sectionId: firstRow?.sectionId ?? 1,
       classLabel: firstRow?.section?.class?.className + ' - ' + firstRow?.section?.sectionTitle.title || '',
       courseTitle: null,
       students: rows.map((row) => ({

@@ -16,7 +16,29 @@ import {
   DirectorAgendaItemDto,
   DirectorAgendasResponseDto,
 } from './dto/director-agenda.dto';
+import { formatClassLabel } from './director.util';
 import { parseDateOnly } from '../teacher/teacher.util';
+
+const agendaInclude = {
+  sections: {
+    include: {
+      section: {
+        include: {
+          class: { select: { className: true } },
+          sectionTitle: { select: { title: true } },
+        },
+      },
+    },
+  },
+  person: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      username: true,
+    },
+  },
+} as const;
 
 @Injectable()
 export class DirectorAgendaService {
@@ -46,6 +68,7 @@ export class DirectorAgendaService {
       this.prisma.agenda.count({ where }),
       this.prisma.agenda.findMany({
         where,
+        include: agendaInclude,
         orderBy: [{ agendaDate: 'desc' }, { id: 'desc' }],
         skip,
         take: limit,
@@ -63,22 +86,37 @@ export class DirectorAgendaService {
     }
 
     return {
-      items: rows.map((row) => ({
-        id: row.id,
-        assignmentId: row.id,
-        classId: row.personId ?? 0,
-        classLabel: '',
-        courseTitle: row.courseId != null ? courseMap.get(row.courseId) ?? '' : '',
-        title: row.title,
-        description: row.description,
-        date: row.agendaDate?.toISOString().split('T')[0] ?? '',
-        publishDate: row.agendaDate?.toISOString().split('T')[0] ?? '',
-        time: row.time ?? '09:00',
-        imageLink: row.imageLink ?? '',
-        fileLink: row.fileLink ?? '',
-        createdBy: '',
-        createdAt: row.createdAt?.toISOString().split('T')[0] ?? '',
-      })),
+      items: rows.map((row) => {
+        const section = row.sections?.[0]?.section;
+        const classId = section?.id ?? 0;
+        const classLabel = section
+          ? formatClassLabel(section.class.className, section.sectionTitle.title)
+          : '';
+        const person = row.person;
+        const assignmentId = person?.id ?? row.id;
+        const createdBy = person
+          ? `${person.firstName || ''} ${person.lastName || ''}`.trim() ||
+            person.username ||
+            ''
+          : '';
+
+        return {
+          id: row.id,
+          assignmentId: assignmentId,
+          classId: classId,
+          classLabel: classLabel,
+          courseTitle: row.courseId != null ? courseMap.get(row.courseId) ?? '' : '',
+          title: row.title,
+          description: row.description,
+          date: row.agendaDate?.toISOString().split('T')[0] ?? '',
+          publishDate: row.agendaDate?.toISOString().split('T')[0] ?? '',
+          time: row.time ?? '09:00',
+          imageLink: row.imageLink ?? '',
+          fileLink: row.fileLink ?? '',
+          createdBy: createdBy,
+          createdAt: row.createdAt?.toISOString().split('T')[0] ?? '',
+        };
+      }),
       pagination: buildPaginationMeta(page, limit, total),
     };
   }
