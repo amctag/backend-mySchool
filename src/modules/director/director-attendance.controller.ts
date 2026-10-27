@@ -24,6 +24,7 @@ import {
   TeacherAttendanceSheetDto,
   DirectorAttendancesQueryDto,
   DirectorAttendanceSheetQueryDto,
+  DirectorSaveAttendanceDto,
 } from './dto/director-attendance.dto';
 import { DirectorAttendanceService } from './director-attendance.service';
 
@@ -93,7 +94,7 @@ export class DirectorAttendanceController {
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
   saveAttendance(
     @Req() request: Request & { user: AuthenticatedDirector },
-    @Body() dto: TeacherAttendanceSheetDto,
+    @Body() dto: DirectorSaveAttendanceDto,
   ): Promise<TeacherAttendanceSheetDto> {
     return this.directorAttendanceService.saveAttendance(request.user, dto);
   }

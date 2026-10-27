@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsIn, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { PaginationMetaDto } from '../../../common/dto/pagination-meta.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
@@ -99,4 +99,52 @@ export class DirectorAttendanceOptionsDto {
 
   @ApiProperty({ type: [Object] })
   classes!: any[];
+}
+/** Validated request body for recording director attendance. */
+export class DirectorSaveAttendanceDetailDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  studentId!: number;
+
+  @ApiProperty({ enum: ['present', 'absent', 'late', 'excused'] })
+  @IsIn(['present', 'absent', 'late', 'excused'])
+  status!: 'present' | 'absent' | 'late' | 'excused';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  attendanceReasonId?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string | null;
+}
+
+export class DirectorSaveAttendanceDto {
+  @ApiProperty()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  sectionId!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  courseId?: number;
+
+  @ApiProperty({ example: '2026-10-27' })
+  @IsString()
+  date!: string;
+
+  @ApiProperty({ type: [DirectorSaveAttendanceDetailDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DirectorSaveAttendanceDetailDto)
+  details!: DirectorSaveAttendanceDetailDto[];
 }
