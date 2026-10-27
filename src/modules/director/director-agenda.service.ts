@@ -18,6 +18,7 @@ import {
 } from './dto/director-agenda.dto';
 import { formatClassLabel } from './director.util';
 import { parseDateOnly } from '../teacher/teacher.util';
+import { Prisma } from '@prisma/client';
 
 const agendaInclude = {
   sections: {
@@ -59,10 +60,13 @@ export class DirectorAgendaService {
     });
 
     const dateFilter = this.dateFilter(query.date, query.month);
-    const where: any = {
-      courseId: user.schoolId,
-      ...(dateFilter ? { agendaDate: dateFilter } : {}),
-    };
+const where: Prisma.AgendaWhereInput = {
+  deletedAt: null,
+  course: {
+    schoolId: user.schoolId,
+  },
+  ...(dateFilter ? { agendaDate: dateFilter } : {}),
+};
 
     const [total, rows] = await this.prisma.$transaction([
       this.prisma.agenda.count({ where }),
