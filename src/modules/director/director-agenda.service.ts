@@ -38,7 +38,7 @@ export class DirectorAgendaService {
 
     const dateFilter = this.dateFilter(query.date, query.month);
     const where: any = {
-      course: { schoolId: user.schoolId },
+      courseId: user.schoolId,
       ...(dateFilter ? { agendaDate: dateFilter } : {}),
     };
 
@@ -52,19 +52,32 @@ export class DirectorAgendaService {
       }),
     ]);
 
+    // Preload course titles in batch
+    const courseIds = [...new Set(rows.map((row) => row.courseId).filter((id): id is number => id != null))];
+    const courseMap = new Map<number, string>();
+    if (courseIds.length > 0) {
+      const courses = await this.prisma.course.findMany({
+        where: { id: { in: courseIds } },
+      });
+      courses.forEach((course) => courseMap.set(course.id, course.title ?? ''));
+    }
+
     return {
       items: rows.map((row) => ({
         id: row.id,
-        date: row.agendaDate?.toISOString().split('T')[0],
+        assignmentId: row.id,
+        classId: row.personId ?? 0,
+        classLabel: '',
+        courseTitle: row.courseId != null ? courseMap.get(row.courseId) ?? '' : '',
         title: row.title,
         description: row.description,
-        startDate: row.agendaDate?.toISOString().split('T')[0] || '',
-        endDate: '',
-        courseTitle: '',
-        gradeLevels: [],
-        sectionTitles: [],
+        date: row.agendaDate?.toISOString().split('T')[0] ?? '',
+        publishDate: row.agendaDate?.toISOString().split('T')[0] ?? '',
+        time: row.time ?? '09:00',
+        imageLink: row.imageLink ?? '',
+        fileLink: row.fileLink ?? '',
         createdBy: '',
-        createdAt: row.createdAt?.toISOString().split('T')[0] || '',
+        createdAt: row.createdAt?.toISOString().split('T')[0] ?? '',
       })),
       pagination: buildPaginationMeta(page, limit, total),
     };
@@ -122,7 +135,7 @@ export class DirectorAgendaService {
     const agenda = await this.prisma.agenda.findFirst({
       where: {
         id: agendaId,
-        course: { schoolId: user.schoolId },
+        courseId: user.schoolId,
       },
     });
 
@@ -130,18 +143,27 @@ export class DirectorAgendaService {
       throw new NotFoundException('Agenda item not found');
     }
 
+    let courseTitle = '';
+    if (agenda.courseId != null) {
+      const course = await this.prisma.course.findUnique({ where: { id: agenda.courseId } });
+      courseTitle = course?.title ?? '';
+    }
+
     return {
       id: agenda.id,
-      date: agenda.agendaDate?.toISOString().split('T')[0],
+      assignmentId: agenda.id,
+      classId: agenda.personId ?? 0,
+      classLabel: '',
+      courseTitle,
       title: agenda.title,
       description: agenda.description,
-      startDate: agenda.agendaDate?.toISOString().split('T')[0] || '',
-      endDate: '',
-      courseTitle: '',
-      gradeLevels: [],
-      sectionTitles: [],
+      date: agenda.agendaDate?.toISOString().split('T')[0] ?? '',
+      publishDate: agenda.agendaDate?.toISOString().split('T')[0] ?? '',
+      time: agenda.time ?? '09:00',
+      imageLink: agenda.imageLink ?? '',
+      fileLink: agenda.fileLink ?? '',
       createdBy: '',
-      createdAt: agenda.createdAt?.toISOString().split('T')[0] || '',
+      createdAt: agenda.createdAt?.toISOString().split('T')[0] ?? '',
     };
   }
 
@@ -155,29 +177,38 @@ export class DirectorAgendaService {
       data: {
         title: dto.title,
         description: dto.description,
-        agendaDate: dto.startDate,
-        time: dto.startDate ? '09:00' : '',
+        agendaDate: dto.date,
+        time: dto.time ?? '09:00',
         personId: user.personId,
-        courseId: 1,
-        imageLink: '',
-        fileLink: '',
+        courseId: dto.courseId ?? 1,
+        imageLink: dto.imageLink ?? '',
+        fileLink: dto.fileLink ?? '',
         publishedDate: new Date(),
         status: 1,
       },
     });
 
+    let courseTitle = '';
+    if (agenda.courseId != null) {
+      const course = await this.prisma.course.findUnique({ where: { id: agenda.courseId } });
+      courseTitle = course?.title ?? '';
+    }
+
     return {
       id: agenda.id,
-      date: agenda.agendaDate?.toISOString().split('T')[0],
+      assignmentId: agenda.id,
+      classId: agenda.personId ?? 0,
+      classLabel: '',
+      courseTitle,
       title: agenda.title,
       description: agenda.description,
-      startDate: agenda.agendaDate?.toISOString().split('T')[0] || '',
-      endDate: '',
-      courseTitle: '',
-      gradeLevels: [],
-      sectionTitles: [],
+      date: agenda.agendaDate?.toISOString().split('T')[0] ?? '',
+      publishDate: agenda.agendaDate?.toISOString().split('T')[0] ?? '',
+      time: agenda.time ?? '09:00',
+      imageLink: agenda.imageLink ?? '',
+      fileLink: agenda.fileLink ?? '',
       createdBy: '',
-      createdAt: agenda.createdAt?.toISOString().split('T')[0] || '',
+      createdAt: agenda.createdAt?.toISOString().split('T')[0] ?? '',
     };
   }
 
@@ -191,7 +222,7 @@ export class DirectorAgendaService {
     const agenda = await this.prisma.agenda.findFirst({
       where: {
         id: agendaId,
-        course: { schoolId: user.schoolId },
+        courseId: user.schoolId,
       },
     });
 
@@ -204,22 +235,32 @@ export class DirectorAgendaService {
       data: {
         title: dto.title,
         description: dto.description,
-        agendaDate: dto.startDate,
+        agendaDate: dto.date,
+        time: dto.time,
       },
     });
 
+    let courseTitle = '';
+    if (updated.courseId != null) {
+      const course = await this.prisma.course.findUnique({ where: { id: updated.courseId } });
+      courseTitle = course?.title ?? '';
+    }
+
     return {
       id: updated.id,
-      date: updated.agendaDate?.toISOString().split('T')[0],
+      assignmentId: updated.id,
+      classId: updated.personId ?? 0,
+      classLabel: '',
+      courseTitle,
       title: updated.title,
       description: updated.description,
-      startDate: updated.agendaDate?.toISOString().split('T')[0] || '',
-      endDate: '',
-      courseTitle: '',
-      gradeLevels: [],
-      sectionTitles: [],
+      date: updated.agendaDate?.toISOString().split('T')[0] ?? '',
+      publishDate: updated.agendaDate?.toISOString().split('T')[0] ?? '',
+      time: updated.time ?? '09:00',
+      imageLink: updated.imageLink ?? '',
+      fileLink: updated.fileLink ?? '',
       createdBy: '',
-      createdAt: updated.createdAt?.toISOString().split('T')[0] || '',
+      createdAt: updated.createdAt?.toISOString().split('T')[0] ?? '',
     };
   }
 
@@ -232,7 +273,7 @@ export class DirectorAgendaService {
     const agenda = await this.prisma.agenda.findFirst({
       where: {
         id: agendaId,
-        course: { schoolId: user.schoolId },
+        courseId: user.schoolId,
       },
     });
 

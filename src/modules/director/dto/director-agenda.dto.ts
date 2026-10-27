@@ -22,8 +22,17 @@ export class DirectorAgendaItemDto {
   @ApiProperty({ example: 1 })
   id!: number;
 
-  @ApiProperty({ example: '2025-01-15' })
-  date!: string;
+  @ApiProperty({ example: 1 })
+  assignmentId!: number;
+
+  @ApiProperty({ example: 1 })
+  classId!: number;
+
+  @ApiProperty({ example: 'Grade 4' })
+  classLabel!: string;
+
+  @ApiProperty({ example: 'Mathematics' })
+  courseTitle!: string;
 
   @ApiProperty({ example: 'Mathematics Final' })
   title!: string;
@@ -35,25 +44,25 @@ export class DirectorAgendaItemDto {
   })
   description!: string;
 
-  @ApiProperty({ example: '2025-03-10' })
-  startDate!: string;
+  @ApiProperty({ example: '2025-01-15' })
+  date!: string;
 
-  @ApiProperty({ example: '2025-03-12' })
-  endDate!: string;
+  @ApiProperty({ example: '2025-01-15' })
+  publishDate!: string;
 
-  @ApiProperty({ example: 'Mathematics' })
-  courseTitle!: string;
+  @ApiProperty({ example: '09:00' })
+  time!: string;
 
-  @ApiProperty({ type: [String], example: ['Grade 4', 'Grade 5'] })
-  gradeLevels!: string[];
+  @ApiProperty({ example: 'https://cdn.example.com/agendas/image.jpg' })
+  imageLink!: string;
 
-  @ApiProperty({ type: [String], example: ['4-A', '4-B'] })
-  sectionTitles!: string[];
+  @ApiProperty({ example: 'https://cdn.example.com/agendas/file.pdf' })
+  fileLink!: string;
 
-  @ApiProperty({ example: 'teacher-name' })
+  @ApiProperty({ example: '' })
   createdBy!: string;
 
-  @ApiProperty({ example: '2025-01-15T10:00:00.000Z' })
+  @ApiProperty({ example: '2025-01-15' })
   createdAt!: string;
 }
 
