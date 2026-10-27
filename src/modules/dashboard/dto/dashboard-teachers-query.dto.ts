@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { Allow, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { PG_INT4_MAX } from '../../../common/constants/database-limits';
 
 function trimString({ value }: { value: unknown }): unknown {
   return typeof value === 'string' ? value.trim() : value;
@@ -38,6 +39,7 @@ export class DashboardTeachersQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(PG_INT4_MAX)
   id?: number;
 
   @ApiPropertyOptional({

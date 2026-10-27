@@ -19,6 +19,8 @@ import { DashboardStudentsController } from './dashboard-students.controller';
 import { DashboardStudentsService } from './dashboard-students.service';
 import { DashboardTeachersController } from './dashboard-teachers.controller';
 import { DashboardTeachersService } from './dashboard-teachers.service';
+import { DashboardDirectorsController } from './dashboard-directors.controller';
+import { DashboardDirectorsService } from './dashboard-directors.service';
 import { DashboardClassesController } from './dashboard-classes.controller';
 import { DashboardClassesService } from './dashboard-classes.service';
 import { DashboardCoursesController } from './dashboard-courses.controller';
@@ -76,6 +78,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     DashboardChildrenController,
     DashboardStudentsController,
     DashboardTeachersController,
+    DashboardDirectorsController,
     DashboardClassesController,
     DashboardCoursesController,
     DashboardSectionsController,
@@ -109,6 +112,7 @@ import { MediaUploadService } from '../../upload/media-upload.service';
     DashboardChildrenService,
     DashboardStudentsService,
     DashboardTeachersService,
+    DashboardDirectorsService,
     DashboardClassesService,
     DashboardCoursesService,
     DashboardSectionsService,

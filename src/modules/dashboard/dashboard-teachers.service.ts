@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { parseInt4FilterValue } from '../../common/constants/database-limits';
 import { AuthenticatedSchool } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { CreateDashboardTeacherDto } from './dto/create-dashboard-teacher.dto';
@@ -21,6 +22,14 @@ import {
   normalizeEmail,
   rethrowPersonWriteError,
 } from './person-contact-uniqueness';
+import {
+  assertNationalityExists,
+  formatIsoDate,
+  formatPersonFullName,
+  parseIsoDate,
+  resolvePersonLocation,
+  uniquePersonUsername,
+} from './person-profile.helpers';
 
 const DEFAULT_TEACHER_PASSWORD = 'password123';
 
@@ -450,110 +459,39 @@ export class DashboardTeachersService {
     };
   }
 
-  private async resolveLocation(
+  private resolveLocation(
     governorateId?: number,
     regionId?: number,
   ): Promise<{ governorateId: number | null; regionId: number | null }> {
-    if (!regionId && !governorateId) {
-      return { governorateId: null, regionId: null };
-    }
-
-    if (regionId) {
-      const region = await this.prisma.region.findUnique({
-        where: { id: regionId },
-        select: { id: true, governorateId: true },
-      });
-
-      if (!region) {
-        throw new BadRequestException('Region not found');
-      }
-
-      if (governorateId && governorateId !== region.governorateId) {
-        throw new BadRequestException(
-          'Region does not belong to the selected governorate',
-        );
-      }
-
-      return {
-        governorateId: region.governorateId,
-        regionId: region.id,
-      };
-    }
-
-    const governorate = await this.prisma.governorate.findUnique({
-      where: { id: governorateId },
-      select: { id: true },
-    });
-
-    if (!governorate) {
-      throw new BadRequestException('Governorate not found');
-    }
-
-    return { governorateId: governorate.id, regionId: null };
+    return resolvePersonLocation(this.prisma, governorateId, regionId);
   }
 
-  private async assertNationality(nationalityId?: number): Promise<void> {
-    if (!nationalityId) {
-      return;
-    }
-
-    const nationality = await this.prisma.nationality.findUnique({
-      where: { id: nationalityId },
-      select: { id: true },
-    });
-    if (!nationality) {
-      throw new BadRequestException('Nationality not found');
-    }
+  private assertNationality(nationalityId?: number): Promise<void> {
+    return assertNationalityExists(this.prisma, nationalityId);
   }
 
-  private async uniqueUsername(
+  private uniqueUsername(
     schoolId: number,
     firstName: string,
     lastName: string,
     phoneNumber: string,
   ): Promise<string> {
-    const slug = `${firstName}.${lastName}`
-      .toLowerCase()
-      .replace(/[^a-z0-9.]+/g, '')
-      .replace(/^\.+|\.+$/g, '');
-    const digits = phoneNumber.replace(/\D/g, '').slice(-6);
-    let username = (slug || 'teacher') + (digits ? `.${digits}` : '');
-
-    if (username.length > 90) {
-      username = username.slice(0, 90);
-    }
-
-    const clash = await this.prisma.person.findFirst({
-      where: { schoolId, username },
-      select: { id: true },
-    });
-
-    if (!clash) {
-      return username;
-    }
-
-    return `${username}.${Date.now().toString().slice(-6)}`.slice(0, 100);
+    return uniquePersonUsername(
+      this.prisma,
+      schoolId,
+      firstName,
+      lastName,
+      phoneNumber,
+      'teacher',
+    );
   }
 
   private parseDate(value?: string): Date | null {
-    if (!value) {
-      return null;
-    }
-
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      throw new BadRequestException('Birthday must be YYYY-MM-DD');
-    }
-
-    const date = new Date(`${value}T00:00:00.000Z`);
-    if (Number.isNaN(date.getTime())) {
-      throw new BadRequestException('Invalid birthday');
-    }
-
-    return date;
+    return parseIsoDate(value);
   }
 
   private formatDate(value: Date | null): string | null {
-    return value ? value.toISOString().slice(0, 10) : null;
+    return formatIsoDate(value);
   }
 
   private rethrowWriteError(error: unknown): never {
@@ -644,7 +582,7 @@ export class DashboardTeachersService {
     }
 
     const nameMatch = personNameContainsFilter(search);
-    const parsedId = /^\d+$/.test(search) ? Number(search) : undefined;
+    const parsedId = parseInt4FilterValue(search);
 
     return {
       OR: [
@@ -669,8 +607,6 @@ export class DashboardTeachersService {
     middleName: string;
     lastName: string;
   }): string {
-    return [person.firstName, person.middleName, person.lastName]
-      .filter(Boolean)
-      .join(' ');
+    return formatPersonFullName(person);
   }
 }

@@ -11,6 +11,11 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import {
+  REGISTER_ID_MAX,
+  REGISTER_ID_MIN,
+  REGISTER_ID_RANGE_MESSAGE,
+} from '../../../common/constants/database-limits';
 
 function trimString({ value }: { value: unknown }): unknown {
   return typeof value === 'string' ? value.trim() : value;
@@ -77,7 +82,9 @@ export class CreateDashboardParentDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
+  @IsInt({ message: REGISTER_ID_RANGE_MESSAGE })
+  @Min(REGISTER_ID_MIN, { message: REGISTER_ID_RANGE_MESSAGE })
+  @Max(REGISTER_ID_MAX, { message: REGISTER_ID_RANGE_MESSAGE })
   registerId?: number | null;
 
   @ApiPropertyOptional({ example: 1 })
