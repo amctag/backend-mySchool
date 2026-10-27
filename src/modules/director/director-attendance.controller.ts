@@ -23,6 +23,7 @@ import {
   DirectorAttendanceOptionsDto,
   TeacherAttendanceSheetDto,
   DirectorAttendancesQueryDto,
+  DirectorAttendanceSheetQueryDto,
 } from './dto/director-attendance.dto';
 import { DirectorAttendanceService } from './director-attendance.service';
 
@@ -58,7 +59,7 @@ export class DirectorAttendanceController {
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
   getSheet(
     @Req() request: Request & { user: AuthenticatedDirector },
-    @Query() query: DirectorAttendancesQueryDto,
+    @Query() query: DirectorAttendanceSheetQueryDto,
   ): Promise<TeacherAttendanceSheetDto> {
     return this.directorAttendanceService.getSheet(request.user, query);
   }

@@ -60,6 +60,27 @@ export class DirectorAttendancesQueryDto extends PaginationQueryDto {
   date?: string;
 }
 
+/** Query parameters for loading one section's attendance roster. */
+export class DirectorAttendanceSheetQueryDto {
+  @ApiPropertyOptional({ example: '2026-10-06' })
+  @IsOptional()
+  @IsString()
+  date?: string;
+
+  @ApiProperty({ example: 3, description: 'Section ID in the director school' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  sectionId!: number;
+
+  @ApiPropertyOptional({ example: 12 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  courseId?: number;
+}
+
 export class DirectorAttendanceOptionsDto {
   @ApiProperty({ example: true })
   attendancePerCourse!: boolean;

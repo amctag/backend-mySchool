@@ -10,6 +10,7 @@ import {
   TeacherAttendanceSheetDto,
   DirectorAttendanceOptionsDto,
   DirectorAttendancesQueryDto,
+  DirectorAttendanceSheetQueryDto,
 } from './dto/director-attendance.dto';
 
 @Injectable()
@@ -117,11 +118,11 @@ export class DirectorAttendanceService {
 
   async getSheet(
     user: AuthenticatedDirector,
-    query: any,
+    query: DirectorAttendanceSheetQueryDto,
   ): Promise<TeacherAttendanceSheetDto> {
     this.directorAccess.ensureDirectorRole(user.role);
 
-    const day = new Date(query.date);
+    const day = query.date ? new Date(query.date) : new Date();
     const sectionId = Number(query.sectionId);
 
     const section = await this.directorAccess.resolveSectionInSchool(
