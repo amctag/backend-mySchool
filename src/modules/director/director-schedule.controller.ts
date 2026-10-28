@@ -1,11 +1,8 @@
+import { Controller, Get, Query, Req } from '@nestjs/common';
 import {
-  Controller,
-  Get,
-  Query,
-  Req,
-} from '@nestjs/common';
-import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -15,8 +12,12 @@ import { Request } from 'express';
 import { AuthenticatedDirector } from '../../auth/interfaces/jwt-payload.interface';
 import { Roles } from '../../common/decorators/roles.decorator';
 import {
-  DirectorScheduleQueryDto,
-  DirectorScheduleResponseDto,
+  DirectorScheduleAssignmentsQueryDto,
+  DirectorScheduleOptionsQueryDto,
+  DirectorScheduleOptionsResponseDto,
+  DirectorTeachingAssignmentsResponseDto,
+  DirectorWeeklyScheduleQueryDto,
+  DirectorWeeklyScheduleResponseDto,
 } from './dto/director-schedule.dto';
 import { DirectorScheduleService } from './director-schedule.service';
 
@@ -27,33 +28,54 @@ import { DirectorScheduleService } from './director-schedule.service';
 export class DirectorScheduleController {
   constructor(private readonly directorScheduleService: DirectorScheduleService) {}
 
+  @Get('me/schedule/options')
+  @ApiOperation({
+    summary: 'List schedule selectors for the director\'s school',
+    description:
+      'Classes with their sections for the active academic year, plus every teacher that belongs to the director\'s school.',
+  })
+  @ApiOkResponse({ type: DirectorScheduleOptionsResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  getOptions(
+    @Req() request: Request & { user: AuthenticatedDirector },
+    @Query() query: DirectorScheduleOptionsQueryDto,
+  ): Promise<DirectorScheduleOptionsResponseDto> {
+    return this.directorScheduleService.getOptions(request.user, query);
+  }
+
   @Get('me/schedule')
   @ApiOperation({
-    summary: 'Get director weekly schedule for the school',
+    summary: 'Get a weekly timetable as a director',
     description:
-      'Returns the weekly timetable for all classes in the director\'s assigned school.',
+      'Returns the weekly timetable of one section (mode=class) or one teacher (mode=teacher) in the director\'s school and active academic year. Weeks are ordered by the school day position and entries by session position.',
   })
-  @ApiOkResponse({ type: DirectorScheduleResponseDto })
+  @ApiOkResponse({ type: DirectorWeeklyScheduleResponseDto })
+  @ApiBadRequestResponse({
+    description: 'Missing sectionId (class mode) or teacherId (teacher mode)',
+  })
+  @ApiNotFoundResponse({
+    description: 'Section, teacher, or academic year not found in this school',
+  })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
-  getSchedule(
+  getWeeklySchedule(
     @Req() request: Request & { user: AuthenticatedDirector },
-    @Query() query: DirectorScheduleQueryDto,
-  ): Promise<DirectorScheduleResponseDto> {
-    return this.directorScheduleService.getSchedule(request.user);
+    @Query() query: DirectorWeeklyScheduleQueryDto,
+  ): Promise<DirectorWeeklyScheduleResponseDto> {
+    return this.directorScheduleService.getWeeklySchedule(request.user, query);
   }
 
   @Get('me/assignments')
   @ApiOperation({
-    summary: 'List all teaching assignments in the director\'s school',
+    summary: 'List teaching assignments in the director\'s school',
     description:
-      'Paginated Teach rows for the current year in the director\'s assigned school.',
+      'Teach rows for the active academic year in the director\'s assigned school.',
   })
-  @ApiOkResponse({ type: DirectorScheduleResponseDto })
+  @ApiOkResponse({ type: DirectorTeachingAssignmentsResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
   listAssignments(
     @Req() request: Request & { user: AuthenticatedDirector },
-    @Query() query: DirectorScheduleQueryDto,
-  ): Promise<DirectorScheduleResponseDto> {
+    @Query() query: DirectorScheduleAssignmentsQueryDto,
+  ): Promise<DirectorTeachingAssignmentsResponseDto> {
     return this.directorScheduleService.listAssignments(request.user, query);
   }
 }
