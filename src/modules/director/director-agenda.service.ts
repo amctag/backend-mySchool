@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   Injectable,
-  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { AuthenticatedDirector } from '../../auth/interfaces/jwt-payload.interface';
@@ -48,81 +47,29 @@ export class DirectorAgendaService {
     private readonly directorAccess: DirectorAccessService,
   ) {}
 
-  async listAgendas(
+  private async resolveAssignment(
     user: AuthenticatedDirector,
-    query: DirectorAgendasQueryDto,
-  ): Promise<DirectorAgendasResponseDto> {
-    this.directorAccess.ensureDirectorRole(user.role);
-
-    const { page, limit, skip } = resolvePagination({
-      page: query.page,
-      limit: query.limit ?? 20,
+    assignmentId: number,
+    sectionId: number,
+  ) {
+    const yearId = await this.directorAccess.currentYearId(user.schoolId);
+    const assignment = await this.prisma.teach.findFirst({
+      where: {
+        id: assignmentId,
+        sectionId,
+        ...(yearId ? { yearId } : {}),
+        section: { schoolId: user.schoolId },
+      },
+      include: {
+        course: { select: { id: true, title: true } },
+        section: { include: { class: true, sectionTitle: true } },
+      },
     });
-
-    const dateFilter = this.dateFilter(query.date, query.month);
-const where: Prisma.AgendaWhereInput = {
-  deletedAt: null,
-  course: {
-    schoolId: user.schoolId,
-  },
-  ...(dateFilter ? { agendaDate: dateFilter } : {}),
-};
-
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.agenda.count({ where }),
-      this.prisma.agenda.findMany({
-        where,
-        include: agendaInclude,
-        orderBy: [{ agendaDate: 'desc' }, { id: 'desc' }],
-        skip,
-        take: limit,
-      }),
-    ]);
-
-    // Preload course titles in batch
-    const courseIds = [...new Set(rows.map((row) => row.courseId).filter((id): id is number => id != null))];
-    const courseMap = new Map<number, string>();
-    if (courseIds.length > 0) {
-      const courses = await this.prisma.course.findMany({
-        where: { id: { in: courseIds } },
-      });
-      courses.forEach((course) => courseMap.set(course.id, course.title ?? ''));
-    }
-
-    return {
-      items: rows.map((row) => {
-        const section = row.sections?.[0]?.section;
-        const classId = section?.id ?? 0;
-        const classLabel = section
-          ? formatClassLabel(section.class.className, section.sectionTitle.title)
-          : '';
-        const person = row.person;
-        const assignmentId = person?.id ?? row.id;
-        const createdBy = person
-          ? `${person.firstName || ''} ${person.lastName || ''}`.trim() ||
-            person.username ||
-            ''
-          : '';
-
-        return {
-          id: row.id,
-          assignmentId: assignmentId,
-          classId: classId,
-          classLabel: classLabel,
-          courseTitle: row.courseId != null ? courseMap.get(row.courseId) ?? '' : '',
-          title: row.title,
-          description: row.description,
-          date: row.agendaDate?.toISOString().split('T')[0] ?? '',
-          publishDate: row.agendaDate?.toISOString().split('T')[0] ?? '',
-          time: row.time ?? '09:00',
-          imageLink: row.imageLink ?? '',
-          fileLink: row.fileLink ?? '',
-          createdBy: createdBy,
-          createdAt: row.createdAt?.toISOString().split('T')[0] ?? '',
-        };
-      }),
-      pagination: buildPaginationMeta(page, limit, total),
-    };
+    if (!assignment)
+      throw new BadRequestException(
+        'Assignment does not belong to this section, school, or academic year',
+      );
+    return assignment;
   }
 
   private dateFilter(
@@ -168,34 +115,175 @@ const where: Prisma.AgendaWhereInput = {
     return undefined;
   }
 
+  private async ensureAgendaInDirectorSchool(
+    user: AuthenticatedDirector,
+    agendaId: number,
+  ) {
+    this.directorAccess.ensureDirectorRole(user.role);
+
+    // Scope the lookup to the director's school and exclude soft-deleted items.
+    // A missing or cross-school agenda returns the same 404 response.
+    const agenda = await this.prisma.agenda.findFirst({
+      where: {
+        id: agendaId,
+        deletedAt: null,
+        course: { schoolId: user.schoolId },
+      },
+      include: {
+        course: { select: { schoolId: true, title: true } },
+        sections: {
+          include: {
+            section: { include: { class: true, sectionTitle: true } },
+          },
+        },
+      },
+    });
+
+    if (!agenda || !agenda.course) {
+      throw new NotFoundException('Agenda item not found');
+    }
+
+    return { agenda, course: agenda.course };
+  }
+
+  async listAgendas(
+    user: AuthenticatedDirector,
+    query: DirectorAgendasQueryDto,
+  ): Promise<DirectorAgendasResponseDto> {
+    this.directorAccess.ensureDirectorRole(user.role);
+
+    const { page, limit, skip } = resolvePagination({
+      page: query.page,
+      limit: query.limit ?? 20,
+    });
+
+    const dateFilter = this.dateFilter(query.date, query.month);
+    const where: Prisma.AgendaWhereInput = {
+      deletedAt: null,
+      ...(dateFilter ? { agendaDate: dateFilter } : {}),
+      // School filter: only agendas from courses belonging to the director's school
+      course: {
+        schoolId: user.schoolId,
+      },
+    };
+
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.agenda.count({ where }),
+      this.prisma.agenda.findMany({
+        where,
+        include: agendaInclude,
+        orderBy: [{ agendaDate: 'desc' }, { id: 'desc' }],
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    // Preload course titles in batch
+    const courseIds = [
+      ...new Set(
+        rows
+          .map((row) => row.courseId)
+          .filter((id): id is number => id != null),
+      ),
+    ];
+    const courseMap = new Map<number, string>();
+    if (courseIds.length > 0) {
+      const courses = await this.prisma.course.findMany({
+        where: { id: { in: courseIds } },
+      });
+      courses.forEach((course) => courseMap.set(course.id, course.title ?? ''));
+    }
+    const sectionIds = rows.flatMap((row) =>
+      row.sections.map((item) => item.sectionId),
+    );
+    const teaches = sectionIds.length
+      ? await this.prisma.teach.findMany({
+          where: {
+            sectionId: { in: sectionIds },
+            ...((await this.directorAccess.currentYearId(user.schoolId))
+              ? {
+                  yearId: (await this.directorAccess.currentYearId(
+                    user.schoolId,
+                  ))!,
+                }
+              : {}),
+          },
+          select: { id: true, sectionId: true, courseId: true },
+        })
+      : [];
+
+    return {
+      items: rows.map((row) => {
+        const section = row.sections?.[0]?.section;
+        const classId = section?.id ?? 0;
+        const classLabel = section
+          ? formatClassLabel(
+              section.class.className,
+              section.sectionTitle.title,
+            )
+          : '';
+        const person = row.person;
+        const assignmentId =
+          teaches.find(
+            (teach) =>
+              teach.sectionId === section?.id &&
+              teach.courseId === row.courseId,
+          )?.id ?? 0;
+        const createdBy = person
+          ? `${person.firstName || ''} ${person.lastName || ''}`.trim() ||
+            person.username ||
+            ''
+          : '';
+
+        return {
+          id: row.id,
+          assignmentId: assignmentId,
+          classId: classId,
+          classLabel: classLabel,
+          courseTitle:
+            row.courseId != null ? (courseMap.get(row.courseId) ?? '') : '',
+          title: row.title,
+          description: row.description,
+          date: row.agendaDate?.toISOString().split('T')[0] ?? '',
+          publishDate: row.agendaDate?.toISOString().split('T')[0] ?? '',
+          time: row.time ?? '09:00',
+          imageLink: row.imageLink ?? '',
+          fileLink: row.fileLink ?? '',
+          createdBy: createdBy,
+          createdAt: row.createdAt?.toISOString().split('T')[0] ?? '',
+        };
+      }),
+      pagination: buildPaginationMeta(page, limit, total),
+    };
+  }
+
   async getAgenda(
     user: AuthenticatedDirector,
     agendaId: number,
   ): Promise<DirectorAgendaItemDto> {
-    this.directorAccess.ensureDirectorRole(user.role);
+    const result = await this.ensureAgendaInDirectorSchool(user, agendaId);
+    const { agenda, course } = result;
+    const section = agenda.sections?.[0]?.section;
+    const assignment = section
+      ? await this.prisma.teach.findFirst({
+          where: {
+            sectionId: section.id,
+            courseId: agenda.courseId,
+            yearId: section.yearId,
+          },
+          select: { id: true },
+        })
+      : null;
 
-    const agenda = await this.prisma.agenda.findFirst({
-      where: {
-        id: agendaId,
-        courseId: user.schoolId,
-      },
-    });
-
-    if (!agenda) {
-      throw new NotFoundException('Agenda item not found');
-    }
-
-    let courseTitle = '';
-    if (agenda.courseId != null) {
-      const course = await this.prisma.course.findUnique({ where: { id: agenda.courseId } });
-      courseTitle = course?.title ?? '';
-    }
+    let courseTitle = course.title ?? '';
 
     return {
       id: agenda.id,
-      assignmentId: agenda.id,
-      classId: agenda.personId ?? 0,
-      classLabel: '',
+      assignmentId: assignment?.id ?? 0,
+      classId: section?.id ?? 0,
+      classLabel: section
+        ? formatClassLabel(section.class.className, section.sectionTitle.title)
+        : '',
       courseTitle,
       title: agenda.title,
       description: agenda.description,
@@ -215,6 +303,13 @@ const where: Prisma.AgendaWhereInput = {
   ): Promise<DirectorAgendaItemDto> {
     this.directorAccess.ensureDirectorRole(user.role);
 
+    const assignment = await this.resolveAssignment(
+      user,
+      dto.assignmentId,
+      dto.classId,
+    );
+
+    // When creating, set personId to the director's person and courseId from dto
     const agenda = await this.prisma.agenda.create({
       data: {
         title: dto.title,
@@ -222,7 +317,7 @@ const where: Prisma.AgendaWhereInput = {
         agendaDate: dto.date,
         time: dto.time ?? '09:00',
         personId: user.personId,
-        courseId: dto.courseId ?? 1,
+        courseId: assignment.courseId,
         imageLink: dto.imageLink ?? '',
         fileLink: dto.fileLink ?? '',
         publishedDate: new Date(),
@@ -230,17 +325,25 @@ const where: Prisma.AgendaWhereInput = {
       },
     });
 
+    await this.prisma.agendaSection.create({
+      data: { agendaId: agenda.id, sectionId: assignment.sectionId },
+    });
     let courseTitle = '';
     if (agenda.courseId != null) {
-      const course = await this.prisma.course.findUnique({ where: { id: agenda.courseId } });
-      courseTitle = course?.title ?? '';
+      const crs = await this.prisma.course.findUnique({
+        where: { id: agenda.courseId },
+      });
+      courseTitle = crs?.title ?? '';
     }
 
     return {
       id: agenda.id,
-      assignmentId: agenda.id,
-      classId: agenda.personId ?? 0,
-      classLabel: '',
+      assignmentId: assignment.id,
+      classId: assignment.sectionId,
+      classLabel: formatClassLabel(
+        assignment.section.class.className,
+        assignment.section.sectionTitle.title,
+      ),
       courseTitle,
       title: agenda.title,
       description: agenda.description,
@@ -259,32 +362,87 @@ const where: Prisma.AgendaWhereInput = {
     agendaId: number,
     dto: any,
   ): Promise<DirectorAgendaItemDto> {
-    this.directorAccess.ensureDirectorRole(user.role);
+    const result = await this.ensureAgendaInDirectorSchool(user, agendaId);
+    const { agenda } = result;
+    const assignment = await this.resolveAssignment(
+      user,
+      dto.assignmentId,
+      dto.classId,
+    );
 
-    const agenda = await this.prisma.agenda.findFirst({
-      where: {
-        id: agendaId,
-        courseId: user.schoolId,
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.agendaSection.deleteMany({ where: { agendaId } });
+      const saved = await tx.agenda.update({
+        where: { id: agendaId },
+        data: {
+          title: dto.title,
+          description: dto.description,
+          agendaDate: dto.date,
+          time: dto.time,
+          courseId: assignment.courseId,
+        },
+      });
+      await tx.agendaSection.create({
+        data: { agendaId, sectionId: assignment.sectionId },
+      });
+      return saved;
     });
 
-    if (!agenda) {
-      throw new NotFoundException('Agenda item not found');
+    let courseTitle = '';
+    if (updated.courseId != null) {
+      const course = await this.prisma.course.findUnique({
+        where: { id: updated.courseId },
+      });
+      courseTitle = course?.title ?? '';
+    }
+
+    return {
+      id: updated.id,
+      assignmentId: assignment.id,
+      classId: assignment.sectionId,
+      classLabel: formatClassLabel(
+        assignment.section.class.className,
+        assignment.section.sectionTitle.title,
+      ),
+      courseTitle,
+      title: updated.title,
+      description: updated.description,
+      date: updated.agendaDate?.toISOString().split('T')[0] ?? '',
+      publishDate: updated.agendaDate?.toISOString().split('T')[0] ?? '',
+      time: updated.time ?? '09:00',
+      imageLink: updated.imageLink ?? '',
+      fileLink: updated.fileLink ?? '',
+      createdBy: '',
+      createdAt: updated.createdAt?.toISOString().split('T')[0] ?? '',
+    };
+  }
+
+  async publishAgenda(
+    user: AuthenticatedDirector,
+    agendaId: number,
+  ): Promise<DirectorAgendaItemDto> {
+    const result = await this.ensureAgendaInDirectorSchool(user, agendaId);
+    const { agenda } = result;
+
+    // Only allow publishing draft agendas (status 0)
+    // If already published, just return the existing agenda
+    if (agenda.status === 1) {
+      return this.getAgenda(user, agendaId);
     }
 
     const updated = await this.prisma.agenda.update({
       where: { id: agendaId },
       data: {
-        title: dto.title,
-        description: dto.description,
-        agendaDate: dto.date,
-        time: dto.time,
+        status: 1,
+        publishedDate: new Date(),
       },
     });
 
     let courseTitle = '';
     if (updated.courseId != null) {
-      const course = await this.prisma.course.findUnique({ where: { id: updated.courseId } });
+      const course = await this.prisma.course.findUnique({
+        where: { id: updated.courseId },
+      });
       courseTitle = course?.title ?? '';
     }
 
@@ -306,78 +464,15 @@ const where: Prisma.AgendaWhereInput = {
     };
   }
 
-  async publishAgenda(
-    user: AuthenticatedDirector,
-    agendaId: number,
-  ): Promise<DirectorAgendaItemDto> {
-    this.directorAccess.ensureDirectorRole(user.role);
-
-    const agenda = await this.prisma.agenda.findFirst({
-      where: {
-        id: agendaId,
-        courseId: user.schoolId,
-      },
-    });
-
-    if (!agenda) {
-      throw new NotFoundException('Agenda item not found');
-    }
-
-    // Only allow publishing draft agendas (status 0)
-    // If already published, just return the existing agenda
-    if (agenda.status === 1) {
-      return this.getAgenda(user, agendaId);
-    }
-
-    const updated = await this.prisma.agenda.update({
-      where: { id: agendaId },
-      data: {
-        status: 1,
-        publishedDate: new Date(),
-      },
-    });
-
-    let courseTitle = '';
-    if (updated.courseId != null) {
-      const course = await this.prisma.course.findUnique({ where: { id: updated.courseId } });
-      courseTitle = course?.title ?? '';
-    }
-
-    return {
-      id: updated.id,
-      assignmentId: updated.id,
-      classId: updated.personId ?? 0,
-      classLabel: '',
-      courseTitle,
-      title: updated.title,
-      description: updated.description,
-      date: updated.agendaDate?.toISOString().split('T')[0] ?? '',
-      publishDate: updated.agendaDate?.toISOString().split('T')[0] ?? '',
-      time: updated.time ?? '09:00',
-      imageLink: updated.imageLink ?? '',
-      fileLink: updated.fileLink ?? '',
-      createdBy: '',
-      createdAt: updated.createdAt?.toISOString().split('T')[0] ?? '',
-    };
-  }  async deleteAgenda(
+  async deleteAgenda(
     user: AuthenticatedDirector,
     agendaId: number,
   ): Promise<boolean> {
-    this.directorAccess.ensureDirectorRole(user.role);
+    await this.ensureAgendaInDirectorSchool(user, agendaId);
 
-    const agenda = await this.prisma.agenda.findFirst({
-      where: {
-        id: agendaId,
-        courseId: user.schoolId,
-      },
-    });
-
-    if (!agenda) {
-      throw new NotFoundException("Agenda item not found");
-    }
-
-    await this.prisma.agenda.delete({
+    await this.prisma.agenda.update({
       where: { id: agendaId },
+      data: { deletedAt: new Date() },
     });
 
     return true;

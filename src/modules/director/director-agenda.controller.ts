@@ -25,6 +25,7 @@ import {
   DirectorAgendasQueryDto,
   DirectorAgendaItemDto,
   DirectorAgendasResponseDto,
+  DirectorUpsertAgendaDto,
 } from './dto/director-agenda.dto';
 import { DirectorAgendaService } from './director-agenda.service';
 
@@ -38,10 +39,13 @@ export class DirectorAgendaController {
   @Get('me/agenda')
   @ApiOperation({
     summary: 'List agendas for directors school',
-    description: 'Returns agendas for the directors assigned school, filterable by date.',
+    description:
+      'Returns agendas for the directors assigned school, filterable by date.',
   })
   @ApiOkResponse({ type: DirectorAgendasResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   listAgendas(
     @Req() request: { user: AuthenticatedDirector },
     @Query() query: DirectorAgendasQueryDto,
@@ -56,7 +60,9 @@ export class DirectorAgendaController {
   })
   @ApiOkResponse({ type: DirectorAgendaItemDto })
   @ApiForbiddenResponse({ description: 'Agenda not in directors school' })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   getAgenda(
     @Req() request: { user: AuthenticatedDirector },
     @Param('id') agendaId: number,
@@ -72,10 +78,12 @@ export class DirectorAgendaController {
   @ApiCreatedResponse({ type: DirectorAgendaItemDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   @ApiForbiddenResponse({ description: 'Director cannot create agenda items' })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   createAgenda(
     @Req() request: { user: AuthenticatedDirector },
-    @Body() dto: any,
+    @Body() dto: DirectorUpsertAgendaDto,
   ): Promise<DirectorAgendaItemDto> {
     return this.directorAgendaService.createAgenda(request.user, dto);
   }
@@ -88,11 +96,13 @@ export class DirectorAgendaController {
   @ApiOkResponse({ type: DirectorAgendaItemDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   @ApiForbiddenResponse({ description: 'Agenda not in directors school' })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   updateAgenda(
     @Req() request: { user: AuthenticatedDirector },
     @Param('id') agendaId: number,
-    @Body() dto: any,
+    @Body() dto: DirectorUpsertAgendaDto,
   ): Promise<DirectorAgendaItemDto> {
     return this.directorAgendaService.updateAgenda(request.user, agendaId, dto);
   }
@@ -103,8 +113,12 @@ export class DirectorAgendaController {
     description: 'Publishes a draft agenda item in the directors school.',
   })
   @ApiOkResponse({ type: DirectorAgendaItemDto })
-  @ApiForbiddenResponse({ description: 'Agenda not in directors school or director cannot publish' })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiForbiddenResponse({
+    description: 'Agenda not in directors school or director cannot publish',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   publishAgenda(
     @Req() request: { user: AuthenticatedDirector },
     @Param('id') agendaId: number,
@@ -119,7 +133,9 @@ export class DirectorAgendaController {
   })
   @ApiOkResponse({ type: Boolean })
   @ApiForbiddenResponse({ description: 'Agenda not in directors school' })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   deleteAgenda(
     @Req() request: { user: AuthenticatedDirector },
     @Param('id') agendaId: number,

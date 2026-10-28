@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { PaginationMetaDto } from '../../../common/dto/pagination-meta.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
@@ -72,4 +72,16 @@ export class DirectorAgendasResponseDto {
 
   @ApiProperty({ type: PaginationMetaDto })
   pagination!: PaginationMetaDto;
+}
+
+export class DirectorUpsertAgendaDto {
+  @IsInt() @Min(1) assignmentId!: number;
+  @IsInt() @Min(1) classId!: number;
+  @IsString() title!: string;
+  @IsString() description!: string;
+  @IsString() date!: string;
+  @IsOptional() @IsString() imageLink?: string;
+  @IsOptional() @IsString() fileLink?: string;
+  @IsOptional() @IsString() time?: string;
+  @IsOptional() @IsBoolean() published?: boolean;
 }
