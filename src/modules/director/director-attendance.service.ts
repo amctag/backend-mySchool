@@ -33,9 +33,17 @@ export class DirectorAttendanceService {
       throw new ForbiddenException('School not found');
     }
 
-    const { total: _, sections } = await this.directorAccess.listSectionsInSchool(
-      user.schoolId,
-    );
+    const { total: _, sections } =
+      await this.directorAccess.listSectionsInSchool(user.schoolId);
+    const yearId = await this.directorAccess.currentYearId(user.schoolId);
+    const courses = await this.prisma.classCourse.findMany({
+      where: {
+        classId: { in: sections.map((section) => section.classId) },
+        status: true,
+        ...(yearId ? { yearId } : {}),
+      },
+      include: { course: { select: { id: true, title: true } } },
+    });
 
     const classes: any[] = [];
     const seen = new Set<string>();
@@ -55,6 +63,13 @@ export class DirectorAttendanceService {
         existingClass.sections.push({
           id: section.id,
           title: section.sectionTitle.title,
+          courses: courses
+            .filter(
+              (course) =>
+                course.classId === section.classId &&
+                course.yearId === section.yearId,
+            )
+            .map((course) => course.course),
         });
       }
     }
@@ -66,13 +81,26 @@ export class DirectorAttendanceService {
       defaultSectionId: classes.length > 0 ? classes[0].sections[0]?.id : 1,
       defaultCourseId: null,
       classes,
+      reasons: await this.prisma.attendanceReason.findMany({
+        where: { status: true, deletedAt: null },
+        select: { id: true, title: true },
+        orderBy: { title: 'asc' },
+      }),
     };
   }
 
-  async listAttendances(user: AuthenticatedDirector, query: DirectorAttendancesQueryDto) {
+  async listAttendances(
+    user: AuthenticatedDirector,
+    query: DirectorAttendancesQueryDto,
+  ) {
     this.directorAccess.ensureDirectorRole(user.role);
-    const { page, limit, skip } = resolvePagination({ page: query.page, limit: query.limit ?? 20 });
-    const { sections } = await this.directorAccess.listSectionsInSchool(user.schoolId);
+    const { page, limit, skip } = resolvePagination({
+      page: query.page,
+      limit: query.limit ?? 20,
+    });
+    const { sections } = await this.directorAccess.listSectionsInSchool(
+      user.schoolId,
+    );
     const sectionIds = sections.map((section) => section.id);
     if (sectionIds.length === 0) {
       return { items: [], pagination: buildPaginationMeta(page, limit, 0) };
@@ -106,11 +134,14 @@ export class DirectorAttendanceService {
         id: row.id,
         date: row.date.toISOString().split('T')[0],
         sectionId: row.sectionId ?? 0,
-        classLabel: row.section ? `${row.section.class.className} - ${row.section.sectionTitle.title}` : '',
+        classLabel: row.section
+          ? `${row.section.class.className} - ${row.section.sectionTitle.title}`
+          : '',
         courseId: row.course?.id ?? null,
         courseTitle: row.course?.title ?? null,
         studentCount: row.details.length,
-        absentCount: row.details.filter((detail) => detail.status === 'absent').length,
+        absentCount: row.details.filter((detail) => detail.status === 'absent')
+          .length,
       })),
       pagination: buildPaginationMeta(page, limit, total),
     };
@@ -165,7 +196,10 @@ export class DirectorAttendanceService {
     });
 
     const detailsByStudent = new Map(
-      (existingAttendance?.details ?? []).map((detail) => [detail.studentId, detail]),
+      (existingAttendance?.details ?? []).map((detail) => [
+        detail.studentId,
+        detail,
+      ]),
     );
     return {
       attendanceId: existingAttendance?.id ?? 0,
@@ -180,12 +214,22 @@ export class DirectorAttendanceService {
           studentId: registration.studentId,
           registrationId: registration.id,
           studentName: registration.student.person
-            ? registration.student.person.firstName + ' ' + (registration.student.person.middleName || '') + ' ' + registration.student.person.lastName
+            ? registration.student.person.firstName +
+              ' ' +
+              (registration.student.person.middleName || '') +
+              ' ' +
+              registration.student.person.lastName
             : '',
-          status: detailsByStudent.get(registration.studentId)?.status ?? 'present',
-          attendanceReasonId: detailsByStudent.get(registration.studentId)?.attendanceReason?.id ?? null,
-          attendanceReasonTitle: detailsByStudent.get(registration.studentId)?.attendanceReason?.title ?? null,
-          description: detailsByStudent.get(registration.studentId)?.description ?? null,
+          status:
+            detailsByStudent.get(registration.studentId)?.status ?? 'present',
+          attendanceReasonId:
+            detailsByStudent.get(registration.studentId)?.attendanceReason
+              ?.id ?? null,
+          attendanceReasonTitle:
+            detailsByStudent.get(registration.studentId)?.attendanceReason
+              ?.title ?? null,
+          description:
+            detailsByStudent.get(registration.studentId)?.description ?? null,
         };
       }),
     };
@@ -232,11 +276,28 @@ export class DirectorAttendanceService {
     const existing = await this.prisma.attendance.findFirst({
       where: {
         sectionId,
+        ...(dto.courseId != null ? { courseId: dto.courseId } : {}),
         date: day,
         deletedAt: null,
       },
       select: { id: true },
     });
+
+    const absentReasonIds = dto.details
+      .filter(
+        (detail: any) =>
+          detail.status === 'absent' && detail.attendanceReasonId != null,
+      )
+      .map((detail: any) => detail.attendanceReasonId);
+    if (absentReasonIds.length) {
+      const reasons = await this.prisma.attendanceReason.findMany({
+        where: { id: { in: absentReasonIds }, status: true, deletedAt: null },
+        select: { id: true },
+      });
+      if (reasons.length !== new Set(absentReasonIds).size) {
+        throw new Error('Invalid absence reason');
+      }
+    }
 
     await this.prisma.$transaction(async (tx) => {
       if (existing) {
@@ -248,6 +309,7 @@ export class DirectorAttendanceService {
           data: {
             status: true,
             personId: user.id,
+            courseId: dto.courseId ?? null,
           },
         });
         await tx.attendanceDetail.createMany({
@@ -257,7 +319,7 @@ export class DirectorAttendanceService {
             status: detail.status as 'present' | 'absent' | 'late' | 'excused',
             attendanceReasonId:
               detail.status === 'absent'
-                ? detail.attendanceReasonId ?? null
+                ? (detail.attendanceReasonId ?? null)
                 : null,
             description:
               detail.status === 'absent'
@@ -272,14 +334,16 @@ export class DirectorAttendanceService {
         data: {
           date: day,
           sectionId,
+          courseId: dto.courseId ?? null,
           personId: user.id,
           details: {
             create: dto.details.map((detail: any) => ({
               studentId: detail.studentId,
-              status: detail.status as 'present' | 'absent' | 'late' | 'excused',
+              status: detail.status as
+                'present' | 'absent' | 'late' | 'excused',
               attendanceReasonId:
                 detail.status === 'absent'
-                  ? detail.attendanceReasonId ?? null
+                  ? (detail.attendanceReasonId ?? null)
                   : null,
               description:
                 detail.status === 'absent'

@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsIn, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { PaginationMetaDto } from '../../../common/dto/pagination-meta.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
@@ -22,6 +30,9 @@ export class TeacherAttendanceOptionsDto {
 
   @ApiProperty({ type: [Object] })
   classes!: any[];
+
+  @ApiProperty({ type: [Object] })
+  reasons!: Array<{ id: number; title: string }>;
 }
 
 export class TeacherAttendanceSheetDto {
@@ -99,6 +110,9 @@ export class DirectorAttendanceOptionsDto {
 
   @ApiProperty({ type: [Object] })
   classes!: any[];
+
+  @ApiProperty({ type: [Object] })
+  reasons!: Array<{ id: number; title: string }>;
 }
 /** Validated request body for recording director attendance. */
 export class DirectorSaveAttendanceDetailDto {
