@@ -43,6 +43,18 @@ export class DirectorNoticesService {
       this.prisma.notice.count({ where }),
       this.prisma.notice.findMany({
         where,
+        include: {
+          sections: {
+            where: { deletedAt: null },
+            include: {
+              section: { include: { class: true, sectionTitle: true } },
+            },
+          },
+          students: {
+            where: { deletedAt: null },
+            include: { student: { include: { person: true } } },
+          },
+        },
         orderBy: [{ date: 'desc' }, { id: 'desc' }],
         skip,
         take: limit,
@@ -56,7 +68,7 @@ export class DirectorNoticesService {
         title: row.title,
         content: row.description,
         createdAt: row.createdAt?.toISOString().split('T')[0] || '',
-        createdBy: '',
+        ...this.noticeRelations(row),
       })),
       pagination: buildPaginationMeta(page, limit, total),
     };
@@ -73,6 +85,18 @@ export class DirectorNoticesService {
         id: noticeId,
         schoolId: user.schoolId,
       },
+      include: {
+        sections: {
+          where: { deletedAt: null },
+          include: {
+            section: { include: { class: true, sectionTitle: true } },
+          },
+        },
+        students: {
+          where: { deletedAt: null },
+          include: { student: { include: { person: true } } },
+        },
+      },
     });
 
     if (!notice) {
@@ -85,7 +109,7 @@ export class DirectorNoticesService {
       title: notice.title,
       content: notice.description,
       createdAt: notice.createdAt?.toISOString().split('T')[0] || '',
-      createdBy: '',
+      ...this.noticeRelations(notice),
     };
   }
 
@@ -164,13 +188,55 @@ export class DirectorNoticesService {
       throw new NotFoundException('Notice not found');
     }
 
-    const updated = await this.prisma.notice.update({
-      where: { id: noticeId },
-      data: {
-        title: dto.title,
-        description: dto.description,
-        date: dto.date,
-      },
+    const section = await this.prisma.section.findFirst({
+      where: { id: dto.sectionId, schoolId: user.schoolId },
+      select: { id: true },
+    });
+    if (!section) throw new NotFoundException('Section not found');
+    const ids = dto.studentIds ?? [];
+    if (dto.targetType === 'student' && ids.length === 0)
+      throw new ForbiddenException('At least one student is required');
+    const count = ids.length
+      ? await this.prisma.registration.count({
+          where: {
+            schoolId: user.schoolId,
+            sectionId: section.id,
+            studentId: { in: ids },
+            status: true,
+          },
+        })
+      : 0;
+    if (count !== new Set(ids).size)
+      throw new ForbiddenException('Student is not in this section');
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.noticeSection.deleteMany({ where: { noticeId } });
+      await tx.noticeStudent.deleteMany({ where: { noticeId } });
+      return tx.notice.update({
+        where: { id: noticeId },
+        data: {
+          title: dto.title ?? '',
+          description: dto.description,
+          date: new Date(dto.publishDate),
+          sections: { create: { sectionId: section.id } },
+          ...(ids.length
+            ? {
+                students: {
+                  createMany: {
+                    data: ids.map((studentId: number) => ({ studentId })),
+                  },
+                },
+              }
+            : {}),
+        },
+        include: {
+          sections: {
+            include: {
+              section: { include: { class: true, sectionTitle: true } },
+            },
+          },
+          students: { include: { student: { include: { person: true } } } },
+        },
+      });
     });
 
     return {
@@ -179,6 +245,37 @@ export class DirectorNoticesService {
       title: updated.title,
       content: updated.description,
       createdAt: updated.createdAt?.toISOString().split('T')[0] || '',
+      ...this.noticeRelations(updated),
+    };
+  }
+
+  private noticeRelations(row: any) {
+    const section = row.sections?.[0]?.section;
+    const students = (row.students ?? [])
+      .map((item: any) =>
+        item.student?.person
+          ? [
+              item.student.person.firstName,
+              item.student.person.middleName,
+              item.student.person.lastName,
+            ]
+              .filter(Boolean)
+              .join(' ')
+          : '',
+      )
+      .filter(Boolean);
+    return {
+      classId: section?.id ?? 0,
+      sectionId: section?.id ?? 0,
+      classLabel: section
+        ? `${section.class.className} - ${section.sectionTitle.title}`
+        : '',
+      targetType: students.length ? 'student' : 'section',
+      targetId: students.length
+        ? row.students[0].studentId
+        : (section?.id ?? 0),
+      targetIds: row.students?.map((item: any) => item.studentId) ?? [],
+      targetLabel: students.length ? students.join(', ') : 'Section',
       createdBy: '',
     };
   }
