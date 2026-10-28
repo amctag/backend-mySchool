@@ -97,6 +97,21 @@ export class DirectorAgendaController {
     return this.directorAgendaService.updateAgenda(request.user, agendaId, dto);
   }
 
+  @Patch('me/agenda/:id/publish')
+  @ApiOperation({
+    summary: 'Publish agenda for directors school',
+    description: 'Publishes a draft agenda item in the directors school.',
+  })
+  @ApiOkResponse({ type: DirectorAgendaItemDto })
+  @ApiForbiddenResponse({ description: 'Agenda not in directors school or director cannot publish' })
+  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  publishAgenda(
+    @Req() request: { user: AuthenticatedDirector },
+    @Param('id') agendaId: number,
+  ): Promise<DirectorAgendaItemDto> {
+    return this.directorAgendaService.publishAgenda(request.user, agendaId);
+  }
+
   @Delete('me/agenda/:id')
   @ApiOperation({
     summary: 'Delete agenda for directors school',

@@ -306,7 +306,60 @@ const where: Prisma.AgendaWhereInput = {
     };
   }
 
-  async deleteAgenda(
+  async publishAgenda(
+    user: AuthenticatedDirector,
+    agendaId: number,
+  ): Promise<DirectorAgendaItemDto> {
+    this.directorAccess.ensureDirectorRole(user.role);
+
+    const agenda = await this.prisma.agenda.findFirst({
+      where: {
+        id: agendaId,
+        courseId: user.schoolId,
+      },
+    });
+
+    if (!agenda) {
+      throw new NotFoundException('Agenda item not found');
+    }
+
+    // Only allow publishing draft agendas (status 0)
+    // If already published, just return the existing agenda
+    if (agenda.status === 1) {
+      return this.getAgenda(user, agendaId);
+    }
+
+    const updated = await this.prisma.agenda.update({
+      where: { id: agendaId },
+      data: {
+        status: 1,
+        publishedDate: new Date(),
+      },
+    });
+
+    let courseTitle = '';
+    if (updated.courseId != null) {
+      const course = await this.prisma.course.findUnique({ where: { id: updated.courseId } });
+      courseTitle = course?.title ?? '';
+    }
+
+    return {
+      id: updated.id,
+      assignmentId: updated.id,
+      classId: updated.personId ?? 0,
+      classLabel: '',
+      courseTitle,
+      title: updated.title,
+      description: updated.description,
+      date: updated.agendaDate?.toISOString().split('T')[0] ?? '',
+      publishDate: updated.agendaDate?.toISOString().split('T')[0] ?? '',
+      time: updated.time ?? '09:00',
+      imageLink: updated.imageLink ?? '',
+      fileLink: updated.fileLink ?? '',
+      createdBy: '',
+      createdAt: updated.createdAt?.toISOString().split('T')[0] ?? '',
+    };
+  }  async deleteAgenda(
     user: AuthenticatedDirector,
     agendaId: number,
   ): Promise<boolean> {
@@ -320,7 +373,7 @@ const where: Prisma.AgendaWhereInput = {
     });
 
     if (!agenda) {
-      throw new NotFoundException('Agenda item not found');
+      throw new NotFoundException("Agenda item not found");
     }
 
     await this.prisma.agenda.delete({
