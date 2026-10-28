@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Query,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -33,16 +26,20 @@ import { DirectorAttendanceService } from './director-attendance.service';
 @Roles('director')
 @Controller({ path: 'director', version: '1' })
 export class DirectorAttendanceController {
-  constructor(private readonly directorAttendanceService: DirectorAttendanceService) {}
+  constructor(
+    private readonly directorAttendanceService: DirectorAttendanceService,
+  ) {}
 
-  @Get('me/attendances/options')
+  @Get(['me/attendances/options', 'me/attendance/options'])
   @ApiOperation({
-    summary: 'List attendance options for director\'s school',
+    summary: "List attendance options for director's school",
     description:
-      'Returns attendance configuration and eligible classes for the director\'s assigned school.',
+      "Returns attendance configuration and eligible classes for the director's assigned school.",
   })
   @ApiOkResponse({ type: DirectorAttendanceOptionsDto })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   listOptions(
     @Req() request: Request & { user: AuthenticatedDirector },
     @Query() query: any,
@@ -57,7 +54,9 @@ export class DirectorAttendanceController {
       'Returns the attendance roster and any saved marks for an eligible section.',
   })
   @ApiOkResponse({ type: TeacherAttendanceSheetDto })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   getSheet(
     @Req() request: Request & { user: AuthenticatedDirector },
     @Query() query: DirectorAttendanceSheetQueryDto,
@@ -65,14 +64,16 @@ export class DirectorAttendanceController {
     return this.directorAttendanceService.getSheet(request.user, query);
   }
 
-  @Get('me/attendances')
+  @Get(['me/attendances', 'me/attendance'])
   @ApiOperation({
-    summary: 'List attendance records for director\'s school',
+    summary: "List attendance records for director's school",
     description:
-      'Returns attendance records for the director\'s assigned school. Filterable by date.',
+      "Returns attendance records for the director's assigned school. Filterable by date.",
   })
   @ApiOkResponse({ type: TeacherAttendanceSheetDto })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   listAttendances(
     @Req() request: Request & { user: AuthenticatedDirector },
     @Query() query: DirectorAttendancesQueryDto,
@@ -82,16 +83,18 @@ export class DirectorAttendanceController {
 
   @Post('me/attendances')
   @ApiOperation({
-    summary: 'Save attendance for director\'s school',
+    summary: "Save attendance for director's school",
     description:
-      'Creates or replaces the attendance sheet for one section in the director\'s school.',
+      "Creates or replaces the attendance sheet for one section in the director's school.",
   })
   @ApiCreatedResponse({ type: TeacherAttendanceSheetDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   @ApiForbiddenResponse({
     description: 'Director cannot take attendance for this class',
   })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   saveAttendance(
     @Req() request: Request & { user: AuthenticatedDirector },
     @Body() dto: DirectorSaveAttendanceDto,

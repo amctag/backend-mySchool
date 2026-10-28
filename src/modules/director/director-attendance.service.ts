@@ -33,9 +33,9 @@ export class DirectorAttendanceService {
       throw new ForbiddenException('School not found');
     }
 
-    const { total: _, sections } =
-      await this.directorAccess.listSectionsInSchool(user.schoolId);
     const yearId = await this.directorAccess.currentYearId(user.schoolId);
+    const { total: _, sections } =
+      await this.directorAccess.listSectionsInSchool(user.schoolId, yearId);
     const courses = await this.prisma.classCourse.findMany({
       where: {
         classId: { in: sections.map((section) => section.classId) },

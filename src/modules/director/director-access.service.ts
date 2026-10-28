@@ -1,4 +1,8 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma/prisma.service';
 
 @Injectable()
@@ -51,7 +55,10 @@ export class DirectorAccessService {
     return section?.schoolId ?? null;
   }
 
-  async schoolHasDirectorAssignment(schoolId: number, directorId: number): Promise<boolean> {
+  async schoolHasDirectorAssignment(
+    schoolId: number,
+    directorId: number,
+  ): Promise<boolean> {
     const assignment = await this.prisma.directorSchool.findFirst({
       where: {
         directorId,
@@ -104,6 +111,7 @@ export class DirectorAccessService {
         where,
         select: {
           id: true,
+          yearId: true,
           class: {
             select: {
               id: true,
@@ -112,7 +120,7 @@ export class DirectorAccessService {
             },
           },
           sectionTitle: { select: { title: true } },
-          year: { select: { title: true } },
+          year: { select: { id: true, title: true } },
           _count: {
             select: {
               registrations: { where: { status: true } },
