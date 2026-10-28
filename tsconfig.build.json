@@ -1,4 +1,15 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts", "prisma.config.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "legacy",
+    "**/*spec.ts",
+    "prisma.config.ts",
+    "src/modules/__director/**",
+    "src/modules/_director/**",
+    "src/modules/removd/**"
+  ]
 }
