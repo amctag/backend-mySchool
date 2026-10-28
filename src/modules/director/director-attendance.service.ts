@@ -98,16 +98,10 @@ export class DirectorAttendanceService {
       page: query.page,
       limit: query.limit ?? 20,
     });
-    const { sections } = await this.directorAccess.listSectionsInSchool(
-      user.schoolId,
-    );
-    const sectionIds = sections.map((section) => section.id);
-    if (sectionIds.length === 0) {
-      return { items: [], pagination: buildPaginationMeta(page, limit, 0) };
-    }
+    const yearId = await this.directorAccess.currentYearId(user.schoolId);
     const where = {
       deletedAt: null,
-      sectionId: { in: sectionIds },
+      section: { schoolId: user.schoolId, ...(yearId ? { yearId } : {}) },
       ...(query.date ? { date: new Date(query.date) } : {}),
     };
     const [total, rows] = await this.prisma.$transaction([

@@ -1,6 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsArray,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import { PaginationMetaDto } from '../../../common/dto/pagination-meta.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
@@ -38,4 +45,13 @@ export class DirectorNoticesResponseDto {
 
   @ApiProperty({ type: PaginationMetaDto })
   pagination!: PaginationMetaDto;
+}
+
+export class DirectorUpsertNoticeDto {
+  @IsInt() @Min(1) sectionId!: number;
+  @IsIn(['class', 'student']) targetType!: 'class' | 'student';
+  @IsArray() @IsInt({ each: true }) @IsOptional() studentIds?: number[];
+  @IsString() title!: string;
+  @IsString() description!: string;
+  @IsString() publishDate!: string;
 }

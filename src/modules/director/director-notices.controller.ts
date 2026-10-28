@@ -25,6 +25,7 @@ import {
   DirectorNoticesQueryDto,
   DirectorNoticeItemDto,
   DirectorNoticesResponseDto,
+  DirectorUpsertNoticeDto,
 } from './dto/director-notices.dto';
 import { DirectorNoticesService } from './director-notices.service';
 
@@ -33,15 +34,20 @@ import { DirectorNoticesService } from './director-notices.service';
 @Roles('director')
 @Controller({ path: 'director', version: '1' })
 export class DirectorNoticesController {
-  constructor(private readonly directorNoticesService: DirectorNoticesService) {}
+  constructor(
+    private readonly directorNoticesService: DirectorNoticesService,
+  ) {}
 
   @Get('me/notices')
   @ApiOperation({
     summary: 'List notices for directors school',
-    description: 'Returns notices for the directors assigned school, filterable by date.',
+    description:
+      'Returns notices for the directors assigned school, filterable by date.',
   })
   @ApiOkResponse({ type: DirectorNoticesResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   listNotices(
     @Req() request: { user: AuthenticatedDirector },
     @Query() query: DirectorNoticesQueryDto,
@@ -56,7 +62,9 @@ export class DirectorNoticesController {
   })
   @ApiOkResponse({ type: DirectorNoticeItemDto })
   @ApiForbiddenResponse({ description: 'Notice not in directors school' })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   getNotice(
     @Req() request: { user: AuthenticatedDirector },
     @Param('id') noticeId: number,
@@ -72,10 +80,12 @@ export class DirectorNoticesController {
   @ApiCreatedResponse({ type: DirectorNoticeItemDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   @ApiForbiddenResponse({ description: 'Director cannot create notices' })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   createNotice(
     @Req() request: { user: AuthenticatedDirector },
-    @Body() dto: any,
+    @Body() dto: DirectorUpsertNoticeDto,
   ): Promise<DirectorNoticeItemDto> {
     return this.directorNoticesService.createNotice(request.user, dto);
   }
@@ -88,13 +98,19 @@ export class DirectorNoticesController {
   @ApiOkResponse({ type: DirectorNoticeItemDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   @ApiForbiddenResponse({ description: 'Notice not in directors school' })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   updateNotice(
     @Req() request: { user: AuthenticatedDirector },
     @Param('id') noticeId: number,
     @Body() dto: any,
   ): Promise<DirectorNoticeItemDto> {
-    return this.directorNoticesService.updateNotice(request.user, noticeId, dto);
+    return this.directorNoticesService.updateNotice(
+      request.user,
+      noticeId,
+      dto,
+    );
   }
 
   @Delete('me/notices/:id')
@@ -104,7 +120,9 @@ export class DirectorNoticesController {
   })
   @ApiOkResponse({ type: Boolean })
   @ApiForbiddenResponse({ description: 'Notice not in directors school' })
-  @ApiUnauthorizedResponse({ description: 'Missing, invalid, or expired token' })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid, or expired token',
+  })
   deleteNotice(
     @Req() request: { user: AuthenticatedDirector },
     @Param('id') noticeId: number,

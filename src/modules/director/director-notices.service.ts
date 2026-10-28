@@ -1,4 +1,8 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuthenticatedDirector } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { DirectorAccessService } from './director-access.service';
@@ -90,14 +94,45 @@ export class DirectorNoticesService {
     dto: any,
   ): Promise<DirectorNoticeItemDto> {
     this.directorAccess.ensureDirectorRole(user.role);
-
+    const section = await this.prisma.section.findFirst({
+      where: { id: dto.sectionId, schoolId: user.schoolId },
+      select: { id: true, yearId: true },
+    });
+    if (!section) throw new NotFoundException('Section not found');
+    const studentIds = dto.studentIds ?? [];
+    if (dto.targetType === 'student' && studentIds.length === 0) {
+      throw new ForbiddenException('At least one student is required');
+    }
+    if (studentIds.length) {
+      const count = await this.prisma.registration.count({
+        where: {
+          schoolId: user.schoolId,
+          sectionId: section.id,
+          studentId: { in: studentIds },
+          status: true,
+        },
+      });
+      if (count !== new Set(studentIds).size) {
+        throw new ForbiddenException('Student is not in this section');
+      }
+    }
     const notice = await this.prisma.notice.create({
       data: {
-        title: dto.title,
+        title: dto.title ?? '',
         description: dto.description,
-        date: dto.date,
+        date: new Date(dto.publishDate),
         personId: user.personId,
         schoolId: user.schoolId,
+        sections: { create: { sectionId: section.id } },
+        ...(studentIds.length
+          ? {
+              students: {
+                createMany: {
+                  data: studentIds.map((studentId) => ({ studentId })),
+                },
+              },
+            }
+          : {}),
       },
     });
 
