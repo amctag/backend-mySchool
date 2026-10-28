@@ -111,6 +111,7 @@ export class DirectorAccessService {
         where,
         select: {
           id: true,
+          classId: true,
           yearId: true,
           class: {
             select: {
