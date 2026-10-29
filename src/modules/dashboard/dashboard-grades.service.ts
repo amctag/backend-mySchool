@@ -322,9 +322,23 @@ export class DashboardGradesService {
         include: {
           course: { select: { id: true, title: true } },
         },
-        orderBy: [{ course: { title: 'asc' } }, { id: 'asc' }],
+        orderBy: this.buildGradeCardCourseOrder(),
       }),
     ]);
+
+    // Post-process course order:
+    // - Courses with position > 0 appear first (sorted by position ASC, title ASC, id ASC)
+    // - Courses with position = 0 appear after (sorted by title ASC, id ASC)
+    // - When ALL positions are 0, this preserves the original alphabetical ordering
+    const positionedCourses = classCourses.filter(
+      (course) => course.position > 0,
+    );
+    const unpositionedCourses = classCourses.filter(
+      (course) => course.position === 0,
+    );
+    // Replace classCourses with the ordered combination
+    classCourses.length = 0;
+    classCourses.push(...positionedCourses, ...unpositionedCourses);
 
     const allFormDetails =
       gradeFormRow === null
@@ -1265,6 +1279,24 @@ export class DashboardGradesService {
 
   private formatDateOnly(value: Date): string {
     return value.toISOString().slice(0, 10);
+  }
+
+  /**
+   * Build orderBy for Grade Card course list.
+   *
+   * Rules:
+   * - Sorts by position ASC first (position=0 means "not configured")
+   * - Then by course title ASC for tiebreaking
+   * - Then by ClassCourse ID ASC for ultimate tiebreaking
+   * - When ALL positions are 0, this is effectively alphabetical order
+   * - When some positions > 0, those courses appear first, then unpositioned ones alphabetically
+   */
+  private buildGradeCardCourseOrder(): Prisma.ClassCourseOrderByWithRelationInput[] {
+    return [
+      { position: 'asc' },
+      { course: { title: 'asc' } },
+      { id: 'asc' },
+    ];
   }
 
   private async currentYearId(schoolId: number): Promise<number | null> {

@@ -31,7 +31,7 @@ type ClassCourseRecord = {
   yearId: number;
   coefficient: Prisma.Decimal;
   numberOfHours: number | null;
-  status: boolean;
+  status: boolean; position: number;
   class: { id: number; className: string };
   course: { id: number; title: string };
   year: { id: number; title: string; isCurrent: boolean };
@@ -250,6 +250,8 @@ export class DashboardCoursesService {
     await this.assertYear(user.schoolId, yearId);
     await this.assertUniqueClassCourse(classId, courseId, yearId, id);
 
+    const position = dto.position !== undefined ? dto.position : existing.position;
+
     const row = await this.prisma.classCourse.update({
       where: { id },
       data: {
@@ -257,10 +259,9 @@ export class DashboardCoursesService {
         courseId,
         yearId,
         ...(dto.coefficient !== undefined ? { coefficient: dto.coefficient } : {}),
-        ...(dto.numberOfHours !== undefined
-          ? { numberOfHours: dto.numberOfHours }
-          : {}),
+        ...(dto.numberOfHours !== undefined ? { numberOfHours: dto.numberOfHours } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
+        position,
       },
       include: classCourseInclude,
     });
@@ -306,6 +307,7 @@ export class DashboardCoursesService {
       coefficient: Number(row.coefficient),
       numberOfHours: row.numberOfHours,
       status: row.status,
+      position: row.position,
     };
   }
 

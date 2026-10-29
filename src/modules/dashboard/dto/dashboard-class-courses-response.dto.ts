@@ -32,6 +32,9 @@ export class DashboardClassCourseItemDto {
   @ApiPropertyOptional({ nullable: true, example: 5 })
   numberOfHours!: number | null;
 
+  @ApiProperty({ example: 0, description: 'Position for grade card course ordering; 0 = alphabetical' })
+  position!: number;
+
   @ApiProperty({ example: true })
   status!: boolean;
 }
