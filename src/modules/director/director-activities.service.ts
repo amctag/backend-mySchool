@@ -128,10 +128,10 @@ export class DirectorActivitiesService {
     const activity = await this.prisma.activity.create({
       data: {
         title: dto.title,
-        content: dto.description,
-        date: dto.startDate,
+        content: dto.content,
+        date: dto.date,
         personId: user.personId,
-        image: '',
+        image: dto.image ?? '',
       },
     });
 
@@ -172,8 +172,9 @@ export class DirectorActivitiesService {
       where: { id: activityId },
       data: {
         title: dto.title,
-        content: dto.description,
-        date: dto.startDate,
+        content: dto.content,
+        date: dto.date,
+        image: dto.image ?? activity.image,
       },
     });
 

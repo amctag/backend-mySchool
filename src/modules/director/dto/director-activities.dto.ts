@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { PaginationMetaDto } from '../../../common/dto/pagination-meta.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
@@ -56,24 +56,35 @@ export class TeacherActivitiesResponseDto {
 }
 
 export class UpsertTeacherActivityDto {
+  @ApiProperty({ example: 'section_course' })
+  @IsString()
+  @IsIn(['section_course', 'section', 'class', 'stage'])
+  scopeType!: string;
+
+  @IsOptional() @IsInt() @Min(1)
+  assignmentId?: number;
+  @IsOptional() @IsInt() @Min(1)
+  classId?: number;
+  @IsOptional() @IsInt() @Min(1)
+  schoolClassId?: number;
+  @IsOptional() @IsInt() @Min(1)
+  stageId?: number;
+  @IsOptional() @IsString()
+  stageTitle?: string;
+
   @ApiProperty({ example: 'Mathematics Fair' })
+  @IsString()
   title!: string;
 
   @ApiProperty({ type: 'string', format: 'html', example: '<p>Description</p>' })
-  description!: string;
+  @IsString()
+  content!: string;
 
   @ApiProperty({ example: '2025-03-10' })
-  startDate!: string;
+  @IsString()
+  date!: string;
 
   @ApiProperty({ example: '2025-03-12' })
-  endDate!: string;
-
-  @ApiProperty({ example: 'Mathematics' })
-  courseTitle!: string;
-
-  @ApiProperty({ type: [String], example: ['Grade 4', 'Grade 5'] })
-  gradeLevels!: string[];
-
-  @ApiProperty({ type: [String], example: ['4-A', '4-B'] })
-  sectionTitles!: string[];
+  @IsOptional() @IsString()
+  image?: string;
 }
