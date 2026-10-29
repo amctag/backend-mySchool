@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuthenticatedDirector } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { DirectorAccessService } from './director-access.service';
@@ -124,15 +124,37 @@ export class DirectorActivitiesService {
     dto: UpsertTeacherActivityDto,
   ): Promise<TeacherActivityItemDto> {
     this.directorAccess.ensureDirectorRole(user.role);
-
-    const activity = await this.prisma.activity.create({
-      data: {
+    const yearId = await this.directorAccess.currentYearId(user.schoolId);
+    if (!yearId) throw new BadRequestException('No active academic year for this school');
+    if (!['section', 'section_course'].includes(dto.scopeType)) {
+      throw new BadRequestException('Unsupported activity scope');
+    }
+    const sectionId = dto.classId;
+    if (!sectionId) throw new BadRequestException('A section is required');
+    const section = await this.prisma.section.findFirst({ where: { id: sectionId, schoolId: user.schoolId } });
+    if (!section) throw new ForbiddenException('Section is not in the director school');
+    let courseId: number | undefined;
+    if (dto.scopeType === 'section_course') {
+      if (!dto.assignmentId) throw new BadRequestException('An assignment is required for section_course activities');
+      const assignment = await this.prisma.teach.findFirst({
+        where: { id: dto.assignmentId, sectionId, yearId, course: { schoolId: user.schoolId } },
+        select: { courseId: true },
+      });
+      if (!assignment) throw new ForbiddenException('Assignment is not valid for this section');
+      courseId = assignment.courseId;
+    }
+    const activity = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.activity.create({ data: {
         title: dto.title,
         content: dto.content,
-        date: dto.date,
+        date: new Date(dto.date),
         personId: user.personId,
         image: dto.image ?? '',
-      },
+        yearId,
+        courseId,
+      }});
+      await tx.activitySection.create({ data: { activityId: created.id, sectionId } });
+      return created;
     });
 
     return {
