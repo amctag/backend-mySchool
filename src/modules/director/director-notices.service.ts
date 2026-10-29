@@ -123,6 +123,10 @@ export class DirectorNoticesService {
       select: { id: true, yearId: true },
     });
     if (!section) throw new NotFoundException('Section not found');
+    const currentYearId = await this.directorAccess.currentYearId(user.schoolId);
+    if (!currentYearId || section.yearId !== currentYearId) {
+      throw new ForbiddenException('Section is not in the current academic year');
+    }
     const studentIds: number[] = Array.isArray(dto.studentIds)
       ? dto.studentIds.map((id: unknown) => Number(id)).filter((id: number) => Number.isInteger(id) && id > 0)
       : [];
@@ -162,20 +166,7 @@ export class DirectorNoticesService {
       },
     });
 
-    if (studentIds.length > 0) {
-      try {
-        const students = await this.prisma.student.findMany({
-          where: { id: { in: [...new Set(studentIds)] }, parentId: { not: null } },
-          select: { parent: { select: { personId: true } } },
-        });
-        const personIds = [...new Set(students.map((student) => student.parent?.personId).filter((id): id is number => id != null))];
-        await this.parentFcmNotify.sendToPersonIds(personIds, notice.title.trim() || 'Notice', notice.description, {
-          type: 'notice', noticeId: String(notice.id),
-        });
-      } catch (error) {
-        this.logger.error(`notice notification failed notice=${notice.id} school=${user.schoolId}: ${(error as Error)?.message}`, (error as Error)?.stack);
-      }
-    }
+    await this.notifyParentsOfNotice(notice.id, notice.title, notice.description, user.schoolId, section.id, section.yearId, studentIds);
 
     return {
       id: notice.id,
@@ -185,6 +176,51 @@ export class DirectorNoticesService {
       createdAt: notice.createdAt?.toISOString().split('T')[0] || '',
       createdBy: '',
     };
+  }
+
+  private async notifyParentsOfNotice(
+    noticeId: number,
+    title: string,
+    description: string,
+    schoolId: number,
+    sectionId: number,
+    yearId: number,
+    selectedStudentIds: number[],
+  ): Promise<void> {
+    try {
+      const section = await this.prisma.section.findFirst({
+        where: { id: sectionId, schoolId, yearId },
+        select: { id: true },
+      });
+      if (!section) return;
+      const registrations = selectedStudentIds.length
+        ? selectedStudentIds.map((studentId) => ({ studentId }))
+        : await this.prisma.registration.findMany({
+            where: { schoolId, sectionId, status: true },
+            select: { studentId: true },
+          });
+      const students = await this.prisma.student.findMany({
+        where: {
+          id: { in: [...new Set(registrations.map((row) => row.studentId))] },
+          parentId: { not: null },
+        },
+        select: { parent: { select: { personId: true } } },
+      });
+      const personIds = [...new Set(
+        students
+          .map((student) => student.parent?.personId)
+          .filter((id): id is number => id != null),
+      )];
+      await this.parentFcmNotify.sendToPersonIds(personIds, title.trim() || 'Notice', description, {
+        type: 'notice',
+        noticeId: String(noticeId),
+      });
+    } catch (error) {
+      this.logger.error(
+        `notice notification failed notice=${noticeId} school=${schoolId}: ${(error as Error)?.message}`,
+        (error as Error)?.stack,
+      );
+    }
   }
 
   async updateNotice(
