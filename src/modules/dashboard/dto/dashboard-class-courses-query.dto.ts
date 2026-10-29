@@ -51,14 +51,14 @@ export class DashboardClassCoursesQueryDto {
   search?: string;
 
   @ApiPropertyOptional({
-    enum: ['id', 'class', 'course', 'year', 'hours'],
+    enum: ['id', 'class', 'course', 'year', 'hours', 'position', 'position'],
     example: 'id',
   })
   @IsOptional()
   @Allow()
   @IsString()
-  @IsIn(['id', 'class', 'course', 'year', 'hours'])
-  sortBy?: 'id' | 'class' | 'course' | 'year' | 'hours';
+  @IsIn(['id', 'class', 'course', 'year', 'hours', 'position'])
+  sortBy?: 'id' | 'class' | 'course' | 'year' | 'hours' | 'position';
 
   @ApiPropertyOptional({ enum: ['asc', 'desc'], example: 'asc' })
   @IsOptional()

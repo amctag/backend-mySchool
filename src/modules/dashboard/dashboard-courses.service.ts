@@ -229,6 +229,7 @@ export class DashboardCoursesService {
         coefficient: dto.coefficient ?? 1,
         numberOfHours: dto.numberOfHours ?? null,
         status: dto.status ?? true,
+        position: dto.position ?? 0,
       },
       include: classCourseInclude,
     });
@@ -427,6 +428,9 @@ export class DashboardCoursesService {
     }
     if (sortBy === 'hours') {
       return [{ numberOfHours: direction }, { id: direction }];
+    }
+    if (sortBy === 'position') {
+      return [{ position: direction }, { id: direction }];
     }
     return [{ id: direction }];
   }

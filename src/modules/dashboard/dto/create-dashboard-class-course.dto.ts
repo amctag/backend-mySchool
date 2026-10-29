@@ -63,4 +63,12 @@ export class CreateDashboardClassCourseDto {
   @Transform(toBoolean)
   @IsBoolean()
   status?: boolean;
+
+  @ApiPropertyOptional({ example: 0, description: 'Position for course ordering in grade card; 0 = unordered' })
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(32767)
+  position?: number;
 }

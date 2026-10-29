@@ -1,7 +1,7 @@
 import { PartialType, ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { CreateDashboardClassCourseDto } from './create-dashboard-class-course.dto';
-import { IsInt, IsOptional, Min } from 'class-validator';
+import { IsInt, IsOptional, Min, Max } from 'class-validator';
 
 function toBoolean({ value }: { value: unknown }): unknown {
   if (value === true || value === 1 || value === '1' || value === 'true') {
@@ -21,5 +21,6 @@ export class UpdateDashboardClassCourseDto extends PartialType(
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(32767)
   position?: number;
 }
