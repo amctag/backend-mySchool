@@ -27,6 +27,8 @@ import { DirectorNotificationsController } from './director-notifications.contro
 import { DirectorNotificationsService } from './director-notifications.service';
 import { DirectorAgendaController } from './director-agenda.controller';
 import { DirectorAgendaService } from './director-agenda.service';
+import { DirectorUploadsController } from './director-uploads.controller';
+import { MediaUploadService } from '../../upload/media-upload.service';
 
 @Module({
   imports: [AuthModule, PrismaModule, SchoolModule],
@@ -43,6 +45,7 @@ import { DirectorAgendaService } from './director-agenda.service';
     DirectorTasksController,
     DirectorNotificationsController,
     DirectorAgendaController,
+    DirectorUploadsController,
   ],
   providers: [
     DirectorAuthService,
@@ -58,6 +61,7 @@ import { DirectorAgendaService } from './director-agenda.service';
     DirectorTasksService,
     DirectorNotificationsService,
     DirectorAgendaService,
+    MediaUploadService,
   ],
 })
 export class DirectorModule {}

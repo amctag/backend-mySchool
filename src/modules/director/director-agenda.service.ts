@@ -19,6 +19,13 @@ import { formatClassLabel } from './director.util';
 import { parseDateOnly } from '../teacher/teacher.util';
 import { Prisma } from '@prisma/client';
 
+export function resolveAgendaAttachment(
+  value: string | null | undefined,
+  existing: string,
+): string {
+  return value == null ? (value === undefined ? existing : '') : value.trim();
+}
+
 const agendaInclude = {
   sections: {
     include: {
@@ -251,6 +258,8 @@ export class DirectorAgendaService {
           fileLink: row.fileLink ?? '',
           createdBy: createdBy,
           createdAt: row.createdAt?.toISOString().split('T')[0] ?? '',
+          published: row.status === 1,
+          status: row.status,
         };
       }),
       pagination: buildPaginationMeta(page, limit, total),
@@ -294,6 +303,8 @@ export class DirectorAgendaService {
       fileLink: agenda.fileLink ?? '',
       createdBy: '',
       createdAt: agenda.createdAt?.toISOString().split('T')[0] ?? '',
+      published: agenda.status === 1,
+      status: agenda.status,
     };
   }
 
@@ -320,8 +331,10 @@ export class DirectorAgendaService {
         courseId: assignment.courseId,
         imageLink: dto.imageLink ?? '',
         fileLink: dto.fileLink ?? '',
-        publishedDate: new Date(),
-        status: 1,
+        // The schema requires a publication timestamp even for drafts. Keep a
+        // sentinel timestamp while status remains unpublished.
+        publishedDate: dto.published ? new Date() : new Date(0),
+        status: dto.published ? 1 : 0,
       },
     });
 
@@ -354,6 +367,8 @@ export class DirectorAgendaService {
       fileLink: agenda.fileLink ?? '',
       createdBy: '',
       createdAt: agenda.createdAt?.toISOString().split('T')[0] ?? '',
+      published: agenda.status === 1,
+      status: agenda.status,
     };
   }
 
@@ -380,6 +395,11 @@ export class DirectorAgendaService {
           agendaDate: dto.date,
           time: dto.time,
           courseId: assignment.courseId,
+          imageLink: resolveAgendaAttachment(dto.imageLink, agenda.imageLink),
+          fileLink: resolveAgendaAttachment(dto.fileLink, agenda.fileLink),
+          ...(dto.published === true
+            ? { status: 1, publishedDate: new Date() }
+            : {}),
         },
       });
       await tx.agendaSection.create({
@@ -414,6 +434,8 @@ export class DirectorAgendaService {
       fileLink: updated.fileLink ?? '',
       createdBy: '',
       createdAt: updated.createdAt?.toISOString().split('T')[0] ?? '',
+      published: updated.status === 1,
+      status: updated.status,
     };
   }
 

@@ -64,6 +64,9 @@ export class DirectorAgendaItemDto {
 
   @ApiProperty({ example: '2025-01-15' })
   createdAt!: string;
+
+  published?: boolean;
+  status?: number;
 }
 
 export class DirectorAgendasResponseDto {
