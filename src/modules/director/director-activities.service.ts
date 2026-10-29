@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, ForbiddenException, NotFoundException, Logger } from '@nestjs/common';
 import { AuthenticatedDirector } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { DirectorAccessService } from './director-access.service';
+import { ParentFcmNotifyService } from '../../fcm/parent-fcm-notify.service';
 import {
   buildPaginationMeta,
   resolvePagination,
@@ -34,9 +35,12 @@ const activityInclude = {
 
 @Injectable()
 export class DirectorActivitiesService {
+  private readonly logger = new Logger(DirectorActivitiesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly directorAccess: DirectorAccessService,
+    private readonly parentFcmNotify: ParentFcmNotifyService,
   ) {}
 
   async listActivities(
@@ -157,6 +161,8 @@ export class DirectorActivitiesService {
       return created;
     });
 
+    await this.notifyParentsOfActivity(activity.id, sectionId, user.schoolId, yearId);
+
     return {
       id: activity.id,
       date: activity.date?.toISOString().split('T')[0],
@@ -170,6 +176,35 @@ export class DirectorActivitiesService {
       createdBy: activity.personId?.toString() || '',
       createdAt: activity.createdAt?.toISOString().split('T')[0] || '',
     };
+  }
+
+  private async notifyParentsOfActivity(
+    activityId: number,
+    sectionId: number,
+    schoolId: number,
+    yearId: number,
+  ): Promise<void> {
+    try {
+      const section = await this.prisma.section.findFirst({
+        where: { id: sectionId, schoolId, yearId },
+        select: { id: true },
+      });
+      if (!section) return;
+      const registrations = await this.prisma.registration.findMany({
+        where: { schoolId, sectionId, status: true },
+        select: { studentId: true },
+      });
+      const students = await this.prisma.student.findMany({
+        where: { id: { in: registrations.map((r) => r.studentId) }, parentId: { not: null } },
+        select: { parent: { select: { personId: true } } },
+      });
+      const personIds = [...new Set(students.map((s) => s.parent?.personId).filter((id): id is number => id != null))];
+      await this.parentFcmNotify.sendToPersonIds(personIds, 'Activity', 'A new activity is available for your child.', {
+        type: 'activity', route: 'activities', activityId: String(activityId),
+      });
+    } catch (error) {
+      this.logger.error(`activity notification failed activity=${activityId} school=${schoolId}: ${(error as Error)?.message}`, (error as Error)?.stack);
+    }
   }
 
   async updateActivity(

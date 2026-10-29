@@ -29,9 +29,10 @@ import { DirectorAgendaController } from './director-agenda.controller';
 import { DirectorAgendaService } from './director-agenda.service';
 import { DirectorUploadsController } from './director-uploads.controller';
 import { MediaUploadService } from '../../upload/media-upload.service';
+import { FcmModule } from '../../fcm/fcm.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, SchoolModule],
+  imports: [AuthModule, PrismaModule, SchoolModule, FcmModule],
   controllers: [
     DirectorAuthController,
     DirectorClassesController,

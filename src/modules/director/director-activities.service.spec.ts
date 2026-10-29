@@ -7,17 +7,19 @@ const created = { id: 1, title: 'A', content: 'B', date: new Date('2026-10-29'),
 
 function setup(overrides: any = {}) {
   const tx = { activity: { create: jest.fn().mockResolvedValue(created) }, activitySection: { create: jest.fn().mockResolvedValue({}) } };
-  const prisma: any = { section: { findFirst: jest.fn().mockResolvedValue({ id: 8 }) }, teach: { findFirst: jest.fn().mockResolvedValue({ courseId: 4 }) }, $transaction: jest.fn((fn: any) => fn(tx)), ...overrides };
+  const prisma: any = { section: { findFirst: jest.fn().mockResolvedValue({ id: 8 }) }, registration: { findMany: jest.fn().mockResolvedValue([{ studentId: 10 }, { studentId: 11 }]) }, student: { findMany: jest.fn().mockResolvedValue([{ parent: { personId: 901 } }, { parent: { personId: 901 } }]) }, teach: { findFirst: jest.fn().mockResolvedValue({ courseId: 4 }) }, $transaction: jest.fn((fn: any) => fn(tx)), ...overrides };
   const access: any = { ensureDirectorRole: jest.fn(), currentYearId: jest.fn().mockResolvedValue(2026) };
-  return { service: new DirectorActivitiesService(prisma, access), prisma, tx, access };
+  const parentFcmNotify = { sendToPersonIds: jest.fn().mockResolvedValue(undefined) };
+  return { service: new DirectorActivitiesService(prisma, access, parentFcmNotify), prisma, tx, access, parentFcmNotify };
 }
 
 describe('Director Activity creation', () => {
   it('creates a section activity with Director identity and atomic relation', async () => {
-    const { service, tx } = setup();
+    const { service, tx, parentFcmNotify } = setup();
     await service.createActivity(user, dto());
     expect(tx.activity.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ personId: 77, yearId: 2026 }) }));
     expect(tx.activitySection.create).toHaveBeenCalledWith({ data: { activityId: 1, sectionId: 8 } });
+    expect(parentFcmNotify.sendToPersonIds).toHaveBeenCalledWith([901], 'Activity', expect.any(String), { type: 'activity', route: 'activities', activityId: '1' });
   });
   it('rejects an invalid section', async () => {
     const { service } = setup({ section: { findFirst: jest.fn().mockResolvedValue(null) } });

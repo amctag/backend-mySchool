@@ -32,6 +32,7 @@ import {
   DirectorUpsertAgendaDto,
 } from './dto/director-agenda.dto';
 import { formatClassLabel } from './director.util';
+import { ParentFcmNotifyService } from '../../fcm/parent-fcm-notify.service';
 
 // Kept for backwards compatibility with existing imports/tests.
 export { resolveAgendaAttachment };
@@ -119,6 +120,7 @@ export class DirectorAgendaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly directorAccess: DirectorAccessService,
+    private readonly parentFcmNotify: ParentFcmNotifyService,
   ) {}
 
   /**
@@ -406,6 +408,10 @@ export class DirectorAgendaService {
         return created;
       });
 
+      if (published) {
+        await this.notifyParentsOfAgenda(agenda.id, assignment.sectionId, user.schoolId);
+      }
+
       return toItem(agenda, {
         assignmentId: assignment.id,
         classId: assignment.sectionId,
@@ -469,6 +475,10 @@ export class DirectorAgendaService {
         return saved;
       });
 
+      if (publishNow) {
+        await this.notifyParentsOfAgenda(updated.id, assignment.sectionId, user.schoolId);
+      }
+
       return toItem(updated, {
         assignmentId: assignment.id,
         classId: assignment.sectionId,
@@ -494,6 +504,10 @@ export class DirectorAgendaService {
           where: { id: agendaId },
           data: { status: AGENDA_STATUS_PUBLISHED, publishedDate: new Date() },
         });
+        const sectionId = agenda.sections[0]?.section.id;
+        if (sectionId) {
+          await this.notifyParentsOfAgenda(agenda.id, sectionId, user.schoolId);
+        }
       }
       // Re-read so the response carries the real assignment/class/status.
       return this.getAgenda(user, agendaId);
@@ -513,5 +527,33 @@ export class DirectorAgendaService {
       });
       return true;
     });
+  }
+
+  private async notifyParentsOfAgenda(
+    agendaId: number,
+    sectionId: number,
+    schoolId: number,
+  ): Promise<void> {
+    try {
+      const section = await this.prisma.section.findFirst({
+        where: { id: sectionId, schoolId },
+        select: { id: true, yearId: true },
+      });
+      if (!section) return;
+      const registrations = await this.prisma.registration.findMany({
+        where: { schoolId, sectionId: section.id, status: true },
+        select: { studentId: true },
+      });
+      const students = await this.prisma.student.findMany({
+        where: { id: { in: registrations.map((r) => r.studentId) }, parentId: { not: null } },
+        select: { parent: { select: { personId: true } } },
+      });
+      const personIds = [...new Set(students.map((s) => s.parent?.personId).filter((id): id is number => id != null))];
+      await this.parentFcmNotify.sendToPersonIds(personIds, 'Agenda published', 'A new agenda is available for your child.', {
+        type: 'agenda', route: 'agenda', agendaId: String(agendaId),
+      });
+    } catch (error) {
+      this.logger.error(`agenda notification failed agenda=${agendaId} school=${schoolId}: ${(error as Error)?.message}`, (error as Error)?.stack);
+    }
   }
 }

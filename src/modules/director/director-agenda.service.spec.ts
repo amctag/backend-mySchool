@@ -56,13 +56,17 @@ function build() {
       findMany: jest.fn(async () => []),
     },
     course: { findMany: jest.fn(async () => []) },
+    section: { findFirst: jest.fn(async () => ({ id: 20, yearId: 3 })) },
+    registration: { findMany: jest.fn(async () => [{ studentId: 101 }, { studentId: 102 }]) },
+    student: { findMany: jest.fn(async () => [{ parent: { personId: 501 } }, { parent: { personId: 501 } }]) },
     $transaction: jest.fn(async (arg: any) => (typeof arg === 'function' ? arg(tx) : Promise.all(arg))),
   };
   const access = new DirectorAccessService({
     year: { findFirst: jest.fn(async () => ({ id: 3 })) },
   } as any);
-  const service = new DirectorAgendaService(prisma, access);
-  return { service, prisma, tx };
+  const parentFcmNotify = { sendToPersonIds: jest.fn().mockResolvedValue(undefined) };
+  const service = new DirectorAgendaService(prisma, access, parentFcmNotify as any);
+  return { service, prisma, tx, parentFcmNotify };
 }
 
 const base = {
@@ -91,12 +95,13 @@ describe('DirectorAgendaService.createAgenda', () => {
   });
 
   it('PUBLISHES with status 1 and a real publish timestamp', async () => {
-    const { service, tx } = build();
+    const { service, tx, parentFcmNotify } = build();
     const out = await service.createAgenda(director, { ...base, published: true });
     const data = tx.agenda.create.mock.calls[0][0].data;
     expect(data.status).toBe(1);
     expect(data.publishedDate.getTime()).toBeGreaterThan(Date.now() - 5000);
     expect(out.published).toBe(true);
+    expect(parentFcmNotify.sendToPersonIds).toHaveBeenCalledWith([501], 'Agenda published', expect.any(String), expect.objectContaining({ type: 'agenda', route: 'agenda', agendaId: '1' }));
   });
 
   it.each(['2026-10-29', '2026-10-29T00:00:00.000Z', '2026-10-29T00:00:00.000'])(

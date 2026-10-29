@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, Logger } from '@nestjs/common';
 import { AuthenticatedDirector } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { DirectorAccessService } from './director-access.service';
@@ -15,12 +11,16 @@ import {
   DirectorNoticeItemDto,
   DirectorNoticesResponseDto,
 } from './dto/director-notices.dto';
+import { ParentFcmNotifyService } from '../../fcm/parent-fcm-notify.service';
 
 @Injectable()
 export class DirectorNoticesService {
+  private readonly logger = new Logger(DirectorNoticesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly directorAccess: DirectorAccessService,
+    private readonly parentFcmNotify: ParentFcmNotifyService,
   ) {}
 
   async listNotices(
@@ -123,7 +123,9 @@ export class DirectorNoticesService {
       select: { id: true, yearId: true },
     });
     if (!section) throw new NotFoundException('Section not found');
-    const studentIds = dto.studentIds ?? [];
+    const studentIds: number[] = Array.isArray(dto.studentIds)
+      ? dto.studentIds.map((id: unknown) => Number(id)).filter((id: number) => Number.isInteger(id) && id > 0)
+      : [];
     if (dto.targetType === 'student' && studentIds.length === 0) {
       throw new ForbiddenException('At least one student is required');
     }
@@ -159,6 +161,21 @@ export class DirectorNoticesService {
           : {}),
       },
     });
+
+    if (studentIds.length > 0) {
+      try {
+        const students = await this.prisma.student.findMany({
+          where: { id: { in: [...new Set(studentIds)] }, parentId: { not: null } },
+          select: { parent: { select: { personId: true } } },
+        });
+        const personIds = [...new Set(students.map((student) => student.parent?.personId).filter((id): id is number => id != null))];
+        await this.parentFcmNotify.sendToPersonIds(personIds, notice.title.trim() || 'Notice', notice.description, {
+          type: 'notice', noticeId: String(notice.id),
+        });
+      } catch (error) {
+        this.logger.error(`notice notification failed notice=${notice.id} school=${user.schoolId}: ${(error as Error)?.message}`, (error as Error)?.stack);
+      }
+    }
 
     return {
       id: notice.id,
