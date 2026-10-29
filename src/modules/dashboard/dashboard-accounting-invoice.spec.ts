@@ -182,6 +182,7 @@ function invoiceTransaction(overrides?: {
     class: tx.class,
     year: tx.year,
     accountingRegistrationPackage: tx.accountingRegistrationPackage,
+    student: tx.student,
     parent: { findFirst: jest.fn() },
     registration: tx.registration,
   };
@@ -272,6 +273,112 @@ describe('Registration package preview', () => {
         where: expect.objectContaining({ yearId: 77 }),
       }),
     );
+  });
+
+  it('resolves a legacy parent person with no school scope through the student link', async () => {
+    const { tx, service } = invoiceTransaction();
+    tx.student.findFirst.mockResolvedValue({
+      parent: {
+        id: 1,
+        person: {
+          firstName: 'Ahmad',
+          middleName: 'Hassan',
+          lastName: 'Khalil',
+          schoolId: null,
+          accountId: null,
+          account: null,
+        },
+      },
+    });
+
+    const preview = await service.getRegistrationPackagePreview(
+      { schoolId: 3 } as never,
+      4,
+      2,
+      986,
+    );
+
+    expect(preview.parent).toEqual({
+      parentId: 1,
+      parentName: 'Ahmad Hassan Khalil',
+      accountId: null,
+      accountCode: null,
+      hasAccountingAccount: false,
+    });
+  });
+
+  it('rejects a parent person owned by another school', async () => {
+    const { tx, service } = invoiceTransaction();
+    tx.student.findFirst.mockResolvedValue({
+      parent: {
+        id: 1,
+        person: {
+          firstName: 'Ahmad',
+          middleName: 'Hassan',
+          lastName: 'Khalil',
+          schoolId: 4,
+          accountId: null,
+          account: null,
+        },
+      },
+    });
+
+    await expect(
+      service.getRegistrationPackagePreview({ schoolId: 3 } as never, 4, 2, 986),
+    ).rejects.toThrow('Parent does not belong to this school');
+  });
+
+  it('returns no parent when the student has no parent link', async () => {
+    const { tx, service } = invoiceTransaction();
+    tx.student.findFirst.mockResolvedValue({ parent: null });
+
+    const preview = await service.getRegistrationPackagePreview(
+      { schoolId: 3 } as never,
+      4,
+      2,
+      986,
+    );
+
+    expect(preview.parent).toBeNull();
+  });
+});
+
+describe('Parent account locking', () => {
+  it('allows a legacy parent when a student in the school links to it', async () => {
+    const { tx, service } = invoiceTransaction({
+      queryRawResults: [[lockedParent]],
+    });
+
+    await expect(
+      (service as unknown as {
+        lockParentAccount: (
+          tx: unknown,
+          schoolId: number,
+          parentId: number,
+        ) => Promise<unknown>;
+      }).lockParentAccount(tx, 3, 7),
+    ).resolves.toEqual(lockedParent);
+
+    const sql = (tx.$queryRaw as jest.Mock).mock.calls[0][0].join(' ');
+    expect(sql).toContain('person.school_id IS NULL');
+    expect(sql).toContain('student.parent_id = parent.id');
+    expect(sql).toContain('student_person.school_id');
+  });
+
+  it('rejects a parent with no school link', async () => {
+    const { tx, service } = invoiceTransaction({
+      queryRawResults: [[]],
+    });
+
+    await expect(
+      (service as unknown as {
+        lockParentAccount: (
+          tx: unknown,
+          schoolId: number,
+          parentId: number,
+        ) => Promise<unknown>;
+      }).lockParentAccount(tx, 3, 7),
+    ).rejects.toThrow('Parent not found');
   });
 });
 

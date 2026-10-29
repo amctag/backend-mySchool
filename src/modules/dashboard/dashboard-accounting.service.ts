@@ -2611,6 +2611,7 @@ export class DashboardAccountingService {
                 firstName: true,
                 middleName: true,
                 lastName: true,
+                schoolId: true,
                 accountId: true,
                 account: {
                   select: { id: true, code: true, schoolId: true },
@@ -2628,6 +2629,12 @@ export class DashboardAccountingService {
       return null;
     }
     const person = student.parent.person;
+    // Parent persons may be legacy/global rows with no school_id. The student
+    // link above is already scoped to the authenticated school, so those rows
+    // are valid. A parent owned by a different school is not.
+    if (person.schoolId !== null && person.schoolId !== schoolId) {
+      throw new BadRequestException('Parent does not belong to this school');
+    }
     const account = person.account;
     const sameSchoolAccount =
       account && account.schoolId === schoolId ? account : null;
@@ -3570,11 +3577,26 @@ export class DashboardAccountingService {
           account.school_id AS "accountSchoolId",
           account.is_group AS "isGroup"
         FROM parents parent
-      JOIN persons person ON person.id = parent.person_id
-      LEFT JOIN accounts account ON account.id = person.account_id
-      WHERE parent.id = ${parentId}
-        AND person.school_id = ${schoolId}
-      FOR UPDATE OF person
+        JOIN persons person ON person.id = parent.person_id
+        LEFT JOIN accounts account ON account.id = person.account_id
+        WHERE parent.id = ${parentId}
+          AND (
+            person.school_id = ${schoolId}
+            OR (
+              -- Legacy/global parent persons have no school_id. They are valid
+              -- for a school only when the student-to-parent link proves the
+              -- relationship belongs to that school.
+              person.school_id IS NULL
+              AND EXISTS (
+                SELECT 1
+                FROM students student
+                JOIN persons student_person ON student_person.id = student.person_id
+                WHERE student.parent_id = parent.id
+                  AND student_person.school_id = ${schoolId}
+              )
+            )
+          )
+        FOR UPDATE OF person
     `;
     if (!locked) {
       throw new NotFoundException('Parent not found');
