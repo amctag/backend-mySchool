@@ -1,30 +1,42 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
+  InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { AuthenticatedDirector } from '../../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../../database/prisma/prisma.service';
-import { DirectorAccessService } from './director-access.service';
 import {
   buildPaginationMeta,
   resolvePagination,
 } from '../../common/dto/pagination-query.dto';
+import { parseDateOnly } from '../teacher/teacher.util';
+import { DirectorAccessService } from './director-access.service';
 import {
-  DirectorAgendasQueryDto,
+  AGENDA_STATUS_DRAFT,
+  AGENDA_STATUS_PUBLISHED,
+  DRAFT_PUBLISHED_DATE,
+  normalizeAgendaTime,
+  parseAgendaDate,
+  prismaErrorCode,
+  resolveAgendaAttachment,
+  toDateOnly,
+} from './director-agenda.helpers';
+import {
   DirectorAgendaItemDto,
+  DirectorAgendasQueryDto,
   DirectorAgendasResponseDto,
+  DirectorUpsertAgendaDto,
 } from './dto/director-agenda.dto';
 import { formatClassLabel } from './director.util';
-import { parseDateOnly } from '../teacher/teacher.util';
-import { Prisma } from '@prisma/client';
 
-export function resolveAgendaAttachment(
-  value: string | null | undefined,
-  existing: string,
-): string {
-  return value == null ? (value === undefined ? existing : '') : value.trim();
-}
+// Kept for backwards compatibility with existing imports/tests.
+export { resolveAgendaAttachment };
+
+const DEFAULT_TIME = '09:00';
 
 const agendaInclude = {
   sections: {
@@ -38,21 +50,107 @@ const agendaInclude = {
     },
   },
   person: {
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      username: true,
-    },
+    select: { id: true, firstName: true, lastName: true, username: true },
   },
 } as const;
 
+type AgendaRow = {
+  id: number;
+  title: string;
+  description: string;
+  agendaDate: Date | null;
+  time: string | null;
+  imageLink: string | null;
+  fileLink: string | null;
+  createdAt: Date | null;
+  status: number;
+};
+
+type PersonRow = {
+  firstName?: string | null;
+  lastName?: string | null;
+  username?: string | null;
+} | null | undefined;
+
+function personName(person: PersonRow): string {
+  if (!person) return '';
+  return (
+    `${person.firstName || ''} ${person.lastName || ''}`.trim() ||
+    person.username ||
+    ''
+  );
+}
+
+function toItem(
+  row: AgendaRow,
+  extra: {
+    assignmentId: number;
+    classId: number;
+    classLabel: string;
+    courseTitle: string;
+    createdBy?: string;
+  },
+): DirectorAgendaItemDto {
+  const date = toDateOnly(row.agendaDate);
+  return {
+    id: row.id,
+    assignmentId: extra.assignmentId,
+    classId: extra.classId,
+    classLabel: extra.classLabel,
+    courseTitle: extra.courseTitle,
+    title: row.title,
+    description: row.description,
+    date,
+    publishDate: date,
+    time: row.time ?? DEFAULT_TIME,
+    imageLink: row.imageLink ?? '',
+    fileLink: row.fileLink ?? '',
+    createdBy: extra.createdBy ?? '',
+    createdAt: toDateOnly(row.createdAt),
+    published: row.status === AGENDA_STATUS_PUBLISHED,
+    status: row.status,
+  };
+}
+
 @Injectable()
 export class DirectorAgendaService {
+  private readonly logger = new Logger(DirectorAgendaService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly directorAccess: DirectorAccessService,
   ) {}
+
+  /**
+   * Runs a mutation and makes sure a failure is never silent: HTTP errors pass
+   * through, known Prisma errors become 4xx, anything else is logged with its
+   * stack trace (so the real cause of a 500 is visible in the server log) and
+   * rethrown as a generic 500.
+   */
+  private async guard<T>(
+    operation: string,
+    user: AuthenticatedDirector,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await fn();
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      const code = prismaErrorCode(error);
+      const context = `agenda.${operation} school=${user.schoolId} person=${user.personId}`;
+      if (code === 'P2000') {
+        throw new BadRequestException('One of the values is too long');
+      }
+      if (code === 'P2003' || code === 'P2025') {
+        throw new BadRequestException('Referenced record does not exist');
+      }
+      this.logger.error(
+        `${context} failed${code ? ` [${code}]` : ''}: ${(error as Error)?.message}`,
+        (error as Error)?.stack,
+      );
+      throw new InternalServerErrorException('Internal server error');
+    }
+  }
 
   private async resolveAssignment(
     user: AuthenticatedDirector,
@@ -72,10 +170,11 @@ export class DirectorAgendaService {
         section: { include: { class: true, sectionTitle: true } },
       },
     });
-    if (!assignment)
+    if (!assignment) {
       throw new BadRequestException(
         'Assignment does not belong to this section, school, or academic year',
       );
+    }
     return assignment;
   }
 
@@ -109,15 +208,13 @@ export class DirectorAgendaService {
         throw new BadRequestException('month must use YYYY-MM format');
       }
       const [year, monthNumber] = month.split('-').map(Number);
-      const start = new Date(Date.UTC(year, monthNumber - 1, 1));
-      if (
-        monthNumber < 1 ||
-        monthNumber > 12 ||
-        Number.isNaN(start.getTime())
-      ) {
+      if (monthNumber < 1 || monthNumber > 12) {
         throw new BadRequestException('month must be a valid calendar month');
       }
-      return { gte: start, lt: new Date(Date.UTC(year, monthNumber, 1)) };
+      return {
+        gte: new Date(Date.UTC(year, monthNumber - 1, 1)),
+        lt: new Date(Date.UTC(year, monthNumber, 1)),
+      };
     }
     return undefined;
   }
@@ -128,8 +225,8 @@ export class DirectorAgendaService {
   ) {
     this.directorAccess.ensureDirectorRole(user.role);
 
-    // Scope the lookup to the director's school and exclude soft-deleted items.
-    // A missing or cross-school agenda returns the same 404 response.
+    // Scoped to the director's school and excluding soft-deleted rows. A
+    // missing and a cross-school agenda return the same 404.
     const agenda = await this.prisma.agenda.findFirst({
       where: {
         id: agendaId,
@@ -138,6 +235,9 @@ export class DirectorAgendaService {
       },
       include: {
         course: { select: { schoolId: true, title: true } },
+        person: {
+          select: { id: true, firstName: true, lastName: true, username: true },
+        },
         sections: {
           include: {
             section: { include: { class: true, sectionTitle: true } },
@@ -149,7 +249,6 @@ export class DirectorAgendaService {
     if (!agenda || !agenda.course) {
       throw new NotFoundException('Agenda item not found');
     }
-
     return { agenda, course: agenda.course };
   }
 
@@ -168,10 +267,7 @@ export class DirectorAgendaService {
     const where: Prisma.AgendaWhereInput = {
       deletedAt: null,
       ...(dateFilter ? { agendaDate: dateFilter } : {}),
-      // School filter: only agendas from courses belonging to the director's school
-      course: {
-        schoolId: user.schoolId,
-      },
+      course: { schoolId: user.schoolId },
     };
 
     const [total, rows] = await this.prisma.$transaction([
@@ -185,12 +281,9 @@ export class DirectorAgendaService {
       }),
     ]);
 
-    // Preload course titles in batch
     const courseIds = [
       ...new Set(
-        rows
-          .map((row) => row.courseId)
-          .filter((id): id is number => id != null),
+        rows.map((row) => row.courseId).filter((id): id is number => id != null),
       ),
     ];
     const courseMap = new Map<number, string>();
@@ -200,20 +293,18 @@ export class DirectorAgendaService {
       });
       courses.forEach((course) => courseMap.set(course.id, course.title ?? ''));
     }
+
     const sectionIds = rows.flatMap((row) =>
       row.sections.map((item) => item.sectionId),
     );
+    const yearId = sectionIds.length
+      ? await this.directorAccess.currentYearId(user.schoolId)
+      : null;
     const teaches = sectionIds.length
       ? await this.prisma.teach.findMany({
           where: {
             sectionId: { in: sectionIds },
-            ...((await this.directorAccess.currentYearId(user.schoolId))
-              ? {
-                  yearId: (await this.directorAccess.currentYearId(
-                    user.schoolId,
-                  ))!,
-                }
-              : {}),
+            ...(yearId ? { yearId } : {}),
           },
           select: { id: true, sectionId: true, courseId: true },
         })
@@ -222,45 +313,24 @@ export class DirectorAgendaService {
     return {
       items: rows.map((row) => {
         const section = row.sections?.[0]?.section;
-        const classId = section?.id ?? 0;
-        const classLabel = section
-          ? formatClassLabel(
-              section.class.className,
-              section.sectionTitle.title,
-            )
-          : '';
-        const person = row.person;
-        const assignmentId =
-          teaches.find(
-            (teach) =>
-              teach.sectionId === section?.id &&
-              teach.courseId === row.courseId,
-          )?.id ?? 0;
-        const createdBy = person
-          ? `${person.firstName || ''} ${person.lastName || ''}`.trim() ||
-            person.username ||
-            ''
-          : '';
-
-        return {
-          id: row.id,
-          assignmentId: assignmentId,
-          classId: classId,
-          classLabel: classLabel,
+        return toItem(row, {
+          assignmentId:
+            teaches.find(
+              (teach) =>
+                teach.sectionId === section?.id &&
+                teach.courseId === row.courseId,
+            )?.id ?? 0,
+          classId: section?.id ?? 0,
+          classLabel: section
+            ? formatClassLabel(
+                section.class.className,
+                section.sectionTitle.title,
+              )
+            : '',
           courseTitle:
             row.courseId != null ? (courseMap.get(row.courseId) ?? '') : '',
-          title: row.title,
-          description: row.description,
-          date: row.agendaDate?.toISOString().split('T')[0] ?? '',
-          publishDate: row.agendaDate?.toISOString().split('T')[0] ?? '',
-          time: row.time ?? '09:00',
-          imageLink: row.imageLink ?? '',
-          fileLink: row.fileLink ?? '',
-          createdBy: createdBy,
-          createdAt: row.createdAt?.toISOString().split('T')[0] ?? '',
-          published: row.status === 1,
-          status: row.status,
-        };
+          createdBy: personName(row.person),
+        });
       }),
       pagination: buildPaginationMeta(page, limit, total),
     };
@@ -270,8 +340,10 @@ export class DirectorAgendaService {
     user: AuthenticatedDirector,
     agendaId: number,
   ): Promise<DirectorAgendaItemDto> {
-    const result = await this.ensureAgendaInDirectorSchool(user, agendaId);
-    const { agenda, course } = result;
+    const { agenda, course } = await this.ensureAgendaInDirectorSchool(
+      user,
+      agendaId,
+    );
     const section = agenda.sections?.[0]?.section;
     const assignment = section
       ? await this.prisma.teach.findFirst({
@@ -284,206 +356,148 @@ export class DirectorAgendaService {
         })
       : null;
 
-    let courseTitle = course.title ?? '';
-
-    return {
-      id: agenda.id,
+    return toItem(agenda, {
       assignmentId: assignment?.id ?? 0,
       classId: section?.id ?? 0,
       classLabel: section
         ? formatClassLabel(section.class.className, section.sectionTitle.title)
         : '',
-      courseTitle,
-      title: agenda.title,
-      description: agenda.description,
-      date: agenda.agendaDate?.toISOString().split('T')[0] ?? '',
-      publishDate: agenda.agendaDate?.toISOString().split('T')[0] ?? '',
-      time: agenda.time ?? '09:00',
-      imageLink: agenda.imageLink ?? '',
-      fileLink: agenda.fileLink ?? '',
-      createdBy: '',
-      createdAt: agenda.createdAt?.toISOString().split('T')[0] ?? '',
-      published: agenda.status === 1,
-      status: agenda.status,
-    };
+      courseTitle: course.title ?? '',
+      createdBy: personName(agenda.person),
+    });
   }
 
   async createAgenda(
     user: AuthenticatedDirector,
-    dto: any,
+    dto: DirectorUpsertAgendaDto,
   ): Promise<DirectorAgendaItemDto> {
     this.directorAccess.ensureDirectorRole(user.role);
+    // Validate everything that can be rejected before touching the database.
+    const agendaDate = parseAgendaDate(dto.date);
+    const time = normalizeAgendaTime(dto.time) ?? DEFAULT_TIME;
 
-    const assignment = await this.resolveAssignment(
-      user,
-      dto.assignmentId,
-      dto.classId,
-    );
+    return this.guard('create', user, async () => {
+      const assignment = await this.resolveAssignment(
+        user,
+        dto.assignmentId,
+        dto.classId,
+      );
+      const published = dto.published === true;
 
-    // When creating, set personId to the director's person and courseId from dto
-    const agenda = await this.prisma.agenda.create({
-      data: {
-        title: dto.title,
-        description: dto.description,
-        agendaDate: dto.date,
-        time: dto.time ?? '09:00',
-        personId: user.personId,
-        courseId: assignment.courseId,
-        imageLink: dto.imageLink ?? '',
-        fileLink: dto.fileLink ?? '',
-        // The schema requires a publication timestamp even for drafts. Keep a
-        // sentinel timestamp while status remains unpublished.
-        publishedDate: dto.published ? new Date() : new Date(0),
-        status: dto.published ? 1 : 0,
-      },
-    });
-
-    await this.prisma.agendaSection.create({
-      data: { agendaId: agenda.id, sectionId: assignment.sectionId },
-    });
-    let courseTitle = '';
-    if (agenda.courseId != null) {
-      const crs = await this.prisma.course.findUnique({
-        where: { id: agenda.courseId },
+      // Agenda + section link are one unit: never leave an orphan agenda.
+      const agenda = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.agenda.create({
+          data: {
+            title: dto.title.trim(),
+            description: dto.description,
+            agendaDate,
+            time,
+            personId: user.personId,
+            courseId: assignment.courseId,
+            imageLink: resolveAgendaAttachment(dto.imageLink, ''),
+            fileLink: resolveAgendaAttachment(dto.fileLink, ''),
+            publishedDate: published ? new Date() : DRAFT_PUBLISHED_DATE,
+            status: published ? AGENDA_STATUS_PUBLISHED : AGENDA_STATUS_DRAFT,
+          },
+        });
+        await tx.agendaSection.create({
+          data: { agendaId: created.id, sectionId: assignment.sectionId },
+        });
+        return created;
       });
-      courseTitle = crs?.title ?? '';
-    }
 
-    return {
-      id: agenda.id,
-      assignmentId: assignment.id,
-      classId: assignment.sectionId,
-      classLabel: formatClassLabel(
-        assignment.section.class.className,
-        assignment.section.sectionTitle.title,
-      ),
-      courseTitle,
-      title: agenda.title,
-      description: agenda.description,
-      date: agenda.agendaDate?.toISOString().split('T')[0] ?? '',
-      publishDate: agenda.agendaDate?.toISOString().split('T')[0] ?? '',
-      time: agenda.time ?? '09:00',
-      imageLink: agenda.imageLink ?? '',
-      fileLink: agenda.fileLink ?? '',
-      createdBy: '',
-      createdAt: agenda.createdAt?.toISOString().split('T')[0] ?? '',
-      published: agenda.status === 1,
-      status: agenda.status,
-    };
+      return toItem(agenda, {
+        assignmentId: assignment.id,
+        classId: assignment.sectionId,
+        classLabel: formatClassLabel(
+          assignment.section.class.className,
+          assignment.section.sectionTitle.title,
+        ),
+        courseTitle: assignment.course?.title ?? '',
+      });
+    });
   }
 
   async updateAgenda(
     user: AuthenticatedDirector,
     agendaId: number,
-    dto: any,
+    dto: DirectorUpsertAgendaDto,
   ): Promise<DirectorAgendaItemDto> {
-    const result = await this.ensureAgendaInDirectorSchool(user, agendaId);
-    const { agenda } = result;
-    const assignment = await this.resolveAssignment(
-      user,
-      dto.assignmentId,
-      dto.classId,
-    );
+    const { agenda } = await this.ensureAgendaInDirectorSchool(user, agendaId);
+    const agendaDate = parseAgendaDate(dto.date);
+    const time = normalizeAgendaTime(dto.time);
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      await tx.agendaSection.deleteMany({ where: { agendaId } });
-      const saved = await tx.agenda.update({
-        where: { id: agendaId },
-        data: {
-          title: dto.title,
-          description: dto.description,
-          agendaDate: dto.date,
-          time: dto.time,
-          courseId: assignment.courseId,
-          imageLink: resolveAgendaAttachment(dto.imageLink, agenda.imageLink),
-          fileLink: resolveAgendaAttachment(dto.fileLink, agenda.fileLink),
-          ...(dto.published === true
-            ? { status: 1, publishedDate: new Date() }
-            : {}),
-        },
+    return this.guard('update', user, async () => {
+      const assignment = await this.resolveAssignment(
+        user,
+        dto.assignmentId,
+        dto.classId,
+      );
+      const publishNow =
+        dto.published === true && agenda.status !== AGENDA_STATUS_PUBLISHED;
+
+      const updated = await this.prisma.$transaction(async (tx) => {
+        await tx.agendaSection.deleteMany({ where: { agendaId } });
+        const saved = await tx.agenda.update({
+          where: { id: agendaId },
+          data: {
+            title: dto.title.trim(),
+            description: dto.description,
+            agendaDate,
+            ...(time ? { time } : {}),
+            // personId is intentionally untouched: the original creator stays.
+            courseId: assignment.courseId,
+            imageLink: resolveAgendaAttachment(
+              dto.imageLink,
+              agenda.imageLink ?? '',
+            ),
+            fileLink: resolveAgendaAttachment(
+              dto.fileLink,
+              agenda.fileLink ?? '',
+            ),
+            ...(publishNow
+              ? {
+                  status: AGENDA_STATUS_PUBLISHED,
+                  publishedDate: new Date(),
+                }
+              : {}),
+          },
+        });
+        await tx.agendaSection.create({
+          data: { agendaId, sectionId: assignment.sectionId },
+        });
+        return saved;
       });
-      await tx.agendaSection.create({
-        data: { agendaId, sectionId: assignment.sectionId },
+
+      return toItem(updated, {
+        assignmentId: assignment.id,
+        classId: assignment.sectionId,
+        classLabel: formatClassLabel(
+          assignment.section.class.className,
+          assignment.section.sectionTitle.title,
+        ),
+        courseTitle: assignment.course?.title ?? '',
+        createdBy: personName(agenda.person),
       });
-      return saved;
     });
-
-    let courseTitle = '';
-    if (updated.courseId != null) {
-      const course = await this.prisma.course.findUnique({
-        where: { id: updated.courseId },
-      });
-      courseTitle = course?.title ?? '';
-    }
-
-    return {
-      id: updated.id,
-      assignmentId: assignment.id,
-      classId: assignment.sectionId,
-      classLabel: formatClassLabel(
-        assignment.section.class.className,
-        assignment.section.sectionTitle.title,
-      ),
-      courseTitle,
-      title: updated.title,
-      description: updated.description,
-      date: updated.agendaDate?.toISOString().split('T')[0] ?? '',
-      publishDate: updated.agendaDate?.toISOString().split('T')[0] ?? '',
-      time: updated.time ?? '09:00',
-      imageLink: updated.imageLink ?? '',
-      fileLink: updated.fileLink ?? '',
-      createdBy: '',
-      createdAt: updated.createdAt?.toISOString().split('T')[0] ?? '',
-      published: updated.status === 1,
-      status: updated.status,
-    };
   }
 
   async publishAgenda(
     user: AuthenticatedDirector,
     agendaId: number,
   ): Promise<DirectorAgendaItemDto> {
-    const result = await this.ensureAgendaInDirectorSchool(user, agendaId);
-    const { agenda } = result;
+    const { agenda } = await this.ensureAgendaInDirectorSchool(user, agendaId);
 
-    // Only allow publishing draft agendas (status 0)
-    // If already published, just return the existing agenda
-    if (agenda.status === 1) {
+    return this.guard('publish', user, async () => {
+      if (agenda.status !== AGENDA_STATUS_PUBLISHED) {
+        await this.prisma.agenda.update({
+          where: { id: agendaId },
+          data: { status: AGENDA_STATUS_PUBLISHED, publishedDate: new Date() },
+        });
+      }
+      // Re-read so the response carries the real assignment/class/status.
       return this.getAgenda(user, agendaId);
-    }
-
-    const updated = await this.prisma.agenda.update({
-      where: { id: agendaId },
-      data: {
-        status: 1,
-        publishedDate: new Date(),
-      },
     });
-
-    let courseTitle = '';
-    if (updated.courseId != null) {
-      const course = await this.prisma.course.findUnique({
-        where: { id: updated.courseId },
-      });
-      courseTitle = course?.title ?? '';
-    }
-
-    return {
-      id: updated.id,
-      assignmentId: updated.id,
-      classId: updated.personId ?? 0,
-      classLabel: '',
-      courseTitle,
-      title: updated.title,
-      description: updated.description,
-      date: updated.agendaDate?.toISOString().split('T')[0] ?? '',
-      publishDate: updated.agendaDate?.toISOString().split('T')[0] ?? '',
-      time: updated.time ?? '09:00',
-      imageLink: updated.imageLink ?? '',
-      fileLink: updated.fileLink ?? '',
-      createdBy: '',
-      createdAt: updated.createdAt?.toISOString().split('T')[0] ?? '',
-    };
   }
 
   async deleteAgenda(
@@ -492,11 +506,12 @@ export class DirectorAgendaService {
   ): Promise<boolean> {
     await this.ensureAgendaInDirectorSchool(user, agendaId);
 
-    await this.prisma.agenda.update({
-      where: { id: agendaId },
-      data: { deletedAt: new Date() },
+    return this.guard('delete', user, async () => {
+      await this.prisma.agenda.update({
+        where: { id: agendaId },
+        data: { deletedAt: new Date() },
+      });
+      return true;
     });
-
-    return true;
   }
 }

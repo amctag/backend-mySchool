@@ -1,6 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { PaginationMetaDto } from '../../../common/dto/pagination-meta.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
@@ -22,13 +32,13 @@ export class DirectorAgendaItemDto {
   @ApiProperty({ example: 1 })
   id!: number;
 
-  @ApiProperty({ example: 1 })
+  @ApiProperty({ example: 1, description: 'Teach.id' })
   assignmentId!: number;
 
-  @ApiProperty({ example: 1 })
+  @ApiProperty({ example: 1, description: 'Section id (Teach.sectionId)' })
   classId!: number;
 
-  @ApiProperty({ example: 'Grade 4' })
+  @ApiProperty({ example: 'Grade 4 - A' })
   classLabel!: string;
 
   @ApiProperty({ example: 'Mathematics' })
@@ -59,14 +69,17 @@ export class DirectorAgendaItemDto {
   @ApiProperty({ example: 'https://cdn.example.com/agendas/file.pdf' })
   fileLink!: string;
 
-  @ApiProperty({ example: '' })
+  @ApiProperty({ example: 'Jane Doe' })
   createdBy!: string;
 
   @ApiProperty({ example: '2025-01-15' })
   createdAt!: string;
 
-  published?: boolean;
-  status?: number;
+  @ApiProperty({ example: false })
+  published!: boolean;
+
+  @ApiProperty({ example: 0, description: '0 = draft, 1 = published' })
+  status!: number;
 }
 
 export class DirectorAgendasResponseDto {
@@ -78,13 +91,48 @@ export class DirectorAgendasResponseDto {
 }
 
 export class DirectorUpsertAgendaDto {
-  @IsInt() @Min(1) assignmentId!: number;
-  @IsInt() @Min(1) classId!: number;
-  @IsString() title!: string;
-  @IsString() description!: string;
-  @IsString() date!: string;
-  @IsOptional() @IsString() imageLink?: string;
-  @IsOptional() @IsString() fileLink?: string;
-  @IsOptional() @IsString() time?: string;
-  @IsOptional() @IsBoolean() published?: boolean;
+  @ApiProperty({ example: 10, description: 'Teach.id' })
+  @IsInt()
+  @Min(1)
+  assignmentId!: number;
+
+  @ApiProperty({ example: 20, description: 'Section id; must match the assignment' })
+  @IsInt()
+  @Min(1)
+  classId!: number;
+
+  @ApiProperty({ example: 'Mathematics' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  title!: string;
+
+  @ApiProperty({ example: 'Chapter 3 exercises' })
+  @IsString()
+  @IsNotEmpty()
+  description!: string;
+
+  @ApiProperty({ example: '2026-10-29', description: 'YYYY-MM-DD or ISO-8601; only the calendar day is used' })
+  @IsDateString()
+  date!: string;
+
+  @ApiPropertyOptional({ description: 'Omit to keep, "" to remove, URL to replace' })
+  @IsOptional()
+  @IsString()
+  imageLink?: string;
+
+  @ApiPropertyOptional({ description: 'Omit to keep, "" to remove, URL to replace' })
+  @IsOptional()
+  @IsString()
+  fileLink?: string;
+
+  @ApiPropertyOptional({ example: '09:00' })
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, { message: 'time must be HH:mm' })
+  time?: string;
+
+  @ApiPropertyOptional({ example: false, description: 'true publishes; false keeps the current state (new agendas become drafts)' })
+  @IsOptional()
+  @IsBoolean()
+  published?: boolean;
 }

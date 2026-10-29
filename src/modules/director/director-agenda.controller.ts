@@ -5,6 +5,7 @@ import {
   Post,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Query,
   Req,
@@ -65,7 +66,7 @@ export class DirectorAgendaController {
   })
   getAgenda(
     @Req() request: { user: AuthenticatedDirector },
-    @Param('id') agendaId: number,
+    @Param('id', ParseIntPipe) agendaId: number,
   ): Promise<DirectorAgendaItemDto> {
     return this.directorAgendaService.getAgenda(request.user, agendaId);
   }
@@ -101,7 +102,7 @@ export class DirectorAgendaController {
   })
   updateAgenda(
     @Req() request: { user: AuthenticatedDirector },
-    @Param('id') agendaId: number,
+    @Param('id', ParseIntPipe) agendaId: number,
     @Body() dto: DirectorUpsertAgendaDto,
   ): Promise<DirectorAgendaItemDto> {
     return this.directorAgendaService.updateAgenda(request.user, agendaId, dto);
@@ -121,7 +122,7 @@ export class DirectorAgendaController {
   })
   publishAgenda(
     @Req() request: { user: AuthenticatedDirector },
-    @Param('id') agendaId: number,
+    @Param('id', ParseIntPipe) agendaId: number,
   ): Promise<DirectorAgendaItemDto> {
     return this.directorAgendaService.publishAgenda(request.user, agendaId);
   }
@@ -138,7 +139,7 @@ export class DirectorAgendaController {
   })
   deleteAgenda(
     @Req() request: { user: AuthenticatedDirector },
-    @Param('id') agendaId: number,
+    @Param('id', ParseIntPipe) agendaId: number,
   ): Promise<boolean> {
     return this.directorAgendaService.deleteAgenda(request.user, agendaId);
   }

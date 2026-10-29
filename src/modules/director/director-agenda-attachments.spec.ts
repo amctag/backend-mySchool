@@ -9,6 +9,9 @@ describe('Director agenda attachment updates', () => {
       it('removes the reference with an empty string', () => {
         expect(resolveAgendaAttachment('', 'https://old.example/file')).toBe('');
       });
+      it('never yields null (NOT NULL column)', () => {
+        expect(resolveAgendaAttachment(null, 'https://old.example/file')).toBe('');
+      });
       it('replaces the reference with a non-empty URL', () => {
         expect(resolveAgendaAttachment(' https://new.example/file ', 'old')).toBe('https://new.example/file');
       });
