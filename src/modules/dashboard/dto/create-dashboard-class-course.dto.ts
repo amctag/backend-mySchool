@@ -47,7 +47,6 @@ export class CreateDashboardClassCourseDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  @Max(99)
   coefficient?: number;
 
   @ApiPropertyOptional({ example: 5 })

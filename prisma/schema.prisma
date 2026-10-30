@@ -10,6 +10,9 @@ model School {
   id                         Int      @id @default(autoincrement())
   name                       String   @db.VarChar(255)
   email                      String   @unique @db.VarChar(255)
+  logo                       String?  @db.VarChar(500)
+  phone                      String?  @db.VarChar(50)
+  address                    String?  @db.VarChar(500)
   password                   String   @db.VarChar(255)
   isActive                   Boolean  @default(true) @map("is_active")
   teachersSeeAllClassCourses Boolean  @default(true) @map("teachers_see_all_class_courses")
@@ -387,7 +390,7 @@ model ClassCourse {
   classId       Int      @map("class_id")
   courseId      Int      @map("course_id")
   yearId        Int      @map("year_id")
-  coefficient   Decimal  @default(1.0) @db.Decimal(4, 2)
+  coefficient   Decimal  @default(1.0) @db.Decimal(10, 2)
   numberOfHours Int?     @map("number_of_hours") @db.SmallInt
   calculation   Boolean  @default(true)
   position      Int      @default(0) @db.SmallInt

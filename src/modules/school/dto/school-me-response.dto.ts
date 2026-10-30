@@ -12,4 +12,13 @@ export class SchoolMeResponseDto {
 
   @ApiProperty({ example: 'school' })
   role!: 'school';
+
+  @ApiProperty({ required: false, nullable: true })
+  logo!: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  phone!: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  address!: string | null;
 }

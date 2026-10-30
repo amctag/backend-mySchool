@@ -19,6 +19,10 @@ export const ATTENDANCE_MODES = ['school', 'teacher', 'teacher_course'] as const
 export type AttendanceModeSetting = (typeof ATTENDANCE_MODES)[number];
 
 export class DashboardSchoolSettingsDto {
+  @ApiProperty({ required: false, nullable: true }) logo!: string | null;
+  @ApiProperty({ required: false, nullable: true }) name!: string | null;
+  @ApiProperty({ required: false, nullable: true }) phone!: string | null;
+  @ApiProperty({ required: false, nullable: true }) address!: string | null;
   @ApiProperty({ example: 1 })
   schoolId!: number;
 
@@ -53,6 +57,10 @@ export class DashboardSchoolSettingsDto {
 }
 
 export class UpdateDashboardSchoolSettingsDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() name?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() phone?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() address?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() logo?: string;
   @ApiPropertyOptional({
     example: false,
     description:

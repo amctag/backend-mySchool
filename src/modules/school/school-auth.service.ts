@@ -106,6 +106,9 @@ export class SchoolAuthService {
       name: school.name,
       email: school.email,
       role: 'school',
+      logo: school.logo,
+      phone: school.phone,
+      address: school.address,
     };
   }
 
