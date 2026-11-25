@@ -13,6 +13,7 @@ import {
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { ParentFcmNotifyService } from '../../fcm/parent-fcm-notify.service';
 import { TeacherAccessService } from './teacher-access.service';
+import { studentNameFromRow } from '../dashboard/student-name';
 import { TeacherMessageResponseDto } from './dto/teacher-auth.dto';
 import {
   SaveTeacherGradeSheetDto,
@@ -27,7 +28,6 @@ import {
 import {
   formatClassLabel,
   formatDateOnly,
-  formatFullName,
   parseDateOnly,
 } from './teacher.util';
 
@@ -209,6 +209,11 @@ export class TeacherGradesService {
               person: {
                 select: { firstName: true, middleName: true, lastName: true },
               },
+              parent: {
+                select: {
+                  person: { select: { firstName: true, lastName: true } },
+                },
+              },
             },
           },
         },
@@ -292,7 +297,7 @@ export class TeacherGradesService {
         return {
           registrationId: registration.id,
           studentId: registration.student.id,
-          fullName: formatFullName(registration.student.person),
+          fullName: studentNameFromRow(registration.student).studentFullName,
           seatNumber: index + 1,
           score: detail?.grade == null ? null : Number(detail.grade),
           comment: detail?.comment ?? null,

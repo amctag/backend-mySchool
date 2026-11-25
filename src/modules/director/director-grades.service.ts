@@ -11,6 +11,7 @@ import {
   resolvePagination,
 } from '../../common/dto/pagination-query.dto';
 import { DirectorAccessService } from './director-access.service';
+import { studentNameFromRow } from '../dashboard/student-name';
 import {
   DirectorGradeDetailDto,
   DirectorGradeEntryQueryDto,
@@ -312,7 +313,19 @@ export class DirectorGradesService {
           sectionTitle: true,
           registrations: {
             where: { status: true },
-            include: { student: { include: { person: true } }, person: true },
+            include: {
+              student: {
+                include: {
+                  person: true,
+                  parent: {
+                    select: {
+                      person: { select: { firstName: true, lastName: true } },
+                    },
+                  },
+                },
+              },
+              person: true,
+            },
             orderBy: { id: 'asc' },
           },
         },
@@ -333,7 +346,19 @@ export class DirectorGradesService {
         sectionTitle: true,
         registrations: {
           where: { status: true },
-          include: { student: { include: { person: true } }, person: true },
+          include: {
+            student: {
+              include: {
+                person: true,
+                parent: {
+                  select: {
+                    person: { select: { firstName: true, lastName: true } },
+                  },
+                },
+              },
+            },
+            person: true,
+          },
         },
       },
     });
@@ -412,12 +437,19 @@ export class DirectorGradesService {
       students: r.section.registrations.map((x: any, i: number) => {
         const d: any = map.get(x.id);
         const p = x.student?.person ?? x.person;
+        const name = studentNameFromRow(x.student);
+        const fullName = [
+          name.studentFirstName,
+          name.fatherFirstName,
+          name.familyName,
+        ]
+          .filter((part): part is string => Boolean(part))
+          .filter((part, index, parts) => parts.indexOf(part) === index)
+          .join(' ');
         return {
           registrationId: x.id,
           studentId: x.studentId,
-          fullName: [p?.firstName, p?.middleName, p?.lastName]
-            .filter(Boolean)
-            .join(' '),
+          fullName: fullName || p?.firstName?.trim() || '',
           seatNumber: i + 1,
           score: d?.grade == null ? null : Number(d.grade),
           comment: d?.comment ?? null,
