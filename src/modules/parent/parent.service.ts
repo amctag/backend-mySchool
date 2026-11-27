@@ -949,6 +949,21 @@ export class ParentService {
     const students: ParentGradesResponseDto['students'] = [];
 
     for (const context of studentContexts) {
+      const school = await this.prisma.school.findUnique({
+        where: { id: context.schoolId },
+        select: { gradesVisibleToParentsAndStudents: true },
+      });
+      if (!school?.gradesVisibleToParentsAndStudents) {
+        students.push({
+          studentId: context.studentId, registrationId: context.registrationId,
+          studentName: context.studentName, schoolId: context.schoolId,
+          schoolName: context.schoolName, className: context.className,
+          classId: context.classId, sectionName: context.sectionName,
+          sectionId: context.sectionId, yearId: context.yearId,
+          yearTitle: context.yearTitle, grades: [],
+        });
+        continue;
+      }
       const gradeSheets = await this.prisma.grade.findMany({
         where: {
           schoolId: context.schoolId,
@@ -1033,6 +1048,22 @@ export class ParentService {
       throw new NotFoundException('Registration not found');
     }
 
+    const school = await this.prisma.school.findUnique({
+      where: { id: match.schoolId },
+      select: { gradesVisibleToParentsAndStudents: true },
+    });
+    if (!school?.gradesVisibleToParentsAndStudents) {
+      return this.dashboardGradesService.getGradeCardForSchool(match.schoolId, {
+        registrationId: match.registrationId,
+        yearId: match.yearId,
+        classId: match.classId,
+        sectionId: match.sectionId,
+        publishedOnly: true,
+        externalVisibility: true,
+        hideGrades: true,
+      });
+    }
+
     if (query.yearId !== undefined && query.yearId !== match.yearId) {
       throw new BadRequestException(
         'Registration does not match the selected year',
@@ -1054,6 +1085,8 @@ export class ParentService {
       yearId: match.yearId,
       classId: match.classId,
       sectionId: match.sectionId,
+      publishedOnly: true,
+      externalVisibility: true,
     });
   }
 

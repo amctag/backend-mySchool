@@ -24,6 +24,7 @@ export class DashboardSchoolSettingsService {
         attendanceMode: true,
         teachersCanPublishAgenda: true,
         teachersCanPublishGrades: true,
+        gradesVisibleToParentsAndStudents: true,
       },
     });
     if (!school) {
@@ -62,6 +63,9 @@ export class DashboardSchoolSettingsService {
         ...(dto.teachersCanPublishGrades !== undefined
           ? { teachersCanPublishGrades: dto.teachersCanPublishGrades }
           : {}),
+        ...(dto.gradesVisibleToParentsAndStudents !== undefined
+          ? { gradesVisibleToParentsAndStudents: dto.gradesVisibleToParentsAndStudents }
+          : {}),
       },
       select: {
         id: true,
@@ -70,6 +74,7 @@ export class DashboardSchoolSettingsService {
         attendanceMode: true,
         teachersCanPublishAgenda: true,
         teachersCanPublishGrades: true,
+        gradesVisibleToParentsAndStudents: true,
       },
     });
     return this.toDto(school);
@@ -82,6 +87,7 @@ export class DashboardSchoolSettingsService {
     attendanceMode: string;
     teachersCanPublishAgenda: boolean;
     teachersCanPublishGrades: boolean;
+    gradesVisibleToParentsAndStudents: boolean;
   }): DashboardSchoolSettingsDto {
     return {
       schoolId: school.id,
@@ -92,6 +98,7 @@ export class DashboardSchoolSettingsService {
       ) as AttendanceModeSetting,
       teachersCanPublishAgenda: school.teachersCanPublishAgenda,
       teachersCanPublishGrades: school.teachersCanPublishGrades,
+      gradesVisibleToParentsAndStudents: school.gradesVisibleToParentsAndStudents,
     };
   }
 }

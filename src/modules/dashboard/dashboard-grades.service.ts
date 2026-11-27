@@ -24,6 +24,11 @@ import { SaveDashboardGradeTypeDto } from './dto/save-dashboard-grade-type.dto';
 import { DashboardGradeTypeListItemDto } from './dto/dashboard-grade-types-list-response.dto';
 import { studentNameFromRow } from './student-name';
 
+type AbstractGradeRecipe = {
+  gradeTypeId: number;
+  sources: Array<{ sourceGradeTypeId: number; percentage: number }>;
+};
+
 const DASHBOARD_CREATOR_PERSON_ID = 1;
 const DEFAULT_MAX_GRADE = 100;
 
@@ -370,10 +375,11 @@ export class DashboardGradesService {
 
     const gradeFormDetails = allFormDetails.filter((item) => item.isVisible);
     const courseIds = classCourses.map((item) => item.courseId);
-    const abstractTypeIds = new Set(
-      allFormDetails
-        .filter((item) => item.gradeType.isAbstract)
-        .map((item) => item.gradeTypeId),
+    // Only abstract types with a usable expression are calculated; an abstract
+    // type without one is entered directly, so its saved scores are shown.
+    const abstractRecipes = this.buildAbstractRecipes(allFormDetails);
+    const calculatedTypeIds = new Set(
+      abstractRecipes.map((item) => item.gradeTypeId),
     );
     const gradeTypeIds = Array.from(
       new Set(
@@ -385,7 +391,7 @@ export class DashboardGradesService {
     );
 
     const gradeDetails =
-      courseIds.length > 0
+      courseIds.length > 0 && !query.hideGrades
         ? await this.prisma.gradeDetail.findMany({
             where: {
               registrationId: registration.id,
@@ -393,6 +399,7 @@ export class DashboardGradesService {
                 schoolId,
                 sectionId: section.id,
                 courseId: { in: courseIds },
+                ...(query.publishedOnly ? { publishDate: { not: null, lte: new Date() } } : {}),
                 ...(gradeTypeIds.length > 0
                   ? { gradeTypeId: { in: gradeTypeIds } }
                   : {}),
@@ -426,7 +433,7 @@ export class DashboardGradesService {
         continue;
       }
 
-      if (abstractTypeIds.has(gradeTypeId)) {
+      if (calculatedTypeIds.has(gradeTypeId)) {
         continue;
       }
 
@@ -439,7 +446,7 @@ export class DashboardGradesService {
       };
     }
 
-    this.applyAbstractGradeScores(courseIds, allFormDetails, cells);
+    this.applyAbstractGradeScores(courseIds, abstractRecipes, cells);
 
     const averageScale = Number(gradeFormRow?.average ?? 0);
     const passMinimum = Number(gradeFormRow?.minimum ?? 0);
@@ -449,7 +456,7 @@ export class DashboardGradesService {
       0,
     );
     const summaryTypeIds = gradeFormDetails
-      .filter((item) => !item.gradeType.isAbstract)
+      .filter((item) => !calculatedTypeIds.has(item.gradeTypeId))
       .map((item) => item.gradeTypeId);
 
     const courses = classCourses.map((item) => {
@@ -542,6 +549,7 @@ export class DashboardGradesService {
     });
 
     return {
+      gradesAvailable: !query.hideGrades,
       student: {
         registrationId: registration.id,
         studentId: registration.student.id,
@@ -711,8 +719,7 @@ export class DashboardGradesService {
     };
   }
 
-  private applyAbstractGradeScores(
-    courseIds: number[],
+  private buildAbstractRecipes(
     formDetails: Array<{
       gradeTypeId: number;
       gradeType: { isAbstract: boolean };
@@ -721,9 +728,8 @@ export class DashboardGradesService {
         percentage: Prisma.Decimal | number;
       }>;
     }>,
-    cells: Record<string, DashboardGradeCardCellDto>,
-  ): void {
-    const recipes = formDetails
+  ): AbstractGradeRecipe[] {
+    return formDetails
       .filter((item) => item.gradeType.isAbstract)
       .map((item) => ({
         gradeTypeId: item.gradeTypeId,
@@ -745,7 +751,13 @@ export class DashboardGradesService {
         }),
       }))
       .filter((item) => item.sources.length > 0);
+  }
 
+  private applyAbstractGradeScores(
+    courseIds: number[],
+    recipes: AbstractGradeRecipe[],
+    cells: Record<string, DashboardGradeCardCellDto>,
+  ): void {
     if (recipes.length === 0) {
       return;
     }

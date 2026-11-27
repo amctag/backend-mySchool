@@ -54,6 +54,12 @@ export class DashboardSchoolSettingsDto {
       'When true, teachers can publish grades to parents. When false, teachers only save drafts and supervisors (or the school) publish them.',
   })
   teachersCanPublishGrades!: boolean;
+
+  @ApiProperty({
+    example: true,
+    description: 'When false, parents and students cannot view any grades for this school.',
+  })
+  gradesVisibleToParentsAndStudents!: boolean;
 }
 
 export class UpdateDashboardSchoolSettingsDto {
@@ -101,4 +107,12 @@ export class UpdateDashboardSchoolSettingsDto {
   @Transform(toOptionalBoolean)
   @IsBoolean()
   teachersCanPublishGrades?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Allow parents and students to view published grades.',
+  })
+  @Transform(toOptionalBoolean)
+  @IsOptional()
+  @IsBoolean()
+  gradesVisibleToParentsAndStudents?: boolean;
 }

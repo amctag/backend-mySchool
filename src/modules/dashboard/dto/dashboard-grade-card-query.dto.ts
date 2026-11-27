@@ -38,4 +38,9 @@ export class DashboardGradeCardQueryDto {
   @IsInt()
   @Min(1)
   sectionId?: number;
+
+  /** Internal-only flags used by authorized parent/student callers. */
+  publishedOnly?: boolean;
+  externalVisibility?: boolean;
+  hideGrades?: boolean;
 }

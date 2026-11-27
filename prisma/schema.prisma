@@ -21,6 +21,7 @@ model School {
   attendancePerCourse        Boolean  @default(false) @map("attendance_per_course")
   teachersCanPublishAgenda   Boolean  @default(true) @map("teachers_can_publish_agenda")
   teachersCanPublishGrades   Boolean  @default(true) @map("teachers_can_publish_grades")
+  gradesVisibleToParentsAndStudents Boolean @default(true) @map("grades_visible_to_parents_and_students")
   createdAt                  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

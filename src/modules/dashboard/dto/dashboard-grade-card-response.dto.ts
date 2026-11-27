@@ -179,6 +179,12 @@ export class DashboardGradeCardCellDto {
 }
 
 export class DashboardGradeCardResponseDto {
+  @ApiProperty({
+    example: true,
+    description: 'Whether grade values are available to the external caller.',
+  })
+  gradesAvailable!: boolean;
+
   @ApiProperty({ type: DashboardGradeCardStudentDto })
   student!: DashboardGradeCardStudentDto;
 
